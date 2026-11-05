@@ -3,87 +3,145 @@ L	1	CC BY-SA 3.0	https://creativecommons.org/licenses/by-sa/3.0/
 L	2	CC BY 3.0 us	https://creativecommons.org/licenses/by/3.0/us/
 L	3	Public domain	
 L	4	CC BY 3.0	https://creativecommons.org/licenses/by/3.0/
-L	5	CC BY-SA 2.5	https://creativecommons.org/licenses/by-sa/2.5/
-L	6	GFDL	
-L	7	CC0	https://creativecommons.org/publicdomain/zero/1.0/
-L	8	CC BY 2.0 de	https://creativecommons.org/licenses/by/2.0/de/
-L	9	CC BY 2.5	https://creativecommons.org/licenses/by/2.5/
-L	10	CC BY 4.0	https://creativecommons.org/licenses/by/4.0/
+L	5	CC0	https://creativecommons.org/publicdomain/zero/1.0/
+L	6	CC BY-SA 2.5	https://creativecommons.org/licenses/by-sa/2.5/
+L	7	GFDL	
+L	8	CC BY 4.0	https://creativecommons.org/licenses/by/4.0/
+L	9	CC BY 2.0 de	https://creativecommons.org/licenses/by/2.0/de/
+L	10	CC BY 2.5	https://creativecommons.org/licenses/by/2.5/
 L	11	CC BY-SA 2.0	https://creativecommons.org/licenses/by-sa/2.0/
 A	0	Jeuwre
 A	1	Kampy
-A	2	joni
-A	3	Dinock90
-A	4	T.Voekler
-A	5	Katrin Boxberger, Bernadette Perrin-Riou
-A	6	Jakob.scholbach
-A	7	User:Tosca
+A	2	Jakob.scholbach
+A	3	Lars Engelmann
+A	4	joni
+A	5	T.Voekler
+A	6	Katrin Boxberger, Bernadette Perrin-Riou
+A	7	Dinock90
 A	8	MiER
 A	9	Bleibein
-A	10	StMH
+A	10	Oceancetaceen Alice Chodura
 A	11	Gbeckmann
-A	12	Holunder Gabriel
-A	13	Lars Engelmann
-A	14	Balû
-A	15	Hedwig von Ebbel
-A	16	Oceancetaceen Alice Chodura
-A	17	Pill
-A	18	Edward Montgomery Harrington
-A	19	Arnim Faryn
-A	20	Fojhtirf
-A	21	Hans-Joachim Fröde; alias Acf; native speaker
-A	22	Frank C. Müller , Frankfurt am Main
-A	23	GerardM
-A	24	Sandro Wittassek
-A	25	Anhezu
-A	26	Erkan Yilmaz
-A	27	RubenKelevra
+A	12	StMH
+A	13	User:Tosca
+A	14	Holunder Gabriel
+A	15	Balû
+A	16	Frank C. Müller , Frankfurt am Main
+A	17	GerardM
+A	18	Hedwig von Ebbel
+A	19	Edward Montgomery Harrington
+A	20	Pill
+A	21	Anhezu
+A	22	Arnim Faryn
+A	23	Sebastian Negraszus
+A	24	Frank C. Müller
+A	25	Longbow4u
+A	26	Fojhtirf
+A	27	German words
 A	28	SabineWanner
-A	29	Netzize~commonswiki
-A	30	Sicherlich
-A	31	Achim Raschka ( talk )
-A	32	Gestumblindi
-A	33	Joni~commonswiki
-A	34	Leni Berlin
-A	35	Longbow4u
-A	36	Sebastian Negraszus
-A	37	Ralf Lotys (Sicherlich)
-A	38	Pajz
-A	39	Redlinux
-A	40	Timwi at English Wikipedia
-A	41	jeuwre
-A	42	Association Shtooka, Bernadette Perrin-Riou
-A	43	Association Shtooka, Katrin Boxberger
-A	44	Church of emacs
-A	45	Er.du
-A	46	Frank C. Müller
-A	47	Hschier
-A	48	Olessi
-A	49	S.~commonswiki
-A	50	ADarkHero
-A	51	Avraham
-A	52	Beagle Beck
-A	53	Der Abendrotbaum
-A	54	DerWambo
-A	55	Diako1971
-A	56	Eichhornleib
-A	57	Freyli
-A	58	GeoTrinity
-A	59	JDL09Organic
-A	60	Ja Siggi
-A	61	Jan Schreiber
-A	62	Joergws
-A	63	Joni
-A	64	Ludger1961
-A	65	Lukehrm
-A	66	Manecke
-A	67	Mosesmal
-A	68	Peter Isotalo
-A	69	Ralf Lotys (Sicherlich) with: Audacity 1.2.2
-A	70	Reinsberg
-A	71	Sowndi
-A	72	Speaker: Michael Schoenitzer Recorder: MichaelSchoenitzer
-A	73	Starvinmarvin at English Wikipedia
-A	74	Torsten-P
-A	75	Tosca
-A	76	uploader, user:pill
+A	29	Sandro Wittassek
+A	30	Gestumblindi
+A	31	Erkan Yilmaz
+A	32	Hans-Joachim Fröde; alias Acf; native speaker
+A	33	Ralf Lotys (Sicherlich)
+A	34	Diako1971
+A	35	Er.du
+A	36	Jberkel
+A	37	Netzize~commonswiki
+A	38	RubenKelevra
+A	39	Julian Freyer
+A	40	Leni Berlin
+A	41	Sicherlich
+A	42	Thegurke
+A	43	Achim Raschka ( talk )
+A	44	Kronf
+A	45	Olessi
+A	46	Redlinux
+A	47	Speaker: Sebastian Wallroth Recorder: Sebastian Wallroth
+A	48	Ännz Rainy
+A	49	Joni~commonswiki
+A	50	Manecke
+A	51	Speaker: Frank C. Müller Recorder: Frank C. Müller
+A	52	GeoTrinity
+A	53	Ozelot911
+A	54	Pajz
+A	55	Timwi at English Wikipedia
+A	56	Association Shtooka, Katrin Boxberger
+A	57	PantheraLeo1359531
+A	58	Pogomeister
+A	59	Sebastian Kamper
+A	60	Torsten-P
+A	61	jeuwre
+A	62	Abani79
+A	63	Association Shtooka, Bernadette Perrin-Riou
+A	64	Church of emacs
+A	65	Hschier
+A	66	IGEL
+A	67	Infovarius
+A	68	Joterr
+A	69	Lukehrm
+A	70	Peter Isotalo
+A	71	Ralf Lotys (Sicherlich) with: Audacity 1.2.2
+A	72	S.~commonswiki
+A	73	Sowndi
+A	74	Stefan Noack
+A	75	Ubahnverleih
+A	76	Zylinder~commonswiki
+A	77	3of8
+A	78	ADarkHero
+A	79	Achim Raschka
+A	80	Adrian
+A	81	Aschmidt
+A	82	Atcap
+A	83	Avraham
+A	84	Bangin
+A	85	Beagle Beck
+A	86	Created by joni
+A	87	Der Abendrotbaum
+A	88	DerWambo
+A	89	Diggle12
+A	90	Dschwen
+A	91	Dundak
+A	92	Eichhornleib
+A	93	Elvaube
+A	94	FreeMediaKid!
+A	95	Freyli
+A	96	Gilberd.gisbert
+A	97	J. Lunau
+A	98	JDL09Organic
+A	99	Ja Siggi
+A	100	Jan Schreiber
+A	101	Joergws
+A	102	Joni
+A	103	Kappardor
+A	104	LardAlemagne01
+A	105	Ludger1961
+A	106	MSh
+A	107	Max1260
+A	108	Mosesmal
+A	109	Nimmerwelk
+A	110	Olga Ernst
+A	111	PKHG
+A	112	Patneu
+A	113	Reinsberg
+A	114	Roman Leskau
+A	115	SabineCretella
+A	116	Sebastian Wallroth
+A	117	Servus heinz
+A	118	Singpferd
+A	119	Speaker: AndiPersti Recorder: AndiPersti
+A	120	Speaker: Djknusper Recorder: Djknusper
+A	121	Speaker: Lucas Werkmeister Recorder: Lucas Werkmeister
+A	122	Speaker: Michael Schoenitzer Recorder: MichaelSchoenitzer
+A	123	Speaker: Mighty Wire Recorder: Mighty Wire
+A	124	Speaker: Wkrętarka Recorder: Wkrętarka
+A	125	Starvinmarvin at English Wikipedia
+A	126	Tincian1990
+A	127	Tino no
+A	128	Tofu
+A	129	Tosca
+A	130	Treuwre
+A	131	User:Pill
+A	132	Yeti
+A	133	qubodup
+A	134	uploader, user:pill
