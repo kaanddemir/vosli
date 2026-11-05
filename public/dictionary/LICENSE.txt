@@ -1,0 +1,14 @@
+Vosli dictionary data
+
+Source: German Wiktionary (https://de.wiktionary.org/) by its contributors, data dump of
+2026-11-01, via Kaikki.org (https://kaikki.org/dewiktionary/rawdata.html).
+
+Changes: reduced to German entries and selected fields, reformatted as sorted text.
+
+License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+This license covers these data files, not the app. Wiktionary does not endorse this app.
+
+Pronunciation: lemmas.txt names, for many words, a recording on Wikimedia Commons
+(https://commons.wikimedia.org/), and audio-credits.txt lists their authors and licenses.
+The recordings themselves are not part of these files; the app loads each from Commons when
+asked, under its own license, which the word's page in the app names with a link to its source.

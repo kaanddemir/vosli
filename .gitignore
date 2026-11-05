@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dev-dist/
+coverage/
+playwright-report/
+test-results/
+*.local
+.DS_Store
+# Course PDFs stay out of the repository.
+*.pdf
+# Local-only regression material: course PDFs and what they contain.
+tests/fixtures/local/
+# An unfinished write of the Commons check cache.
+scripts/data/*.tmp
+# A sync running, or one that stopped without cleaning up (see scripts/commons-sync.mjs).
+scripts/data/*.lock

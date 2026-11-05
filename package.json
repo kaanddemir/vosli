@@ -1,0 +1,40 @@
+{
+  "name": "vosli",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vosli: local-first German vocabulary trainer for Turkish speakers.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:smoke": "playwright test --project=chromium --grep @smoke",
+    "verify": "npm run typecheck && npm test && npm run build && npm run test:e2e",
+    "audio:sync": "node scripts/sync-commons-audio.mjs"
+  },
+  "dependencies": {
+    "@fontsource/fira-sans": "5.3.0",
+    "dexie": "4.4.7",
+    "pdfjs-dist": "6.5.438",
+    "preact": "11.1.1",
+    "ts-fsrs": "6.0.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "@preact/preset-vite": "2.10.6",
+    "@types/node": "24.19.2",
+    "fake-indexeddb": "6.2.7",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.1.0"
+  }
+}

@@ -1,0 +1,89 @@
+L	0	CC BY-SA 4.0	https://creativecommons.org/licenses/by-sa/4.0/
+L	1	CC BY-SA 3.0	https://creativecommons.org/licenses/by-sa/3.0/
+L	2	CC BY 3.0 us	https://creativecommons.org/licenses/by/3.0/us/
+L	3	Public domain	
+L	4	CC BY 3.0	https://creativecommons.org/licenses/by/3.0/
+L	5	CC BY-SA 2.5	https://creativecommons.org/licenses/by-sa/2.5/
+L	6	GFDL	
+L	7	CC0	https://creativecommons.org/publicdomain/zero/1.0/
+L	8	CC BY 2.0 de	https://creativecommons.org/licenses/by/2.0/de/
+L	9	CC BY 2.5	https://creativecommons.org/licenses/by/2.5/
+L	10	CC BY 4.0	https://creativecommons.org/licenses/by/4.0/
+L	11	CC BY-SA 2.0	https://creativecommons.org/licenses/by-sa/2.0/
+A	0	Jeuwre
+A	1	Kampy
+A	2	joni
+A	3	Dinock90
+A	4	T.Voekler
+A	5	Katrin Boxberger, Bernadette Perrin-Riou
+A	6	Jakob.scholbach
+A	7	User:Tosca
+A	8	MiER
+A	9	Bleibein
+A	10	StMH
+A	11	Gbeckmann
+A	12	Holunder Gabriel
+A	13	Lars Engelmann
+A	14	Balû
+A	15	Hedwig von Ebbel
+A	16	Oceancetaceen Alice Chodura
+A	17	Pill
+A	18	Edward Montgomery Harrington
+A	19	Arnim Faryn
+A	20	Fojhtirf
+A	21	Hans-Joachim Fröde; alias Acf; native speaker
+A	22	Frank C. Müller , Frankfurt am Main
+A	23	GerardM
+A	24	Sandro Wittassek
+A	25	Anhezu
+A	26	Erkan Yilmaz
+A	27	RubenKelevra
+A	28	SabineWanner
+A	29	Netzize~commonswiki
+A	30	Sicherlich
+A	31	Achim Raschka ( talk )
+A	32	Gestumblindi
+A	33	Joni~commonswiki
+A	34	Leni Berlin
+A	35	Longbow4u
+A	36	Sebastian Negraszus
+A	37	Ralf Lotys (Sicherlich)
+A	38	Pajz
+A	39	Redlinux
+A	40	Timwi at English Wikipedia
+A	41	jeuwre
+A	42	Association Shtooka, Bernadette Perrin-Riou
+A	43	Association Shtooka, Katrin Boxberger
+A	44	Church of emacs
+A	45	Er.du
+A	46	Frank C. Müller
+A	47	Hschier
+A	48	Olessi
+A	49	S.~commonswiki
+A	50	ADarkHero
+A	51	Avraham
+A	52	Beagle Beck
+A	53	Der Abendrotbaum
+A	54	DerWambo
+A	55	Diako1971
+A	56	Eichhornleib
+A	57	Freyli
+A	58	GeoTrinity
+A	59	JDL09Organic
+A	60	Ja Siggi
+A	61	Jan Schreiber
+A	62	Joergws
+A	63	Joni
+A	64	Ludger1961
+A	65	Lukehrm
+A	66	Manecke
+A	67	Mosesmal
+A	68	Peter Isotalo
+A	69	Ralf Lotys (Sicherlich) with: Audacity 1.2.2
+A	70	Reinsberg
+A	71	Sowndi
+A	72	Speaker: Michael Schoenitzer Recorder: MichaelSchoenitzer
+A	73	Starvinmarvin at English Wikipedia
+A	74	Torsten-P
+A	75	Tosca
+A	76	uploader, user:pill
