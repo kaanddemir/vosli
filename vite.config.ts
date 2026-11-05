@@ -17,7 +17,7 @@ export default defineConfig({
       manifest: {
         name: 'Vosli',
         short_name: 'Vosli',
-        description: 'Almanca kelime çalışma uygulaması',
+        description: 'Vosli ile Almanca kelime öğren, pratik yap ve akıllı tekrarla öğrendiklerini pekiştir.',
         lang: 'tr',
         id: './',
         start_url: '.',
@@ -33,7 +33,8 @@ export default defineConfig({
       },
       // PDF.js's worker is .mjs and over the 2 MiB default once counted with a margin, and the dictionary's
       // forms file is larger still. PDF import and word checks must work offline.
-      workbox: { globPatterns: ['**/*.{js,mjs,css,html,woff2,svg,png,txt}'], maximumFileSizeToCacheInBytes: 6 * 1024 * 1024 },
+      // Link-preview images are only fetched by other sites, so installs never download them.
+      workbox: { globPatterns: ['**/*.{js,mjs,css,html,woff2,svg,png,txt}'], globIgnores: ['og/**'], maximumFileSizeToCacheInBytes: 6 * 1024 * 1024 },
     }),
   ],
   test: {

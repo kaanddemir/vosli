@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <title>Vosli — Almancayı kelime kelime öğren</title>
+  <!--
+    Vosli Open Graph artwork, German. Source for public/og/vosli-de.png.
+    The fox is public/icons/vosli-mark.svg and the roofline is HomeScene.tsx (FAR, NEAR, WINDOWS, LIT); path data is
+    unchanged, only placed. As on Home, the fox sits behind the centre house: its ridge hides the chin and nose where the
+    mask meets, and the stepped gable and the gable either side cover its lower corners. The Fernsehturm, FAR's last
+    subpath, is moved left onto the canvas. Colours are Berlin Modern light tokens (src/styles/tokens.css), except the
+    roofline, which is one step darker than the scene tokens so it still reads when the preview is scaled down.
+    Text is live Fira Sans (SIL OFL), loaded from the installed @fontsource package so this file renders exactly when
+    opened from the repository after npm ci.
+    Export: open this file in Chromium at 1200 × 630, screenshot, then map to a 256-colour palette that keeps the brand
+    colours exact (about 60 KB).
+  -->
+  <defs>
+    <style>
+      @font-face { font-family: 'Fira Sans'; font-weight: 400; src: url('../../node_modules/@fontsource/fira-sans/files/fira-sans-latin-ext-400-normal.woff2') format('woff2'); }
+      @font-face { font-family: 'Fira Sans'; font-weight: 600; src: url('../../node_modules/@fontsource/fira-sans/files/fira-sans-latin-ext-600-normal.woff2') format('woff2'); }
+      text { font-family: 'Fira Sans', sans-serif; }
+    </style>
+    <!-- scene-glow token, softly fading as on Home. -->
+    <radialGradient id="glow" cx="776" cy="426.7" r="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B7473A" stop-opacity="0.26"/>
+      <stop offset="0.4" stop-color="#B7473A" stop-opacity="0.117"/>
+      <stop offset="1" stop-color="#B7473A" stop-opacity="0"/>
+    </radialGradient>
+    <!-- The roofline dissolves downwards, as on Home. -->
+    <linearGradient id="fade-down" x1="0" y1="354.0" x2="0" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0.66" stop-color="#fff"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.6"/>
+    </linearGradient>
+    <mask id="dissolve" maskUnits="userSpaceOnUse" x="0" y="0" width="1200" height="630"><rect width="1200" height="630" fill="url(#fade-down)"/></mask>
+  </defs>
+
+  <rect width="1200" height="630" fill="#F7F5F1"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <text x="74" y="352" font-size="176" font-weight="600" letter-spacing="-3.87" fill="#272727">Vosli</text>
+  <text x="80" y="403" font-size="28" font-weight="400" fill="#65615B">Almancayı kelime kelime öğren</text>
+
+  <g mask="url(#dissolve)">
+    <g transform="translate(-144.00 354.00) scale(1.15)">
+      <!-- scene-far, one step darker -->
+      <path fill="#E5DED2" d="M0 240V150V118H70V96H160V128H220V104H330V88H410V122H480V110H580V92H670V126H730V106H850V94H930V116H1030V100H1090V124H1180V90H1250V112H1360V120H1440V98H1500V110H1600V240Z"/>
+      <path fill="#E5DED2" transform="translate(-104 0)" d="M1178 240V58h-3V44a18 18 0 0 1-8-13 16 16 0 0 1 14-16V0h3v15a16 16 0 0 1 14 16 18 18 0 0 1-8 13v14h-3V240z"/>
+    </g>
+    <!-- Vosli, winking: public/icons/vosli-mark.svg -->
+    <g transform="translate(495.55 152.86) scale(1.09551)">
+      <path d="M256 424 92 262c-10-10-14-20-14-34V96c0-16 18-24 30-14l92 78h112l92-78c12-10 30-2 30 14v132c0 14-4 24-14 34z" fill="#B7473A"/>
+      <path d="M256 400 106 252c56 0 114 26 150 84 36-58 94-84 150-84z" fill="#FFFFFF"/>
+      <path d="M226 366c-8-8-3-20 8-20h44c11 0 16 12 8 20l-22 21c-5 4-11 4-16 0z" fill="#272727"/>
+      <circle cx="174" cy="214" r="23" fill="#272727"/>
+      <path d="M314 220c12-16 40-16 52 0" fill="none" stroke="#272727" stroke-width="17" stroke-linecap="round"/>
+    </g>
+
+    <g transform="translate(-144.00 354.00) scale(1.15)">
+      <path fill="#D6CDBE" d="M-68 240V160H-4V134H6.25V123H16.5V112H26.75V101H47.25V112H57.5V123H67.75V134H78V148L114 114L150 148V124L159 104H227L236 124V164L273 130L310 164V136H321.25V125H332.5V114H343.75V103H366.25V114H377.5V125H388.75V136H400V156H464V128L473 108H547L556 128V162L591 128L626 162V142H635.75V131H645.5V120H655.25V109H674.75V120H684.5V131H694.25V142H704V150L720 149H880L896 150V138L938 104L980 138V168H1052V126H1064V115H1076V104H1088V93H1112V104H1124V115H1136V126H1148V158L1157 138H1205L1214 158V142L1260 108L1306 142V120L1315 100H1367L1376 120V160H1387V149H1398V138H1409V127H1431V138H1442V149H1453V160H1464V134L1502 100L1540 134V150H1624V126L1654 92L1684 126V240Z"/>
+      <path fill="#EEE9E1" d="M-53 172h9v14h-9zM-28 172h9v14h-9zM-53 199h9v14h-9zM-28 199h9v14h-9zM10 146h9v14h-9zM32 146h9v14h-9zM55 146h9v14h-9zM10 173h9v14h-9zM32 173h9v14h-9zM55 173h9v14h-9zM10 200h9v14h-9zM32 200h9v14h-9zM55 200h9v14h-9zM96 160h9v14h-9zM123 160h9v14h-9zM96 187h9v14h-9zM165 136h9v14h-9zM188 136h9v14h-9zM212 136h9v14h-9zM165 163h9v14h-9zM188 163h9v14h-9zM212 163h9v14h-9zM165 190h9v14h-9zM188 190h9v14h-9zM212 190h9v14h-9zM255 176h9v14h-9zM282 176h9v14h-9zM255 203h9v14h-9zM282 203h9v14h-9zM326 148h9v14h-9zM350 148h9v14h-9zM375 148h9v14h-9zM326 175h9v14h-9zM350 175h9v14h-9zM375 175h9v14h-9zM326 202h9v14h-9zM350 202h9v14h-9zM375 202h9v14h-9zM415 168h9v14h-9zM440 168h9v14h-9zM415 195h9v14h-9zM440 195h9v14h-9zM480 140h9v14h-9zM506 140h9v14h-9zM480 167h9v14h-9zM506 167h9v14h-9zM531 167h9v14h-9zM480 194h9v14h-9zM506 194h9v14h-9zM531 194h9v14h-9zM573 174h9v14h-9zM600 174h9v14h-9zM573 201h9v14h-9zM600 201h9v14h-9zM646 154h9v14h-9zM675 154h9v14h-9zM646 181h9v14h-9zM675 181h9v14h-9zM646 208h9v14h-9zM675 208h9v14h-9zM717 162h9v14h-9zM740 162h9v14h-9zM762 162h9v14h-9zM784 162h9v14h-9zM807 162h9v14h-9zM829 162h9v14h-9zM851 162h9v14h-9zM874 162h9v14h-9zM717 189h9v14h-9zM740 189h9v14h-9zM762 189h9v14h-9zM784 189h9v14h-9zM829 189h9v14h-9zM851 189h9v14h-9zM874 189h9v14h-9zM910 150h9v14h-9zM934 150h9v14h-9zM957 150h9v14h-9zM910 177h9v14h-9zM934 177h9v14h-9zM957 177h9v14h-9zM910 204h9v14h-9zM934 204h9v14h-9zM957 204h9v14h-9zM998 180h9v14h-9zM1025 180h9v14h-9zM998 207h9v14h-9zM1025 207h9v14h-9zM1069 138h9v14h-9zM1096 138h9v14h-9zM1122 138h9v14h-9zM1069 165h9v14h-9zM1096 165h9v14h-9zM1122 165h9v14h-9zM1069 192h9v14h-9zM1096 192h9v14h-9zM1122 192h9v14h-9zM1164 170h9v14h-9zM1189 170h9v14h-9zM1164 197h9v14h-9zM1230 154h9v14h-9zM1256 154h9v14h-9zM1281 154h9v14h-9zM1230 181h9v14h-9zM1256 181h9v14h-9zM1281 181h9v14h-9zM1230 208h9v14h-9zM1256 208h9v14h-9zM1281 208h9v14h-9zM1323 132h9v14h-9zM1350 132h9v14h-9zM1323 159h9v14h-9zM1350 159h9v14h-9zM1323 186h9v14h-9zM1350 186h9v14h-9zM1391 172h9v14h-9zM1416 172h9v14h-9zM1440 172h9v14h-9zM1391 199h9v14h-9zM1416 199h9v14h-9zM1440 199h9v14h-9zM1483 146h9v14h-9zM1512 146h9v14h-9zM1483 173h9v14h-9zM1512 173h9v14h-9zM1483 200h9v14h-9zM1512 200h9v14h-9zM1554 162h9v14h-9zM1601 162h9v14h-9zM1554 189h9v14h-9zM1578 189h9v14h-9zM1601 189h9v14h-9zM1638 138h9v14h-9zM1661 138h9v14h-9zM1638 165h9v14h-9zM1661 165h9v14h-9zM1638 192h9v14h-9zM1661 192h9v14h-9z"/>
+      <path fill="#DD9886" d="M123 187h9v14h-9zM531 140h9v14h-9zM807 189h9v14h-9zM1189 197h9v14h-9zM1578 162h9v14h-9z"/>
+    </g>
+  </g>
+</svg>

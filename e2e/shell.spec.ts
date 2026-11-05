@@ -30,7 +30,8 @@ test.describe('navigation', () => {
       await nav.getByRole('link', { name: screen.nav }).click();
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(screen.heading);
       await expect(nav.getByRole('link', { name: screen.nav })).toHaveAttribute('aria-current', 'page');
-      await expect(page).toHaveTitle(t.appName);
+      // The static title from index.html, which search results show; screens never change it.
+      await expect(page).toHaveTitle('Vosli — Almanca Kelime Öğren ve Pratik Yap');
     }
   });
 
