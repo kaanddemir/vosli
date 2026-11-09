@@ -1,7 +1,7 @@
 L	0	CC BY-SA 4.0	https://creativecommons.org/licenses/by-sa/4.0/
 L	1	CC BY-SA 3.0	https://creativecommons.org/licenses/by-sa/3.0/
-L	2	CC BY 3.0 us	https://creativecommons.org/licenses/by/3.0/us/
-L	3	Public domain	
+L	2	Public domain	
+L	3	CC BY 3.0 us	https://creativecommons.org/licenses/by/3.0/us/
 L	4	CC BY 3.0	https://creativecommons.org/licenses/by/3.0/
 L	5	CC0	https://creativecommons.org/publicdomain/zero/1.0/
 L	6	CC BY-SA 2.5	https://creativecommons.org/licenses/by-sa/2.5/
@@ -15,133 +15,153 @@ A	1	Kampy
 A	2	Jakob.scholbach
 A	3	Lars Engelmann
 A	4	joni
-A	5	T.Voekler
-A	6	Katrin Boxberger, Bernadette Perrin-Riou
-A	7	Dinock90
-A	8	MiER
+A	5	Oceancetaceen Alice Chodura
+A	6	T.Voekler
+A	7	Katrin Boxberger, Bernadette Perrin-Riou
+A	8	Dinock90
 A	9	Bleibein
-A	10	Oceancetaceen Alice Chodura
+A	10	MiER
 A	11	Gbeckmann
 A	12	StMH
-A	13	User:Tosca
-A	14	Holunder Gabriel
-A	15	Balû
-A	16	Frank C. Müller , Frankfurt am Main
-A	17	GerardM
-A	18	Hedwig von Ebbel
-A	19	Edward Montgomery Harrington
-A	20	Pill
-A	21	Anhezu
-A	22	Arnim Faryn
-A	23	Sebastian Negraszus
-A	24	Frank C. Müller
-A	25	Longbow4u
-A	26	Fojhtirf
-A	27	German words
-A	28	SabineWanner
-A	29	Sandro Wittassek
-A	30	Gestumblindi
-A	31	Erkan Yilmaz
-A	32	Hans-Joachim Fröde; alias Acf; native speaker
-A	33	Ralf Lotys (Sicherlich)
-A	34	Diako1971
+A	13	Frank C. Müller , Frankfurt am Main
+A	14	Balû
+A	15	User:Tosca
+A	16	Holunder Gabriel
+A	17	Hedwig von Ebbel
+A	18	GerardM
+A	19	Anhezu
+A	20	Longbow4u
+A	21	Sebastian Negraszus
+A	22	Edward Montgomery Harrington
+A	23	Frank C. Müller
+A	24	Pill
+A	25	Arnim Faryn
+A	26	German words
+A	27	Fojhtirf
+A	28	Gestumblindi
+A	29	Diako1971
+A	30	Ännz Rainy
+A	31	Ralf Lotys (Sicherlich)
+A	32	Sandro Wittassek
+A	33	Erkan Yilmaz
+A	34	SabineWanner
 A	35	Er.du
-A	36	Jberkel
-A	37	Netzize~commonswiki
-A	38	RubenKelevra
-A	39	Julian Freyer
-A	40	Leni Berlin
-A	41	Sicherlich
-A	42	Thegurke
-A	43	Achim Raschka ( talk )
-A	44	Kronf
-A	45	Olessi
-A	46	Redlinux
-A	47	Speaker: Sebastian Wallroth Recorder: Sebastian Wallroth
-A	48	Ännz Rainy
-A	49	Joni~commonswiki
-A	50	Manecke
-A	51	Speaker: Frank C. Müller Recorder: Frank C. Müller
-A	52	GeoTrinity
-A	53	Ozelot911
-A	54	Pajz
-A	55	Timwi at English Wikipedia
-A	56	Association Shtooka, Katrin Boxberger
-A	57	PantheraLeo1359531
-A	58	Pogomeister
-A	59	Sebastian Kamper
-A	60	Torsten-P
-A	61	jeuwre
-A	62	Abani79
-A	63	Association Shtooka, Bernadette Perrin-Riou
-A	64	Church of emacs
-A	65	Hschier
-A	66	IGEL
-A	67	Infovarius
-A	68	Joterr
-A	69	Lukehrm
-A	70	Peter Isotalo
-A	71	Ralf Lotys (Sicherlich) with: Audacity 1.2.2
-A	72	S.~commonswiki
-A	73	Sowndi
-A	74	Stefan Noack
-A	75	Ubahnverleih
-A	76	Zylinder~commonswiki
-A	77	3of8
-A	78	ADarkHero
-A	79	Achim Raschka
-A	80	Adrian
-A	81	Aschmidt
-A	82	Atcap
-A	83	Avraham
-A	84	Bangin
-A	85	Beagle Beck
-A	86	Created by joni
-A	87	Der Abendrotbaum
-A	88	DerWambo
-A	89	Diggle12
-A	90	Dschwen
-A	91	Dundak
-A	92	Eichhornleib
-A	93	Elvaube
-A	94	FreeMediaKid!
-A	95	Freyli
-A	96	Gilberd.gisbert
-A	97	J. Lunau
-A	98	JDL09Organic
-A	99	Ja Siggi
-A	100	Jan Schreiber
-A	101	Joergws
-A	102	Joni
-A	103	Kappardor
-A	104	LardAlemagne01
-A	105	Ludger1961
-A	106	MSh
-A	107	Max1260
-A	108	Mosesmal
-A	109	Nimmerwelk
-A	110	Olga Ernst
-A	111	PKHG
-A	112	Patneu
-A	113	Reinsberg
-A	114	Roman Leskau
-A	115	SabineCretella
-A	116	Sebastian Wallroth
-A	117	Servus heinz
-A	118	Singpferd
-A	119	Speaker: AndiPersti Recorder: AndiPersti
-A	120	Speaker: Djknusper Recorder: Djknusper
-A	121	Speaker: Lucas Werkmeister Recorder: Lucas Werkmeister
-A	122	Speaker: Michael Schoenitzer Recorder: MichaelSchoenitzer
-A	123	Speaker: Mighty Wire Recorder: Mighty Wire
-A	124	Speaker: Wkrętarka Recorder: Wkrętarka
-A	125	Starvinmarvin at English Wikipedia
-A	126	Tincian1990
-A	127	Tino no
-A	128	Tofu
-A	129	Tosca
-A	130	Treuwre
-A	131	User:Pill
-A	132	Yeti
-A	133	qubodup
-A	134	uploader, user:pill
+A	36	Hans-Joachim Fröde; alias Acf; native speaker
+A	37	Kronf
+A	38	Manecke
+A	39	Olessi
+A	40	Speaker: Frank C. Müller Recorder: Frank C. Müller
+A	41	Jberkel
+A	42	Leni Berlin
+A	43	Netzize~commonswiki
+A	44	RubenKelevra
+A	45	Speaker: Sebastian Wallroth Recorder: Sebastian Wallroth
+A	46	Julian Freyer
+A	47	Sicherlich
+A	48	Thegurke
+A	49	Achim Raschka ( talk )
+A	50	PantheraLeo1359531
+A	51	Redlinux
+A	52	Aschmidt
+A	53	Joni~commonswiki
+A	54	Sebastian Kamper
+A	55	Stefan Noack
+A	56	Torsten-P
+A	57	Abani79
+A	58	GeoTrinity
+A	59	Max1260
+A	60	Ozelot911
+A	61	Pajz
+A	62	Pogomeister
+A	63	Sebastian Wallroth
+A	64	Timwi at English Wikipedia
+A	65	Association Shtooka, Katrin Boxberger
+A	66	Ja Siggi
+A	67	Peter Isotalo
+A	68	S.~commonswiki
+A	69	Ubahnverleih
+A	70	User:Pill
+A	71	jeuwre
+A	72	Association Shtooka, Bernadette Perrin-Riou
+A	73	Church of emacs
+A	74	DaBroMfld
+A	75	Der Abendrotbaum
+A	76	DerWambo
+A	77	Diggle12
+A	78	Hschier
+A	79	IGEL
+A	80	Infovarius
+A	81	Joterr
+A	82	Kappardor
+A	83	Lukehrm
+A	84	Michael Brandtner
+A	85	Olga Ernst
+A	86	Pascal Auricht~commonswiki
+A	87	Patneu
+A	88	Qubodup
+A	89	Ralf Lotys (Sicherlich) with: Audacity 1.2.2
+A	90	Reinsberg
+A	91	Sowndi
+A	92	Speaker: Michael Schoenitzer Recorder: MichaelSchoenitzer
+A	93	Speaker: Mighty Wire Recorder: Mighty Wire
+A	94	Zylinder~commonswiki
+A	95	qubodup
+A	96	3of8
+A	97	ADarkHero
+A	98	ARMAN1997
+A	99	Achim Raschka
+A	100	Adrian
+A	101	Atcap
+A	102	Avraham
+A	103	Bangin
+A	104	Beagle Beck
+A	105	Created by joni
+A	106	Dschwen
+A	107	Dundak
+A	108	Eichhornleib
+A	109	Elvaube
+A	110	Fischeumel
+A	111	FreeMediaKid!
+A	112	Freyli
+A	113	Gilberd.gisbert
+A	114	Halibutt
+A	115	J. Lunau
+A	116	JDL09Organic
+A	117	Jan Schreiber
+A	118	Joergws
+A	119	Joni
+A	120	Kompjuta
+A	121	LardAlemagne01
+A	122	Ludger1961
+A	123	MSh
+A	124	Mosesmal
+A	125	My melody 111
+A	126	Nimmerwelk
+A	127	Ogmios
+A	128	OmniPraesent
+A	129	PKHG
+A	130	Roman Leskau
+A	131	SabineCretella
+A	132	Servus heinz
+A	133	Singpferd
+A	134	Speaker: AndiPersti Recorder: AndiPersti
+A	135	Speaker: Arlo Barnes Recorder: Arlo Barnes
+A	136	Speaker: Djknusper Recorder: Djknusper
+A	137	Speaker: Ionenlaser Recorder: Ionenlaser
+A	138	Speaker: Lucas Werkmeister Recorder: Lucas Werkmeister
+A	139	Speaker: PetiteTrolline Recorder: PetiteTrolline
+A	140	Speaker: Wkrętarka Recorder: Wkrętarka
+A	141	Starvinmarvin at English Wikipedia
+A	142	Stoa
+A	143	TUBS
+A	144	Text to Speach
+A	145	Tincian1990
+A	146	Tino no
+A	147	Tofu
+A	148	Tosca
+A	149	Treuwre
+A	150	Umoenks
+A	151	Villy
+A	152	Yeti
+A	153	dubseb
+A	154	uploader, user:pill
