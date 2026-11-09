@@ -369,7 +369,7 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
             class="field field-compact"
             type="text"
             value={listName}
-            maxLength={100}
+            maxLength={GROUP_NAME_MAX}
             autocomplete="off"
             aria-invalid={nameProblem ? true : undefined}
             aria-describedby={nameProblem ? 'import-list-error' : undefined}

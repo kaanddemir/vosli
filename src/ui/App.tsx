@@ -31,7 +31,7 @@ function CurrentScreen({ place }: { place: Place }) {
     case 'word':
       return <WordScreen key={place.wordId} wordId={place.wordId!} groupId={place.groupId} />;
     case 'wordNew':
-      return <WordNewScreen />;
+      return <WordNewScreen key={place.groupId ?? ''} groupId={place.groupId} />;
     case 'wordEdit':
       return <WordEditScreen key={place.wordId} wordId={place.wordId!} groupId={place.groupId} />;
     case 'collections':

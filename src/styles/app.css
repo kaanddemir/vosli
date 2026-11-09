@@ -999,7 +999,6 @@ main:focus {
 /* ---------- Pronunciation ---------- */
 
 /* Controls beside a stretched link sit above it, so a press there is theirs alone. */
-.row-over,
 .row-speaker {
   position: relative;
   z-index: 1;
@@ -1033,11 +1032,6 @@ main:focus {
   .row-stretch > .row-link + * {
     margin-inline-start: auto;
   }
-}
-
-/* Lines the remove icon up where it sat when it was outside the row. */
-.row-stretch > .row-over:last-child {
-  margin-inline-end: calc(var(--space-2) * -1);
 }
 
 /*
@@ -2417,6 +2411,58 @@ select.field {
   overflow-wrap: anywhere;
 }
 
+/*
+ * A question asked by ear: the recording takes the place of the question's text, so it is the one large thing
+ * on the card. In rem, so it grows with the text; the accent is the question's own, as text it stands for.
+ */
+.listen-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--control) * 1.5);
+  height: calc(var(--control) * 1.5);
+  margin-top: var(--space-2);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+  transition: transform var(--press-duration) var(--ease-out);
+}
+
+.listen-btn .icon {
+  width: calc(var(--icon) * 1.5);
+  height: calc(var(--icon) * 1.5);
+}
+
+.listen-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.listen-btn:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+/* Says only that the sound did not come, then what can be done: hear it again, or pass over it. */
+.listen-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.listen-failed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
 .practice-retry {
   color: var(--accent);
   font-weight: var(--weight-semibold);
@@ -2539,6 +2585,12 @@ select.field {
   color: var(--text-muted);
   font-size: var(--text-md);
   font-weight: var(--weight-medium);
+}
+
+/* A long word is one unbroken run of hidden letters, which must wrap rather than leave its half of the row. */
+.hint-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .letter:disabled {
@@ -3110,6 +3162,7 @@ dialog::backdrop {
   .btn:active:not(:disabled),
   .icon-btn:active,
   .row-reveal:active,
+  .listen-btn:active:not(:disabled),
   .letter:active:not(:disabled) {
     transform: none;
   }

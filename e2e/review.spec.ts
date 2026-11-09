@@ -264,7 +264,7 @@ test.describe('a session', () => {
   test('a hint makes a right answer Hard, and a reload cannot wipe the hint', async ({ page }) => {
     await seed(page, [APFEL]);
     await page.getByRole('button', { name: t.practice.hint }).click();
-    await expect(page.getByTestId('practice-hint')).toHaveText(t.practice.hintShown('e…'));
+    await expect(page.getByTestId('practice-hint')).toHaveText(t.practice.hintShown('e•••'));
     await page.reload();
     await expect(page.getByTestId('practice-hint')).toBeVisible();
     await type(page, 'elma');

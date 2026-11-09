@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { createCustomGroup, GroupNameError, setWordCustomGroups, type GroupNameProblem } from '../../data/groups';
+import { createCustomGroup, GROUP_NAME_MAX, GroupNameError, setWordCustomGroups, type GroupNameProblem } from '../../data/groups';
 import { getActiveWord, listCustomGroups, listGroupsOfWord, listOriginsOfWord } from '../../data/repository';
 import type { Group, Word } from '../../data/types';
 import { deleteWord, setFavorite } from '../../data/words';
@@ -71,7 +71,7 @@ function ListsDialog({ word, groups, onClose, onSaved }: { word: Word; groups: r
       >
         <label class="form-label" for="new-list-name">{t.collections.newList}</label>
         <div class="inline-form-row">
-          <input id="new-list-name" class="field field-compact" type="text" value={name} maxLength={100} autocomplete="off" aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? 'new-list-error' : undefined} onInput={(event) => setName(event.currentTarget.value)} />
+          <input id="new-list-name" class="field field-compact" type="text" value={name} maxLength={GROUP_NAME_MAX} autocomplete="off" aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? 'new-list-error' : undefined} onInput={(event) => setName(event.currentTarget.value)} />
           <button type="submit" class="btn btn-small">{t.common.add}</button>
         </div>
         {nameError && <p id="new-list-error" class="form-error">{t.collections.nameErrors[nameError]}</p>}

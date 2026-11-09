@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { blankDraft, rowRef, SEPARATE, type ImportDraft } from '../src/core/review';
 import { createBackup, exportBackupText, parseBackup, restoreBackup } from '../src/data/backup';
 import { openDatabase, type AppDatabase } from '../src/data/db';
-import { addWordsToGroup, createCustomGroup, deleteGroups, deleteGroupsWithWords, GroupNameError, previewGroupDeletion, ProtectedGroupError, removeWordFromGroup, renameCustomGroup, restoreGroupMember, setWordCustomGroups } from '../src/data/groups';
+import { addWordsToGroup, createCustomGroup, deleteGroups, deleteGroupsWithWords, GroupNameError, previewGroupDeletion, ProtectedGroupError, removeWordFromGroup, removeWordsFromGroup, renameGroup, restoreGroupMember, restoreGroupMembers, setWordCustomGroups } from '../src/data/groups';
 import { commitImport, ImportNotReadyError, TEXT_PIPELINE_VERSION, type ImportTarget } from '../src/data/importCommit';
 import { getActiveWord, getGroupWithWords, listActiveWords, listGroupsOfWord, listGroupSummaries, listSourcesOfWord } from '../src/data/repository';
 import { saveReview } from '../src/data/smartReview';
@@ -221,9 +221,9 @@ describe('custom collections', () => {
     await expect(createCustomGroup(db, 'zor kelimeler', T0).catch((e: GroupNameError) => e.problem)).resolves.toBe('taken');
     await expect(createCustomGroup(db, '   ', T0).catch((e: GroupNameError) => e.problem)).resolves.toBe('empty');
     await expect(createCustomGroup(db, 'x'.repeat(81), T0).catch((e: GroupNameError) => e.problem)).resolves.toBe('too_long');
-    await renameCustomGroup(db, group.id, 'Kolay');
+    await renameGroup(db, group.id, 'Kolay');
     expect((await db.groups.get(group.id))?.name).toBe('Kolay');
-    await renameCustomGroup(db, group.id, 'kolay');
+    await renameGroup(db, group.id, 'kolay');
     expect((await db.groups.get(group.id))?.name).toBe('kolay');
   });
 
@@ -257,6 +257,64 @@ describe('custom collections', () => {
     const removed = await removeWordFromGroup(db, 'g-custom', 'w-apfel');
     await restoreGroupMember(db, removed!);
     expect(await db.groupMembers.get(['g-custom', 'w-apfel'])).toEqual(before);
+  });
+
+  it('removes several words from one list at once, and only their memberships there', async () => {
+    const db = await fresh();
+    await seedLibrary(db);
+    await addWordsToGroup(db, 'g-custom', ['w-fuss', 'w-spinat', 'w-morgen'], T0 + 5);
+    const second = await createCustomGroup(db, 'İkinci', T0);
+    await addWordsToGroup(db, second.id, ['w-apfel', 'w-fuss'], T0);
+    const tables = async () => ({ words: await db.words.toArray(), cards: await db.cards.toArray(), logs: await db.reviewLogs.toArray(), rows: await db.importRows.toArray() });
+    const before = await tables();
+    const kept = (await db.groupMembers.toArray()).filter((member) => member.groupId !== 'g-custom' || member.wordId === 'w-morgen');
+
+    const removed = await removeWordsFromGroup(db, 'g-custom', ['w-apfel', 'w-fuss', 'w-spinat', 'w-apfel', 'not-there']);
+    expect(removed.map((member) => member.wordId).sort()).toEqual(['w-apfel', 'w-fuss', 'w-spinat']);
+    expect(await db.groupMembers.toArray()).toEqual(kept);
+    expect(await tables()).toEqual(before);
+    expect((await listGroupsOfWord(db, 'w-apfel')).map((group) => group.id)).toEqual(['g-pdf', second.id]);
+    // Asked again, nothing is left to remove.
+    expect(await removeWordsFromGroup(db, 'g-custom', ['w-apfel'])).toEqual([]);
+  });
+
+  it('undoing a batch puts back exactly what was removed, and skips a word deleted since', async () => {
+    const db = await fresh();
+    await seedLibrary(db);
+    await addWordsToGroup(db, 'g-custom', ['w-fuss', 'w-spinat'], T0 + 5);
+    const before = await db.groupMembers.toArray();
+    const removed = await removeWordsFromGroup(db, 'g-custom', ['w-apfel', 'w-fuss', 'w-spinat']);
+    await restoreGroupMembers(db, removed);
+    expect(await db.groupMembers.toArray()).toEqual(before);
+
+    const again = await removeWordsFromGroup(db, 'g-custom', ['w-apfel', 'w-spinat']);
+    await deleteWord(db, 'w-spinat');
+    await restoreGroupMembers(db, again);
+    expect((await db.groupMembers.where('wordId').equals('w-spinat').toArray())).toEqual([]);
+    expect(await db.groupMembers.get(['g-custom', 'w-apfel'])).toEqual(before.find((member) => member.groupId === 'g-custom' && member.wordId === 'w-apfel'));
+  });
+
+  it('a batch removal that fails partway changes nothing', async () => {
+    const db = await fresh();
+    await seedLibrary(db);
+    await addWordsToGroup(db, 'g-custom', ['w-fuss', 'w-spinat'], T0 + 5);
+    const before = await db.groupMembers.toArray();
+    const failing = (key: unknown) => {
+      if (Array.isArray(key) && key[1] === 'w-spinat') throw new Error('disk full');
+    };
+    db.groupMembers.hook('deleting', failing);
+    await expect(removeWordsFromGroup(db, 'g-custom', ['w-apfel', 'w-fuss', 'w-spinat'])).rejects.toThrow('disk full');
+    db.groupMembers.hook('deleting').unsubscribe(failing);
+    expect(await db.groupMembers.toArray()).toEqual(before);
+  });
+
+  it('a removal never touches learning data: the transaction cannot write to it', async () => {
+    const db = await fresh();
+    await seedLibrary(db);
+    const before = await history(db, 'w-apfel');
+    await removeWordsFromGroup(db, 'g-custom', ['w-apfel']);
+    expect(await history(db, 'w-apfel')).toEqual(before);
+    expect(await getActiveWord(db, 'w-apfel')).not.toBeNull();
   });
 
   it('deleting a list removes memberships only', async () => {
@@ -366,14 +424,27 @@ describe('custom collections', () => {
     expect(await db.groups.get('g-custom')).toBeUndefined();
   });
 
-  it('protects source collections from every edit', async () => {
+  it('protects the words of source collections from every edit, and a lesson from renaming', async () => {
     const db = await fresh();
     await seedLibrary(db);
-    await expect(renameCustomGroup(db, 'g-pdf', 'x')).rejects.toBeInstanceOf(ProtectedGroupError);
-    await expect(addWordsToGroup(db, 'g-pdf', ['w-fuss'], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
-    await expect(removeWordFromGroup(db, 'g-pdf', 'w-apfel')).rejects.toBeInstanceOf(ProtectedGroupError);
-    await expect(setWordCustomGroups(db, 'w-apfel', ['g-pdf'], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
-    expect(await db.groupMembers.get(['g-pdf', 'w-apfel'])).toMatchObject({ importRowId: 'r1' });
+    await db.groups.add({ id: 'g-lesson', kind: 'lesson', name: 'Lektion 1', order: 2, sourceId: 's1', createdAt: T0 });
+    await db.groupMembers.add({ groupId: 'g-lesson', wordId: 'w-apfel', addedAt: T0, importRowId: 'r1' });
+    const before = await db.groupMembers.toArray();
+    for (const id of ['g-pdf', 'g-lesson']) {
+      await expect(addWordsToGroup(db, id, ['w-fuss'], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
+      await expect(removeWordFromGroup(db, id, 'w-apfel')).rejects.toBeInstanceOf(ProtectedGroupError);
+      await expect(removeWordsFromGroup(db, id, ['w-apfel'])).rejects.toBeInstanceOf(ProtectedGroupError);
+      await expect(restoreGroupMembers(db, [{ groupId: id, wordId: 'w-fuss', addedAt: T0, importRowId: null }])).rejects.toBeInstanceOf(ProtectedGroupError);
+      await expect(setWordCustomGroups(db, 'w-apfel', [id], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
+    }
+    await expect(renameGroup(db, 'g-lesson', 'x')).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(renameGroup(db, 'gone', 'x')).rejects.toThrow();
+    expect((await db.groups.get('g-lesson'))!.name).toBe('Lektion 1');
+    expect(await db.groupMembers.toArray()).toEqual(before);
+    // A PDF collection may be renamed; its memberships stay as they were.
+    await renameGroup(db, 'g-pdf', 'Bölüm 1');
+    expect(await db.groups.get('g-pdf')).toMatchObject({ kind: 'pdf', name: 'Bölüm 1', sourceId: 's1' });
+    expect(await db.groupMembers.toArray()).toEqual(before);
   });
 
   it('setting a word\'s lists leaves source memberships alone', async () => {

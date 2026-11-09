@@ -1,4 +1,4 @@
-import type { Evaluation, Track } from './answers';
+import type { Evaluation, QuestionKind } from './answers';
 import type { PracticeMode, PracticeScope, RoundItem } from './selection';
 
 /**
@@ -14,12 +14,14 @@ export interface PracticeSettings {
   includeFlagged: boolean;
 }
 
-export interface ItemProgress {
+export interface ItemProgress<Kind extends QuestionKind = QuestionKind> {
   wordId: string;
-  track: Track;
+  track: Kind;
   attempts: number;
   first: Outcome | null;
   last: Outcome | null;
+  /** Left out because it could not be asked, such as a recording that would not play. Never an answer. */
+  skipped?: true;
 }
 
 export interface Answered {
@@ -37,6 +39,8 @@ export interface Session {
   /** Indexes into items. The first is the question on screen. */
   queue: number[];
   hinted: boolean;
+  /** Hint stages shown for the question on screen. Any at all makes the attempt hinted. */
+  hints: number;
   answered: Answered | null;
 }
 
@@ -46,7 +50,7 @@ export const MAX_ATTEMPTS = 3;
 const RETRY_GAP = 3;
 
 export function createSession(id: string, settings: PracticeSettings, round: readonly RoundItem[]): Session {
-  return { id, settings, items: round.map((item) => ({ ...item, attempts: 0, first: null, last: null })), queue: round.map((_, index) => index), hinted: false, answered: null };
+  return { id, settings, items: round.map((item) => ({ ...item, attempts: 0, first: null, last: null })), queue: round.map((_, index) => index), hinted: false, hints: 0, answered: null };
 }
 
 export const currentItem = (session: Session): ItemProgress | null => {
@@ -62,7 +66,7 @@ export const retriesWaiting = (session: Session): number => session.queue.filter
 function spacerFor(session: Session, currentIndex: number): number | null {
   let best: number | null = null;
   session.items.forEach((item, index) => {
-    if (index === currentIndex || item.attempts >= MAX_ATTEMPTS) return;
+    if (index === currentIndex || item.attempts >= MAX_ATTEMPTS || item.skipped) return;
     if (best === null || item.attempts < session.items[best]!.attempts) best = index;
   });
   return best;
@@ -98,10 +102,25 @@ export function submitAnswer(session: Session, typed: string, evaluation: Evalua
 /** Moves on from the feedback. */
 export function nextQuestion(session: Session): Session {
   if (!session.answered) return session;
-  return { ...session, queue: session.queue.slice(1), hinted: false, answered: null };
+  return { ...session, queue: session.queue.slice(1), hinted: false, hints: 0, answered: null };
 }
 
-export const markHintUsed = (session: Session): Session => (session.answered ? session : { ...session, hinted: true });
+/** Shows one more hint stage. The first one already makes the attempt hinted; later ones stay part of that same attempt. */
+/**
+ * Leaves the question on screen without an answer: it is not wrong, not asked again and not counted. A
+ * question already answered once keeps that answer; only this attempt is passed over.
+ */
+export function skipQuestion(session: Session): Session {
+  const index = session.queue[0];
+  if (index === undefined || session.answered) return session;
+  const items = session.items.map((item, at) => (at === index && item.attempts === 0 ? { ...item, skipped: true as const } : item));
+  return { ...session, items, queue: session.queue.slice(1), hinted: false, hints: 0 };
+}
+
+/** Questions the round still means to ask or has asked, leaving out any passed over before an answer. */
+export const roundSize = (session: Session): number => session.items.filter((item) => !item.skipped).length;
+
+export const markHintUsed = (session: Session): Session => (session.answered ? session : { ...session, hinted: true, hints: session.hints + 1 });
 
 /** Takes a word out, for one deleted while the round was open. Progress on other words stays. */
 export function dropWord(session: Session, wordId: string): Session {
@@ -117,6 +136,7 @@ export function dropWord(session: Session, wordId: string): Session {
     items: session.items.filter((_, index) => keep[index]),
     queue: session.queue.filter((index) => keep[index]).map((index) => moved.get(index)!),
     hinted: current !== undefined && keep[current] ? session.hinted : false,
+    hints: current !== undefined && keep[current] ? session.hints : 0,
     answered: current !== undefined && keep[current] ? session.answered : null,
   };
 }
@@ -153,15 +173,21 @@ export function summarize(session: { items: readonly ItemProgress[] }): RoundSum
 
 const isOutcome = (value: unknown) => value === null || value === 'clean' || value === 'hinted' || value === 'wrong';
 
+/** A round saved before hints had stages counts as having shown one, so a hint is never lost from the attempt. */
+export const revivedHints = (value: { hinted?: unknown; hints?: unknown }): number => {
+  if (value.hinted !== true) return 0;
+  return Number.isInteger(value.hints) && (value.hints as number) > 0 ? (value.hints as number) : 1;
+};
+
 /** Brings back a saved round if it still makes sense, without any word that has since been deleted. */
 export function reviveSession(raw: unknown, activeIds: ReadonlySet<string>): Session | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const value = raw as Partial<Session>;
   if (typeof value.id !== 'string' || !Array.isArray(value.items) || !Array.isArray(value.queue) || typeof value.settings !== 'object' || value.settings === null) return null;
-  const itemsOk = value.items.every((item: ItemProgress) => typeof item?.wordId === 'string' && ['de_tr', 'tr_de', 'article'].includes(item.track) && Number.isInteger(item.attempts) && isOutcome(item.first) && isOutcome(item.last));
+  const itemsOk = value.items.every((item: ItemProgress) => typeof item?.wordId === 'string' && ['de_tr', 'tr_de', 'article', 'listen'].includes(item.track) && Number.isInteger(item.attempts) && isOutcome(item.first) && isOutcome(item.last) && (item.skipped === undefined || item.skipped === true));
   const queueOk = value.queue.every((index: number) => Number.isInteger(index) && index >= 0 && index < value.items!.length);
   if (!itemsOk || !queueOk) return null;
-  let session = { id: value.id, settings: value.settings, items: value.items, queue: value.queue, hinted: value.hinted === true, answered: value.answered ?? null } as Session;
+  let session = { id: value.id, settings: value.settings, items: value.items, queue: value.queue, hinted: value.hinted === true, hints: revivedHints(value), answered: value.answered ?? null } as Session;
   for (const wordId of new Set(session.items.map((item) => item.wordId))) {
     if (!activeIds.has(wordId)) session = dropWord(session, wordId);
   }

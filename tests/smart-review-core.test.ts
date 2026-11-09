@@ -272,12 +272,26 @@ describe('review session', () => {
   it('keeps a hint through a reload of the same question, so a reload cannot clear it from the rating', () => {
     const s = markReviewHint(ask(open('a')));
     expect(askItem(s, 0).hinted).toBe(true);
+    const more = markReviewHint(markReviewHint(s));
+    expect(askItem(more, 0)).toMatchObject({ hinted: true, hints: 3 });
+    expect(reviveReviewSession(JSON.parse(JSON.stringify(more)))).toMatchObject({ hinted: true, hints: 3 });
+    const { hints: _, ...older } = s;
+    expect(reviveReviewSession(JSON.parse(JSON.stringify(older)))).toMatchObject({ hinted: true, hints: 1 });
+  });
+
+  it('more hint stages are still one hinted answer, and the rating is the same as for one', () => {
+    const s = answer(markReviewHint(markReviewHint(markReviewHint(ask(open('a'))))), T0 + 5 * DAY);
+    expect(s.answered?.hinted).toBe(true);
+    expect(s.items[0]).toMatchObject({ first: 'hinted', attempts: 1 });
+    expect(markReviewHint(s)).toBe(s);
   });
 
   it('starts the next question without the last one\'s hint', () => {
-    let s = markReviewHint(ask(open('a', 'b')));
+    let s = markReviewHint(markReviewHint(ask(open('a', 'b'))));
     s = leaveFeedback(answer(s, T0 + 5 * DAY));
-    expect(ask(s).hinted).toBe(false);
+    expect(s).toMatchObject({ hinted: false, hints: 0 });
+    expect(ask(s)).toMatchObject({ hinted: false, hints: 0 });
+    expect(askItem(markReviewHint(ask(open('a', 'b'))), 1)).toMatchObject({ hinted: false, hints: 0 });
   });
 
   it('ignores a second answer to the same question', () => {
@@ -306,7 +320,7 @@ describe('review session', () => {
 
   it('dropping the card on screen clears its feedback and hint', () => {
     const s = dropItem(markReviewHint(ask(open('a', 'b'))), 0);
-    expect(s).toMatchObject({ current: null, hinted: false, answered: null });
+    expect(s).toMatchObject({ current: null, hinted: false, hints: 0, answered: null });
   });
 
   it('a card another tab answered waits for its new time', () => {

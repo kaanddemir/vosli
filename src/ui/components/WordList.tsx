@@ -69,7 +69,7 @@ function RevealedAnswer({ lang, focus, onFocused, children }: { lang: string; fo
   return <span ref={ref as Ref<HTMLSpanElement>} class="row-detail row-answer" lang={lang} tabIndex={-1}>{children}</span>;
 }
 
-export function WordList({ words, groupId, onRemove, selection, view }: { words: readonly Word[]; groupId?: string; onRemove?: (word: Word) => void; selection?: Selection | undefined; view?: ListView | undefined }) {
+export function WordList({ words, groupId, selection, view }: { words: readonly Word[]; groupId?: string; selection?: Selection | undefined; view?: ListView | undefined }) {
   const [shown, setShown] = useState(PAGE);
   const focusAnswer = useRef<string | null>(null);
   const turkishFirst = view?.direction === 'tr_de';
@@ -138,8 +138,8 @@ export function WordList({ words, groupId, onRemove, selection, view }: { words:
               </li>
             );
           }
-          // The link covers the row, so the row and its chevron open the word as before. The speaker and the
-          // remove button sit above it: separate targets beside the link, never inside it.
+          // The link covers the row, so the row and its chevron open the word as before. The speaker sits above
+          // it: a separate target beside the link, never inside it.
           return (
             <li key={word.id} class="list-item">
               <div class="row row-press row-stretch">
@@ -150,13 +150,7 @@ export function WordList({ words, groupId, onRemove, selection, view }: { words:
                 </a>
                 {word.favoritedAt !== null && <FavoriteMark />}
                 <SpeakerButton word={word} class="row-speaker" />
-                {onRemove ? (
-                  <button type="button" class="icon-btn row-over" aria-label={t.collections.remove(wordLabel(word))} title={t.collections.remove(wordLabel(word))} onClick={() => onRemove(word)}>
-                    <Icon name="remove" />
-                  </button>
-                ) : (
-                  <span class="row-chevron"><Icon name="forward" /></span>
-                )}
+                <span class="row-chevron"><Icon name="forward" /></span>
               </div>
             </li>
           );

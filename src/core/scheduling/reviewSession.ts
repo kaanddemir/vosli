@@ -1,6 +1,6 @@
 import type { AnswerWord, DictionaryDoubt, Evaluation, Track } from '../practice/answers';
 import { tracksFor } from '../practice/selection';
-import type { Answered, ItemProgress, Outcome } from '../practice/session';
+import { revivedHints, type Answered, type ItemProgress, type Outcome } from '../practice/session';
 import { phaseOf, type FsrsState } from './fsrs';
 import type { Candidate, ItemKind } from './queue';
 
@@ -9,7 +9,7 @@ import type { Candidate, ItemKind } from './queue';
  * It only says what to ask next. Every schedule lives on the card and comes from the scheduler, so
  * leaving at any moment loses nothing but the place in this list.
  */
-export interface ReviewItem extends ItemProgress {
+export interface ReviewItem extends ItemProgress<Track> {
   kind: ItemKind;
   /** When the scheduler wants it again, if that falls inside this session. */
   returnsAt: number | null;
@@ -31,6 +31,8 @@ export interface ReviewSession {
   queue: number[];
   current: number | null;
   hinted: boolean;
+  /** Hint stages shown for the question on screen. Any at all makes the attempt hinted. */
+  hints: number;
   answered: ReviewAnswered | null;
   ended: boolean;
 }
@@ -48,6 +50,7 @@ export function createReviewSession(id: string, includeFlagged: boolean, batch: 
     queue: batch.map((_, index) => index),
     current: null,
     hinted: false,
+    hints: 0,
     answered: null,
     ended: false,
   };
@@ -79,9 +82,10 @@ export function nextStep(session: ReviewSession, now: number): ReviewStep {
 
 const withItem = (session: ReviewSession, index: number, change: Partial<ReviewItem>): ReviewItem[] => session.items.map((item, at) => (at === index ? { ...item, ...change } : item));
 
-/** Puts a question on screen. The same question after a reload keeps its hint, so a reload cannot wipe one from the rating. */
+/** Puts a question on screen. The same question after a reload keeps its hints, so a reload cannot wipe one from the rating. */
 export function askItem(session: ReviewSession, index: number): ReviewSession {
-  return { ...session, items: withItem(session, index, { returnsAt: null }), queue: session.queue.filter((entry) => entry !== index), current: index, hinted: session.current === index && session.hinted, answered: null };
+  const same = session.current === index;
+  return { ...session, items: withItem(session, index, { returnsAt: null }), queue: session.queue.filter((entry) => entry !== index), current: index, hinted: same && session.hinted, hints: same ? session.hints : 0, answered: null };
 }
 
 export type SaveResult = { status: 'saved'; dueAt: number } | { status: 'conflict' | 'failed' };
@@ -103,11 +107,12 @@ export function recordAnswer(session: ReviewSession, typed: string, evaluation: 
 }
 
 /** Moves on from the feedback. */
-export const leaveFeedback = (session: ReviewSession): ReviewSession => ({ ...session, current: null, hinted: false, answered: null });
+export const leaveFeedback = (session: ReviewSession): ReviewSession => ({ ...session, current: null, hinted: false, hints: 0, answered: null });
 
-export const markReviewHint = (session: ReviewSession): ReviewSession => (session.answered ? session : { ...session, hinted: true });
+/** Shows one more hint stage. The first one already makes the answer hinted; later ones stay part of that same answer. */
+export const markReviewHint = (session: ReviewSession): ReviewSession => (session.answered ? session : { ...session, hinted: true, hints: session.hints + 1 });
 
-export const endSession = (session: ReviewSession): ReviewSession => ({ ...session, current: null, hinted: false, answered: null, ended: true });
+export const endSession = (session: ReviewSession): ReviewSession => ({ ...session, current: null, hinted: false, hints: 0, answered: null, ended: true });
 
 /** Takes a card out, for one deleted, changed or already answered somewhere else. Earlier answers stay counted. */
 export function dropItem(session: ReviewSession, index: number): ReviewSession {
@@ -119,6 +124,7 @@ export function dropItem(session: ReviewSession, index: number): ReviewSession {
     queue: session.queue.filter((entry) => entry !== index),
     current: leaving ? null : session.current,
     hinted: leaving ? false : session.hinted,
+    hints: leaving ? 0 : session.hints,
     answered: leaving ? null : session.answered,
   };
 }
@@ -166,5 +172,5 @@ export function reviveReviewSession(raw: unknown): ReviewSession | null {
   const isIndex = (index: unknown) => Number.isInteger(index) && (index as number) >= 0 && (index as number) < size;
   const current = value.current ?? null;
   if (!itemsOk || !value.queue.every(isIndex) || (current !== null && !isIndex(current))) return null;
-  return { id: value.id, includeFlagged: value.includeFlagged === true, items: value.items, queue: value.queue, current, hinted: value.hinted === true, answered: current === null ? null : value.answered ?? null, ended: value.ended === true };
+  return { id: value.id, includeFlagged: value.includeFlagged === true, items: value.items, queue: value.queue, current, hinted: value.hinted === true, hints: revivedHints(value), answered: current === null ? null : value.answered ?? null, ended: value.ended === true };
 }

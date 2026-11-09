@@ -18,9 +18,8 @@ function sectionOf(place: Place): string {
   switch (place.route) {
     case 'word':
     case 'wordEdit':
-      return place.groupId ? 'collections' : 'dictionary';
     case 'wordNew':
-      return 'dictionary';
+      return place.groupId ? 'collections' : 'dictionary';
     case 'group':
     case 'import':
       return 'collections';

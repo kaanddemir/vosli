@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Article } from '../src/core/identity';
-import type { Evaluation } from '../src/core/practice/answers';
+import type { Evaluation, Track } from '../src/core/practice/answers';
 import { ALL_WORDS, buildRound, doubtFrom, findDifficult, questionableIssues, tracksFor, wordsInScope, type HistoryEntry, type PracticeMode, type RoundItem, type SelectableWord } from '../src/core/practice/selection';
-import { createSession, currentItem, doneCount, dropWord, isFinished, markHintUsed, MAX_ATTEMPTS, nextQuestion, retriesWaiting, reviveSession, submitAnswer, summarize, type PracticeSettings, type Session } from '../src/core/practice/session';
+import { createSession, currentItem, doneCount, dropWord, isFinished, markHintUsed, MAX_ATTEMPTS, nextQuestion, retriesWaiting, reviveSession, roundSize, skipQuestion, submitAnswer, summarize, type PracticeSettings, type Session } from '../src/core/practice/session';
 
 const RIGHT: Evaluation = { result: 'correct', correct: true, note: null, other: null };
 const WRONG: Evaluation = { result: 'wrong', correct: false, note: null, other: null };
@@ -81,6 +81,36 @@ describe('same-session retries', () => {
     expect(summarize(state)).toMatchObject({ firstClean: 2, firstHinted: 1, firstWrong: 0, recovered: 1, unresolved: 0 });
   });
 
+  it('more hint stages stay one hinted attempt, and the next question starts without any', () => {
+    let state = markHintUsed(markHintUsed(markHintUsed(start('a', 'b'))));
+    expect(state).toMatchObject({ hinted: true, hints: 3 });
+    state = submitAnswer(state, 'x', RIGHT);
+    expect(state.answered?.hinted).toBe(true);
+    expect(state.items[0]).toMatchObject({ first: 'hinted', last: 'hinted', attempts: 1 });
+    expect(markHintUsed(state)).toBe(state);
+    state = nextQuestion(state);
+    expect(state).toMatchObject({ hinted: false, hints: 0 });
+    expect(summarize(nextQuestion(submitAnswer(state, 'x', RIGHT)))).toMatchObject({ firstClean: 1, firstHinted: 1 });
+  });
+
+  it('a wrong answer after hints is still wrong, and its retry starts without hints', () => {
+    let state = submitAnswer(markHintUsed(markHintUsed(start('a', 'b'))), 'x', WRONG);
+    expect(state.items[0]).toMatchObject({ first: 'wrong' });
+    state = nextQuestion(nextQuestion(submitAnswer(nextQuestion(state), 'x', RIGHT)));
+    expect(currentItem(state)).toMatchObject({ wordId: 'a', attempts: 1 });
+    expect(state).toMatchObject({ hinted: false, hints: 0 });
+  });
+
+  it('keeps hint stages through a reload, and reads an older saved round as one hint', () => {
+    const active = (...ids: string[]) => new Set(ids);
+    const state = markHintUsed(markHintUsed(start('a', 'b')));
+    expect(reviveSession(JSON.parse(JSON.stringify(state)), active('a', 'b'))).toMatchObject({ hinted: true, hints: 2 });
+    const { hints: _, ...older } = state;
+    expect(reviveSession(JSON.parse(JSON.stringify(older)), active('a', 'b'))).toMatchObject({ hinted: true, hints: 1 });
+    expect(reviveSession(JSON.parse(JSON.stringify({ ...state, hinted: false })), active('a', 'b'))).toMatchObject({ hinted: false, hints: 0 });
+    expect(reviveSession(JSON.parse(JSON.stringify({ ...state, hints: 'x' })), active('a', 'b'))).toMatchObject({ hinted: true, hints: 1 });
+  });
+
   it('a hint belongs to one attempt only', () => {
     let state = markHintUsed(start('a', 'b'));
     expect(state.hinted).toBe(true);
@@ -88,6 +118,59 @@ describe('same-session retries', () => {
     expect(state.answered?.hinted).toBe(true);
     state = nextQuestion(state);
     expect(state.hinted).toBe(false);
+  });
+});
+
+describe('listening rounds', () => {
+  const listening = (...ids: string[]) => createSession('s', settings, ids.map((wordId) => ({ wordId, track: 'listen' as const })));
+
+  it('are built from the words given, each asked by ear', () => {
+    const words = ['a', 'b', 'c'].map((id) => makeWord(id));
+    const round = buildRound({ words, mode: 'listen', count: 2, history: [], doubtOf: () => ({ article: false, offers: [] }), random: () => 0.5 });
+    expect(round).toHaveLength(2);
+    expect(round.every((item) => item.track === 'listen')).toBe(true);
+  });
+
+  it('a skipped question is not wrong, not asked again and not counted', () => {
+    let state = skipQuestion(markHintUsed(listening('a', 'b', 'c')));
+    expect(currentItem(state)?.wordId).toBe('b');
+    expect(state).toMatchObject({ hinted: false, hints: 0, answered: null });
+    expect(roundSize(state)).toBe(2);
+    state = nextQuestion(submitAnswer(state, 'x', WRONG));
+    state = nextQuestion(submitAnswer(state, 'x', RIGHT));
+    // b comes back once c is done; a never does.
+    expect(currentItem(state)?.wordId).toBe('b');
+    state = nextQuestion(submitAnswer(state, 'x', RIGHT));
+    expect(isFinished(state)).toBe(true);
+    expect(summarize(state)).toMatchObject({ total: 2, firstClean: 1, firstWrong: 1, recovered: 1, unresolved: 0 });
+    expect(doneCount(state)).toBe(2);
+  });
+
+  it('a lone retry is never spaced by a skipped question', () => {
+    let state = skipQuestion(listening('a', 'b'));
+    state = submitAnswer(state, 'x', WRONG);
+    // With nothing else to ask between, the round simply ends rather than bringing a back.
+    expect(state.queue).toEqual([1]);
+    expect(isFinished(nextQuestion(state))).toBe(true);
+  });
+
+  it('a retry skipped keeps its earlier answer, and nothing can be skipped once answered', () => {
+    let state = nextQuestion(submitAnswer(listening('a', 'b', 'c', 'd', 'e'), 'x', WRONG));
+    expect(skipQuestion(submitAnswer(state, 'x', RIGHT))).toEqual(submitAnswer(state, 'x', RIGHT));
+    for (let i = 0; i < 3; i++) state = nextQuestion(submitAnswer(state, 'x', RIGHT));
+    expect(currentItem(state)).toMatchObject({ wordId: 'a', attempts: 1 });
+    state = skipQuestion(state);
+    expect(state.items[0]).toMatchObject({ first: 'wrong' });
+    expect(state.items[0]!.skipped).toBeUndefined();
+    expect(roundSize(state)).toBe(5);
+  });
+
+  it('survive a reload, skips and hints included', () => {
+    const state = markHintUsed(skipQuestion(listening('a', 'b')));
+    const revived = reviveSession(JSON.parse(JSON.stringify(state)), new Set(['a', 'b']))!;
+    expect(revived).toEqual(state);
+    expect(roundSize(revived)).toBe(1);
+    expect(reviveSession({ ...JSON.parse(JSON.stringify(state)), items: [{ wordId: 'a', track: 'listen', attempts: 0, first: null, last: null, skipped: 'yes' }] }, new Set(['a']))).toBeNull();
   });
 });
 
@@ -158,7 +241,7 @@ describe('saved rounds', () => {
   it('deleting the word on screen clears its answer as well', () => {
     const state = dropWord(markHintUsed(submitAnswer(start('a', 'b'), 'x', WRONG)), 'a');
     expect(state.answered).toBeNull();
-    expect(state.hinted).toBe(false);
+    expect(state).toMatchObject({ hinted: false, hints: 0 });
     expect(currentItem(state)?.wordId).toBe('b');
   });
 
@@ -228,7 +311,7 @@ describe('modes', () => {
     for (let run = 0; run < 3; run++) {
       const items = buildRound({ words, mode: 'tr_de', count: 3, history, doubtOf: () => ({ article: false, offers: [] }), random: sequence(run + 1) });
       seen.push(items.map((item) => item.wordId));
-      for (const item of items) history.push({ wordId: item.wordId, track: item.track, at: history.length + 1, result: 'correct', hintsUsed: 0 });
+      for (const item of items) history.push({ wordId: item.wordId, track: item.track as Track, at: history.length + 1, result: 'correct', hintsUsed: 0 });
     }
     expect(new Set(seen.flat()).size).toBe(9);
     for (let run = 0; run < 50; run++) expect(buildRound({ words, mode: 'tr_de', count: 3, history, doubtOf: () => ({ article: false, offers: [] }), random: sequence(run + 1) })).toHaveLength(3);

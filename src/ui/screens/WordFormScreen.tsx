@@ -21,7 +21,7 @@ import { IssueList, validationText } from '../components/Validation';
 import { EmptyState, LoadError, LoadingState, Screen } from '../components/Screen';
 import { meaningsOf, wordLabel } from '../components/WordList';
 import { useDb } from '../dbContext';
-import { hrefFor, hrefForWord } from '../router';
+import { hrefFor, hrefForGroup, hrefForWord } from '../router';
 import { useLoad } from '../useLoad';
 
 const LETTERS = ['ä', 'ö', 'ü', 'ß'] as const;
@@ -40,6 +40,8 @@ interface FormValues {
 interface WordFormProps {
   initial: FormValues;
   groups?: readonly Group[];
+  /** Lists already ticked when the form opens. */
+  initialGroups?: readonly string[];
   cancelHref: string;
   /** What saving these values would do to learning progress, if anything. */
   noteFor?: (draft: WordDraft) => string | null;
@@ -85,9 +87,9 @@ function useWordCheck(german: string, article: string, turkish: string) {
 
 const placeForWord = (id: string, groupId?: string) => location.replace(hrefForWord(id, groupId));
 
-function WordForm({ initial, groups = [], cancelHref, noteFor, onSave }: WordFormProps) {
+function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFor, onSave }: WordFormProps) {
   const [values, setValues] = useState(initial);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialGroups));
   const [errors, setErrors] = useState<readonly DraftError[]>([]);
   const [conflict, setConflict] = useState<Conflict | { duplicate: Word } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -321,10 +323,15 @@ function ConflictBody({ conflict, hasLists, saving, onChoose }: { conflict: Conf
 
 const BLANK: FormValues = { german: '', article: 'none', turkish: '', plural: '' };
 
-export function WordNewScreen() {
+/**
+ * A new word, from the Dictionary or from inside a list. From a list, that list is already ticked, and
+ * saving or cancelling goes back to it. Only a list can be ticked: a PDF or lesson address is a plain new word.
+ */
+export function WordNewScreen({ groupId }: { groupId?: string | undefined } = {}) {
   const db = useDb();
   const { state, reload } = useLoad(() => listCustomGroups(db), [db]);
-  const back = { href: hrefFor('dictionary'), label: t.nav.dictionary };
+  const list = groupId && state.status === 'ready' ? state.data.find((group) => group.id === groupId) : undefined;
+  const back = list ? { href: hrefForGroup(list.id), label: t.nav.collections } : { href: hrefFor('dictionary'), label: t.nav.dictionary };
 
   return (
     <Screen title={t.wordForm.newTitle} back={back}>
@@ -334,11 +341,13 @@ export function WordNewScreen() {
         <WordForm
           initial={BLANK}
           groups={state.data}
+          initialGroups={list ? [list.id] : []}
           cancelHref={back.href}
           onSave={async (draft, groupIds, choice) => {
             const outcome = await addWord(db, draft, choice, groupIds, Date.now());
             if (outcome.kind === 'conflict') return outcome.found;
-            placeForWord(outcome.word.id);
+            if (list) location.replace(hrefForGroup(list.id));
+            else placeForWord(outcome.word.id);
           }}
         />
       )}

@@ -327,15 +327,52 @@ test.describe('collections', () => {
   test('removing from a list keeps the word elsewhere, and can be undone', async ({ page }) => {
     await seeded(page, '#/collections/g-a');
     const before = (await dump(page, 'groupMembers')).find((m) => m.groupId === 'g-a' && m.wordId === 'apfel');
-    await page.getByRole('button', { name: t.collections.remove('der Apfel') }).click();
+    const others = ['words', 'cards', 'reviewLogs'];
+    const kept = await Promise.all(others.map((table) => dump(page, table)));
+    // Rows open their word as before; nothing on them removes it.
+    await expect(main(page).getByRole('button', { name: /listeden/i })).toHaveCount(0);
+    await page.getByRole('button', { name: t.common.select }).click();
+    await expect(page.getByRole('button', { name: t.collections.removeSelected })).toBeDisabled();
+    await expect(page.getByRole('button', { name: t.common.delete, exact: true })).toHaveCount(0);
+    await page.getByRole('checkbox', { name: /Apfel/ }).check();
+    await expect(page.getByRole('status').filter({ hasText: t.common.selected('1') })).toBeVisible();
+    await page.getByRole('button', { name: t.collections.removeSelected }).click();
     await expect(page.getByRole('status').filter({ hasText: t.collections.removed('der Apfel') })).toBeVisible();
     await expect(main(page)).toContainText(t.common.words('1'));
+    // Selection ends, and focus goes back to the button that began it.
+    await expect(page.getByRole('checkbox')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: t.common.select })).toBeFocused();
     const members = await dump(page, 'groupMembers');
     expect(members.filter((m) => m.wordId === 'apfel').map((m) => m.groupId).sort()).toEqual(['g-b', 'g-pdf']);
-    expect((await dump(page, 'words')).find((word) => word.id === 'apfel')?.deletedAt).toBeNull();
+    expect(await Promise.all(others.map((table) => dump(page, table)))).toEqual(kept);
     await page.getByRole('button', { name: t.common.undo }).click();
     await expect(main(page)).toContainText(t.common.words('2'));
     expect((await dump(page, 'groupMembers')).find((m) => m.groupId === 'g-a' && m.wordId === 'apfel')).toEqual(before);
+  });
+
+  test('takes several words out at once with the keyboard, and undoes them together', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Desktop keyboard flow');
+    await seeded(page, '#/collections/g-a');
+    const before = await dump(page, 'groupMembers');
+    await page.getByRole('button', { name: t.common.select }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: t.common.cancel })).toBeFocused();
+    await page.getByRole('button', { name: t.common.selectAll }).click();
+    await expect(page.getByRole('status').filter({ hasText: t.common.selected('2') })).toBeVisible();
+    // The list's own actions step aside while choosing, so deleting the list is never beside taking words out.
+    await expect(page.getByRole('button', { name: t.collections.deleteList })).toHaveCount(0);
+    await page.getByRole('button', { name: t.collections.removeSelected }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status').filter({ hasText: t.collections.removedMany('2') })).toBeVisible();
+    await expect(page.getByText(t.collections.emptyGroup)).toBeVisible();
+    await expect(page.getByRole('link', { name: t.collections.createWord })).toBeVisible();
+    await page.getByRole('button', { name: t.common.undo }).click();
+    await expect(main(page)).toContainText(t.common.words('2'));
+    expect(await dump(page, 'groupMembers')).toEqual(before);
+    await page.getByRole('button', { name: t.common.select }).click();
+    await page.getByRole('button', { name: t.common.cancel }).click();
+    await expect(page.getByRole('button', { name: t.collections.deleteList })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Apfel/ })).toHaveAttribute('href', '#/collections/g-a/apfel');
   });
 
   test('renames a list', async ({ page }) => {
@@ -362,11 +399,43 @@ test.describe('collections', () => {
     expect((await dump(page, 'groupMembers')).map((m) => m.groupId).sort()).toEqual(['g-b', 'g-pdf']);
   });
 
-  test('source collections cannot be edited, only deleted', async ({ page }) => {
+  test('a PDF collection can be renamed and deleted, but its words cannot change', async ({ page }) => {
     await seeded(page, '#/collections/g-pdf');
     await expect(main(page)).toContainText(t.collections.kind.pdf);
     await expect(page.getByRole('button', { name: t.collections.deleteCollection })).toBeVisible();
-    for (const name of [t.collections.addWords, t.collections.renameList, t.collections.deleteList, t.collections.remove('der Apfel')]) await expect(page.getByRole('button', { name })).toHaveCount(0);
+    for (const name of [t.collections.addWords, t.common.select, t.collections.renameList, t.collections.deleteList]) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
+    const before = await Promise.all(['groupMembers', 'sources', 'importRows'].map((table) => dump(page, table)));
+
+    await page.getByRole('button', { name: t.collections.renameCollection }).click();
+    const dialog = page.getByRole('dialog', { name: t.collections.renameCollection });
+    const field = dialog.getByLabel(t.collections.collectionName);
+    await expect(field).toHaveValue('bolum-1.pdf');
+    await expect(field).toHaveAttribute('maxlength', '80');
+    await field.fill('   ');
+    await save(dialog);
+    await expect(field).toHaveAttribute('aria-invalid', 'true');
+    await expect(field).toHaveAccessibleDescription(t.collections.nameErrors.empty);
+    // A list may already use the name: PDF names only have to differ from other PDFs.
+    await field.fill('Zor');
+    await save(dialog);
+    await expect(heading(page)).toHaveText('Zor');
+    await page.getByRole('button', { name: t.collections.renameCollection }).click();
+    await dialog.getByLabel(t.collections.collectionName).fill('Almanca A1 — Bölüm 7');
+    await save(dialog);
+    await expect(heading(page)).toHaveText('Almanca A1 — Bölüm 7');
+    await page.reload();
+    await expect(heading(page)).toHaveText('Almanca A1 — Bölüm 7');
+    expect((await dump(page, 'groups')).find((group) => group.id === 'g-pdf')).toMatchObject({ kind: 'pdf', sourceId: 's1', name: 'Almanca A1 — Bölüm 7' });
+    expect(await Promise.all(['groupMembers', 'sources', 'importRows'].map((table) => dump(page, table)))).toEqual(before);
+  });
+
+  test('a lesson collection is read-only, and can still be deleted', async ({ page }) => {
+    await open(page);
+    await seed(page, { ...LIBRARY, groups: [...LIBRARY.groups, { id: 'g-lesson', kind: 'lesson', name: 'Lektion 1', order: 3, sourceId: 's1', createdAt: 1 }], groupMembers: [...LIBRARY.groupMembers, { groupId: 'g-lesson', wordId: 'apfel', addedAt: 1, importRowId: 'r1' }] });
+    await open(page, '#/collections/g-lesson');
+    await expect(main(page)).toContainText(t.collections.kind.lesson);
+    for (const name of [t.collections.addWords, t.common.select, t.collections.renameList, t.collections.renameCollection]) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: t.collections.deleteCollection })).toBeVisible();
   });
 
   test('a word manages its lists without touching its source collection', async ({ page }) => {
@@ -398,9 +467,75 @@ test.describe('collections', () => {
     await seed(page, { groups: [{ id: 'empty', kind: 'custom', name: 'Boş', order: 0, sourceId: null, createdAt: 1 }] });
     await open(page, '#/collections/empty');
     await expect(page.getByText(t.collections.emptyGroup)).toBeVisible();
+    await expect(page.getByRole('button', { name: t.common.select })).toHaveCount(0);
     await page.getByRole('button', { name: t.collections.addWords }).click();
     await expect(page.getByRole('dialog')).toContainText(t.collections.allAdded);
+    await page.getByRole('dialog').getByRole('link', { name: t.collections.createWord }).click();
+    await expect(heading(page)).toHaveText(t.wordForm.newTitle);
+    await expect(page.getByRole('checkbox', { name: 'Boş' })).toBeChecked();
   });
+
+  test('a new word made from a list starts in that list and comes back to it', async ({ page }) => {
+    await seeded(page, '#/collections/g-a');
+    await page.getByRole('button', { name: t.collections.addWords }).click();
+    await page.getByRole('dialog').getByRole('link', { name: t.collections.createWord }).click();
+    await expect(page).toHaveURL(/#\/collections\/g-a\/new$/);
+    await expect(heading(page)).toHaveText(t.wordForm.newTitle);
+    // Collections stays the current section.
+    await expect(page.locator('.nav-link[aria-current="true"]').first()).toContainText(t.nav.collections);
+    await expect(page.getByRole('checkbox', { name: 'Zor' })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: longList })).not.toBeChecked();
+
+    // Cancelling goes back and changes nothing.
+    const words = await dump(page, 'words');
+    await fillWord(page, 'die Birne', 'armut');
+    await page.getByRole('link', { name: t.common.cancel }).click();
+    await expect(heading(page)).toHaveText('Zor');
+    expect(await dump(page, 'words')).toEqual(words);
+
+    await open(page, '#/collections/g-a/new');
+    await fillWord(page, 'die Birne', 'armut');
+    await save(page);
+    await expect(heading(page)).toHaveText('Zor');
+    await expect(main(page)).toContainText(t.common.words('3'));
+    const birne = (await dump(page, 'words')).find((word) => word.lemma === 'Birne')!;
+    expect((await dump(page, 'groupMembers')).filter((m) => m.wordId === birne.id).map((m) => m.groupId)).toEqual(['g-a']);
+  });
+
+  test('a word that already exists joins the list instead of being made twice', async ({ page }) => {
+    await seeded(page, '#/collections/g-b/new');
+    const [words, cards, logs] = await Promise.all(['words', 'cards', 'reviewLogs'].map((table) => dump(page, table)));
+    await expect(page.getByRole('checkbox', { name: longList })).toBeChecked();
+    await fillWord(page, 'der Fuß', 'ayak');
+    await save(page);
+    await expect(page.getByRole('alert')).toContainText(t.wordForm.exists);
+    await page.getByRole('button', { name: t.wordForm.addToLists }).click();
+    await expect(heading(page)).toHaveText(longList);
+    await expect(main(page).getByRole('link', { name: /Fuß/ })).toBeVisible();
+    expect(await Promise.all(['words', 'cards', 'reviewLogs'].map((table) => dump(page, table)))).toEqual([words, cards, logs]);
+    expect((await dump(page, 'groupMembers')).filter((m) => m.wordId === 'fuss').map((m) => m.groupId)).toEqual(['g-b']);
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`a list's selection fits 320px, much larger text and the desktop, with no detectable problems in ${scheme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.addInitScript((value) => localStorage.setItem('vosli.theme', value), scheme);
+      await seeded(page, '#/collections/g-b');
+      for (const [width, size] of [[320, '16px'], [320, '32px'], [1280, '16px']] as const) {
+        await page.setViewportSize({ width, height: 700 });
+        await page.evaluate((value) => (document.documentElement.style.fontSize = value), size);
+        const label = `${width}px ${size}`;
+        await expect(heading(page)).toHaveText(longList);
+        expect(await overflowing(page), label).toEqual([]);
+        await axe(page, `${label} list`);
+        await page.getByRole('button', { name: t.common.select }).click();
+        await page.getByRole('checkbox').first().check();
+        expect(await overflowing(page), label).toEqual([]);
+        await axe(page, `${label} selecting`);
+        await page.getByRole('button', { name: t.common.cancel }).click();
+      }
+    });
+  }
 });
 
 const toReview = async (page: Page, text: string) => {

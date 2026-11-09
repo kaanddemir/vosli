@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import type { RoundSummary } from '../../core/practice/session';
-import type { Track } from '../../core/practice/answers';
+import type { QuestionKind } from '../../core/practice/answers';
 import type { Word } from '../../data/types';
 import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
@@ -18,7 +18,7 @@ interface PracticeSummaryProps {
   children: ComponentChildren;
 }
 
-const ORDER: Readonly<Record<Track, number>> = { tr_de: 0, de_tr: 1, article: 2 };
+const ORDER: Readonly<Record<QuestionKind, number>> = { tr_de: 0, de_tr: 1, article: 2, listen: 3 };
 
 /** Counts only: an open-ended practice has no percentage of anything to report. */
 export function PracticeSummary({ summary, wordOf, title = t.practice.summaryTitle, onClose, children }: PracticeSummaryProps) {

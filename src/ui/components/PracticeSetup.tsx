@@ -1,4 +1,6 @@
-import { ALL_WORDS, doubtFrom, tracksFor, wordsInScope, type PracticeMode, type PracticeScope } from '../../core/practice/selection';
+import { useEffect, useState } from 'preact/hooks';
+import type { AudioIndex } from '../../audio/audioIndex';
+import { ALL_WORDS, doubtFrom, questionsFor, wordsInScope, type PracticeMode, type PracticeScope } from '../../core/practice/selection';
 import type { CardDirection } from '../../core/practice/cards';
 import type { PracticeSettings } from '../../core/practice/session';
 import type { PracticeData } from '../../data/practice';
@@ -10,9 +12,10 @@ import { hrefFor } from '../router';
 import { FlaggedWords } from './FlaggedWords';
 import { Icon } from './Icon';
 import { EmptyState, Screen } from './Screen';
+import { useAudioIndex } from './SpeakerButton';
 
-const MODES: readonly PracticeMode[] = ['tr_de', 'de_tr', 'article', 'mixed'];
-const STUDIES: readonly StudyMode[] = ['typed', 'cards'];
+const MODES: readonly Exclude<PracticeMode, 'listen'>[] = ['tr_de', 'de_tr', 'article', 'mixed'];
+const STUDIES: readonly StudyMode[] = ['typed', 'cards', 'listen'];
 const DIRECTIONS: readonly CardDirection[] = ['de_tr', 'tr_de'];
 const COUNTS: readonly (number | null)[] = [10, 20, 50, null];
 const KINDS: readonly GroupKind[] = ['pdf', 'lesson', 'custom'];
@@ -30,14 +33,35 @@ interface Eligibility {
  * Cards choose words the same way a typed round does: the same scope, the same held-back warnings,
  * and only words that have both sides to show. The direction stands in for the question type.
  */
-export const settingsFor = (settings: PracticeSettings, study: StudyChoice): PracticeSettings => (study.study === 'cards' ? { ...settings, mode: study.direction } : settings);
+export const settingsFor = (settings: PracticeSettings, study: StudyChoice): PracticeSettings =>
+  study.study === 'cards' ? { ...settings, mode: study.direction } : study.study === 'listen' ? { ...settings, mode: 'listen' } : settings;
 
-export function eligibilityOf(data: PracticeData, settings: PracticeSettings): Eligibility {
+/**
+ * Listening asks only words whose confirmed recording says the spelling saved, judged from the app's own
+ * files without fetching any sound. Without the index, no word can be heard.
+ */
+export function eligibilityOf(data: PracticeData, settings: PracticeSettings, audio: AudioIndex | null = null): Eligibility {
   const inScope = wordsInScope(data.words, settings.scope, data.members, data.difficult);
   const flagged = inScope.filter((word) => data.flagged.has(word.id));
   const usable = settings.includeFlagged ? inScope : inScope.filter((word) => !data.flagged.has(word.id));
-  const eligible = usable.filter((word) => tracksFor(word, settings.mode, doubtFrom(data.flagged.get(word.id) ?? [])).length > 0);
+  const askable = usable.filter((word) => questionsFor(word, settings.mode, doubtFrom(data.flagged.get(word.id) ?? [])).length > 0);
+  const eligible = settings.mode === 'listen' ? askable.filter((word) => audio !== null && audio.canDictate(word)) : askable;
   return { inScope, flagged, eligible };
+}
+
+/** False only when the browser knows it has no connection. True can still mean a connection that fails. */
+function useOnline(): boolean {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    addEventListener('online', update);
+    addEventListener('offline', update);
+    return () => {
+      removeEventListener('online', update);
+      removeEventListener('offline', update);
+    };
+  }, []);
+  return online;
 }
 
 function ScopeRow({ label, count, checked, disabled = false, onChange }: { label: string; count: number; checked: boolean; disabled?: boolean; onChange: (checked: boolean, input: HTMLInputElement) => void }) {
@@ -58,6 +82,8 @@ function toggle(scope: PracticeScope, patch: Partial<PracticeScope>): PracticeSc
 }
 
 export function PracticeSetup({ data, settings, study, onChange, onStudyChange, onStart }: { data: PracticeData; settings: PracticeSettings; study: StudyChoice; onChange: (settings: PracticeSettings) => void; onStudyChange: (study: StudyChoice) => void; onStart: () => void }) {
+  const audio = useAudioIndex();
+  const online = useOnline();
   const close = (
     <a class="icon-btn" href={hrefFor('home')} aria-label={t.common.close} title={t.common.close}>
       <Icon name="close" />
@@ -76,8 +102,12 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
 
   const { scope } = settings;
   const cards = study.study === 'cards';
-  const { flagged, eligible } = eligibilityOf(data, settingsFor(settings, study));
+  const listening = study.study === 'listen';
+  const { flagged, eligible } = eligibilityOf(data, settingsFor(settings, study), audio);
   const questions = settings.count === null ? eligible.length : Math.min(settings.count, eligible.length);
+  // What stops a round from starting, or for listening, how many words can be heard and that it needs a connection.
+  const blocked = listening && !online ? t.practice.listenOffline : listening && !audio ? t.practice.listenLoading : questions === 0 ? (cards ? t.practice.noCards : listening ? t.practice.noRecordings : settings.mode === 'article' ? t.practice.noArticles : t.practice.noneInScope) : null;
+  const startLine = blocked ?? (listening ? t.practice.listenCoverage(formatCount(eligible.length)) : null);
   const favorites = data.words.filter((word) => word.favoritedAt !== null).length;
   const setScope = (next: PracticeScope) => onChange({ ...settings, scope: next });
   const groupsOf = (kind: GroupKind): Group[] => data.groups.filter((item) => item.group.kind === kind && item.wordCount > 0).map((item) => item.group);
@@ -90,7 +120,7 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          if (questions > 0) onStart();
+          if (blocked === null) onStart();
         }}
       >
         <fieldset class="setup-group">
@@ -106,7 +136,8 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
         </fieldset>
 
         {/* Keyed, so switching modes builds fresh radios rather than reusing the other group's checked state. */}
-        {cards ? (
+        {/* Listening has no question type: it always asks for the German that is heard. The typed choice is kept for later. */}
+        {listening ? null : cards ? (
           <fieldset key="direction" class="setup-group">
             <legend class="list-label">{t.practice.directionLabel}</legend>
             <div class="segmented segmented-full">
@@ -186,8 +217,8 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
 
         <div class="practice-start">
           {/* Only what stops a round from starting is worth a line here. */}
-          {questions === 0 && <p class="practice-start-line" role="status" data-testid="practice-blocked">{cards ? t.practice.noCards : settings.mode === 'article' ? t.practice.noArticles : t.practice.noneInScope}</p>}
-          <button type="submit" class="btn btn-primary btn-block" disabled={questions === 0} data-questions={questions}>{cards ? t.practice.startCards : t.practice.start}</button>
+          {startLine && <p class="practice-start-line" role="status" data-testid={blocked ? 'practice-blocked' : 'practice-coverage'}>{startLine}</p>}
+          <button type="submit" class="btn btn-primary btn-block" disabled={blocked !== null} data-questions={questions}>{cards ? t.practice.startCards : t.practice.start}</button>
         </div>
       </form>
     </Screen>

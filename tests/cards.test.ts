@@ -49,5 +49,7 @@ describe('study choice', () => {
     expect(DEFAULT_STUDY).toEqual({ study: 'typed', direction: 'de_tr' });
     expect(parseStudyChoice({ study: 'cards', direction: 'tr_de' })).toEqual({ study: 'cards', direction: 'tr_de' });
     expect(parseStudyChoice({ study: 'flip', direction: 1 })).toEqual(DEFAULT_STUDY);
+    expect(parseStudyChoice({ study: 'listen', direction: 'tr_de' })).toEqual({ study: 'listen', direction: 'tr_de' });
+    expect(parseStudyChoice({ study: 'listen' })).toEqual({ study: 'listen', direction: 'de_tr' });
   });
 });

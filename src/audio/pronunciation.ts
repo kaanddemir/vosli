@@ -35,10 +35,20 @@ export interface PlayerOptions {
   timeoutMs?: number;
   /** How long a failure shows before the button returns to normal. */
   errorMs?: number;
+  /** Called as a recording starts, to describe it to the system's media controls. */
+  onStart?: () => void;
+}
+
+export interface PlayOptions {
+  /**
+   * Started by the app rather than a tap. A browser that refuses to play without a tap is not a broken
+   * recording: the player goes quietly back to idle, so a tap can start it.
+   */
+  auto?: boolean;
 }
 
 export interface Player {
-  play(source: PronunciationSource): void;
+  play(source: PronunciationSource, options?: PlayOptions): void;
   stop(): void;
   getState(): PlaybackState;
   subscribe(listener: (state: PlaybackState) => void): () => void;
@@ -46,12 +56,12 @@ export interface Player {
 
 const IDLE: PlaybackState = { key: null, status: 'idle', offline: false };
 
-export function createPlayer({ createAudio, isOnline = () => true, timeoutMs = 10_000, errorMs = 3000 }: PlayerOptions): Player {
+export function createPlayer({ createAudio, isOnline = () => true, timeoutMs = 10_000, errorMs = 3000, onStart }: PlayerOptions): Player {
   let audio: AudioLike | null = null;
   let state = IDLE;
   // Every start gets a new number, so events and promises from an earlier one are ignored.
   let attempt = 0;
-  let current: { source: PronunciationSource; urls: string[]; index: number } | null = null;
+  let current: { source: PronunciationSource; urls: string[]; index: number; auto: boolean } | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<(state: PlaybackState) => void>();
 
@@ -84,6 +94,15 @@ export function createPlayer({ createAudio, isOnline = () => true, timeoutMs = 1
     }, errorMs);
   };
 
+  /** Not allowed without a tap: nothing is wrong with the recording, so there is nothing to report. */
+  const blocked = (id: number) => {
+    if (id !== attempt || !current) return;
+    clearTimer();
+    current = null;
+    if (audio) release(audio);
+    set(IDLE);
+  };
+
   /** The next way to get the file, or a failure when there is none left. */
   const next = (id: number) => {
     if (id !== attempt || !current) return;
@@ -98,13 +117,16 @@ export function createPlayer({ createAudio, isOnline = () => true, timeoutMs = 1
     clearTimer();
     timer = setTimeout(() => fail(id), timeoutMs);
     set({ key: source.key, status: 'loading', offline: false });
+    onStart?.();
     element.src = urls[index]!;
     // Called within the tap itself: iOS plays only what a gesture started.
     element.play().catch((error: unknown) => {
       // A newer start interrupts this one on purpose; that is not a failure.
       if (id !== attempt || (error instanceof DOMException && error.name === 'AbortError')) return;
-      if (error instanceof DOMException && error.name === 'NotAllowedError') fail(id);
-      else next(id);
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        if (current?.auto) blocked(id);
+        else fail(id);
+      } else next(id);
     });
   };
 
@@ -128,7 +150,7 @@ export function createPlayer({ createAudio, isOnline = () => true, timeoutMs = 1
   };
 
   return {
-    play(source) {
+    play(source, { auto = false } = {}) {
       const el = element();
       // Again while it plays: from the start, with no new download.
       if (current?.source.key === source.key && state.status === 'playing') {
@@ -141,7 +163,7 @@ export function createPlayer({ createAudio, isOnline = () => true, timeoutMs = 1
       if (current) el.pause();
       const urls = [source.mp3];
       if (source.originalType && el.canPlayType(source.originalType) !== '') urls.push(source.original);
-      current = { source, urls, index: 0 };
+      current = { source, urls, index: 0, auto };
       start(id);
     },
     stop() {
@@ -159,10 +181,22 @@ export function createPlayer({ createAudio, isOnline = () => true, timeoutMs = 1
   };
 }
 
+/**
+ * Phones may show what is playing on the lock screen or in a notification. Without a description they
+ * can fall back to the file's name, which is the word itself and would answer a listening question.
+ */
+function describeToSystem(): void {
+  try {
+    if ('mediaSession' in navigator && typeof MediaMetadata !== 'undefined') navigator.mediaSession.metadata = new MediaMetadata({ title: 'Vosli' });
+  } catch {
+    /* Only a description: playing goes on without it. */
+  }
+}
+
 let shared: Player | null = null;
 
 /** The app's player, made on first use so nothing is created before someone taps a speaker. */
 export function player(): Player {
-  shared ??= createPlayer({ createAudio: () => new Audio(), isOnline: () => navigator.onLine });
+  shared ??= createPlayer({ createAudio: () => new Audio(), isOnline: () => navigator.onLine, onStart: describeToSystem });
   return shared;
 }

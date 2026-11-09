@@ -480,7 +480,7 @@ test.describe('home', () => {
 test.describe('practice states', () => {
   const GALLERY = 'http://127.0.0.1:4174/e2e/gallery.html';
 
-  for (const state of ['question', 'typing', 'article', 'correct', 'wrong', 'revealed', 'long']) {
+  for (const state of ['question', 'typing', 'hint', 'article', 'correct', 'wrong', 'revealed', 'long']) {
     for (const scheme of ['light', 'dark'] as const) {
       test(`${state} in ${scheme} fits 320px and has no detectable problems`, async ({ page }) => {
         await page.setViewportSize({ width: 320, height: 568 });

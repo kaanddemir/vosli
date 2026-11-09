@@ -1,10 +1,11 @@
 import type { Ref } from 'preact';
+import type { PlaybackStatus } from '../../audio/pronunciation';
 import { t } from '../../i18n/strings';
 import type { Word } from '../../data/types';
 import { AUTOCORRECT_OFF } from '../inputProps';
 import { Icon } from './Icon';
 import { PopoverButton } from './PopoverButton';
-import { SpeakerButton } from './SpeakerButton';
+import { SPEAKER_ICONS, SpeakerButton } from './SpeakerButton';
 import { GermanWord } from './WordList';
 
 const LETTERS = ['ä', 'ö', 'ü', 'ß'] as const;
@@ -32,6 +33,24 @@ export interface FeedbackView {
   speak?: Pick<Word, 'lemma' | 'article' | 'pos'>;
 }
 
+/**
+ * A question asked by ear. Nothing here names the word: the button says only what it does, and a failure
+ * says only that the sound did not play, so the answer stays unheard until it is checked.
+ */
+export interface ListenPrompt {
+  label: string;
+  status: PlaybackStatus;
+  /** False until there is a recording to play. */
+  ready: boolean;
+  /** The recording could not be played, as opposed to a browser waiting for a tap. */
+  failure: string | null;
+  /** Failures in a row suggest the connection rather than one file. */
+  canEnd: boolean;
+  onPlay: () => void;
+  onSkip: () => void;
+  onEnd: () => void;
+}
+
 export interface PracticeViewProps {
   done: number;
   total: number;
@@ -43,10 +62,17 @@ export interface PracticeViewProps {
   questionLang: string;
   /** A second line that decides the answer, such as the meaning behind an article. */
   detail?: string;
+  /** Asked by ear: a recording takes the question's place. */
+  listen?: ListenPrompt | undefined;
   answer?: string;
   answerLang?: string;
   feedback?: FeedbackView | null;
+  /** The hint stage on screen, with hidden letters masked. */
   hint?: string | null;
+  /** The same stage as a screen reader should hear it. */
+  hintSpoken?: string | null;
+  /** Pressing the hint again would show more. */
+  hintMore?: boolean;
   hintAvailable?: boolean;
   showLetters?: boolean;
   choices?: readonly string[];
@@ -76,7 +102,7 @@ const LONG_QUESTION = 22;
  * then one primary action in thumb reach. The field stays in place through the feedback, so the phone
  * keyboard never closes between questions and Enter always does the next thing.
  */
-export function PracticeView({ done, total, retries = 0, cue, tag = null, question, questionLang, detail, answer = '', answerLang = 'de', feedback = null, hint = null, hintAvailable = false, showLetters = false, choices, announcement = '', actionLabel, actionQuiet = false, actionDisabled = false, saveMessage = null, inputRef, onInput = noop, onEnter = noop, onAction = noop, onHint = noop, onReveal = noop, onLetter = noop, onChoice = noop, onClose = noop }: PracticeViewProps) {
+export function PracticeView({ done, total, retries = 0, cue, tag = null, question, questionLang, detail, listen, answer = '', answerLang = 'de', feedback = null, hint = null, hintSpoken = null, hintMore = false, hintAvailable = false, showLetters = false, choices, announcement = '', actionLabel, actionQuiet = false, actionDisabled = false, saveMessage = null, inputRef, onInput = noop, onEnter = noop, onAction = noop, onHint = noop, onReveal = noop, onLetter = noop, onChoice = noop, onClose = noop }: PracticeViewProps) {
   return (
     <form
       class="practice practice-session"
@@ -115,7 +141,37 @@ export function PracticeView({ done, total, retries = 0, cue, tag = null, questi
           </span>
         )}
         <p class="eyebrow" data-testid="practice-cue">{tag && <span class="practice-retry">{tag} · </span>}{cue}</p>
-        <p id="practice-prompt" class={question.length > LONG_QUESTION ? 'question question-long' : 'question'} lang={questionLang} data-testid="practice-question">{question}</p>
+        {listen ? (
+          <>
+            {/* The field is described by the instruction alone. */}
+            <p id="practice-prompt" class="visually-hidden">{cue}</p>
+            <button
+              type="button"
+              class="speaker-btn listen-btn"
+              data-status={listen.status}
+              data-testid="listen-play"
+              aria-label={listen.label}
+              title={listen.label}
+              disabled={!listen.ready}
+              onMouseDown={keepFocus}
+              onClick={listen.onPlay}
+            >
+              <Icon name={SPEAKER_ICONS[listen.status]} />
+            </button>
+            {listen.failure && !feedback && (
+              <div class="listen-failed" data-testid="listen-failed">
+                <p>{listen.failure}</p>
+                <div class="listen-failed-actions">
+                  <button type="button" class="btn btn-small" onMouseDown={keepFocus} onClick={listen.onPlay}>{t.practice.retryAudio}</button>
+                  <button type="button" class="btn btn-small" onMouseDown={keepFocus} onClick={listen.onSkip}>{t.practice.skip}</button>
+                  {listen.canEnd && <button type="button" class="btn btn-small btn-quiet" onClick={listen.onEnd}>{t.practice.endSession}</button>}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <p id="practice-prompt" class={question.length > LONG_QUESTION ? 'question question-long' : 'question'} lang={questionLang} data-testid="practice-question">{question}</p>
+        )}
         {detail && <p class="question-detail" lang="tr" data-testid="practice-detail">{detail}</p>}
         {/*
           In the card's corner, and only once the answer is in: before that it is not on the page at all, so it
@@ -177,13 +233,27 @@ export function PracticeView({ done, total, retries = 0, cue, tag = null, questi
             ) : null}
             <div class="practice-help">
               <button type="button" class="btn btn-quiet btn-small" data-testid="practice-reveal" onMouseDown={keepFocus} onClick={onReveal}>{t.practice.reveal}</button>
-              {hint ? (
-                <span class="hint-shown" data-testid="practice-hint">{t.practice.hintShown(hint)}</span>
-              ) : hintAvailable ? (
+              {/*
+                One button while there is more to show, so pressing it again keeps its place and its focus. It
+                shows the hint so far; once nothing more would help, the hint stays as plain text.
+              */}
+              {hintAvailable && (!hint || hintMore) ? (
                 <button type="button" class="btn btn-quiet btn-small practice-hint" onMouseDown={keepFocus} onClick={onHint}>
                   <Icon name="hint" />
-                  <span>{t.practice.hint}</span>
+                  {hint ? (
+                    <span class="hint-text">
+                      <span aria-hidden="true" data-testid="practice-hint">{t.practice.hintShown(hint)}</span>
+                      <span class="visually-hidden">{`${hintSpoken ?? t.practice.hintShown(hint)}. ${t.practice.hintMore}`}</span>
+                    </span>
+                  ) : (
+                    <span>{t.practice.hint}</span>
+                  )}
                 </button>
+              ) : hint ? (
+                <span class="hint-shown hint-text">
+                  <span aria-hidden="true" data-testid="practice-hint">{t.practice.hintShown(hint)}</span>
+                  <span class="visually-hidden">{hintSpoken ?? t.practice.hintShown(hint)}</span>
+                </span>
               ) : null}
             </div>
           </div>

@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Issue } from '../../core/issues';
-import { hintFor, type Track } from '../../core/practice/answers';
+import { hintsFor, type QuestionKind } from '../../core/practice/answers';
+import { spokenStage } from '../../core/practice/hints';
 import { doubtFrom } from '../../core/practice/selection';
 import type { Answered } from '../../core/practice/session';
 import { meaningKey } from '../../core/vocabulary';
 import type { Word } from '../../data/types';
 import { t } from '../../i18n/strings';
 import { player } from '../../audio/pronunciation';
-import { PracticeView, type FeedbackLine, type FeedbackView } from './PracticeView';
-import { preparePronunciation } from './SpeakerButton';
+import { PracticeView, type FeedbackLine, type FeedbackView, type ListenPrompt } from './PracticeView';
+import { preparePronunciation, usePlaybackStatus, usePronunciation, useAudioIndex } from './SpeakerButton';
 import { wordLabel } from './WordList';
 
 const ARTICLE_CHOICES = ['der', 'die', 'das'] as const;
@@ -20,7 +21,7 @@ const isCoarse = () => matchMedia('(pointer: coarse)').matches;
 const bareOrFull = (word: Word, doubtful: boolean) => (doubtful ? word.lemma : wordLabel(word));
 const meaningList = (word: Word) => word.meanings.map((meaning) => meaning.text).join(', ');
 
-function feedbackFor(answered: Answered, track: Track, word: Word, issues: readonly Issue[]): FeedbackView {
+function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues: readonly Issue[]): FeedbackView {
   const doubt = doubtFrom(issues);
   const { evaluation, typed, hinted } = answered;
   const lines: FeedbackLine[] = [];
@@ -35,6 +36,22 @@ function feedbackFor(answered: Answered, track: Track, word: Word, issues: reado
 
   const offer = doubt.offers[0];
   const caution = issues.length === 0 ? {} : { caution: offer ? t.practice.dictionaryCaution(`${offer.article ? `${offer.article} ` : ''}${offer.german}`) : t.practice.dictionaryCautionPlain };
+
+  // Heard, then checked: the spelling with its article and what it means are the answer, right or wrong.
+  // The question's own button replays it, so no second speaker is added.
+  if (track === 'listen') {
+    const meaning: FeedbackLine = { text: t.practice.meaning(meaningList(word)), lang: 'tr' };
+    if (evaluation.correct) {
+      if (evaluation.note === 'case') lines.push(german(t.practice.caseNote(shown)));
+      if (evaluation.note === 'dictionary') lines.push(german(t.practice.dictionaryNote(stored)));
+      return { kind: 'correct', title: hinted ? t.practice.correctHinted : t.practice.correct, answer: answerWord(false), lines: [meaning, ...lines], ...caution };
+    }
+    if (typed === '') return { kind: 'revealed', title: t.practice.revealed, answer: answerWord(false), lines: [meaning], ...caution };
+    const reason = evaluation.result in t.practice.reasons ? t.practice.reasons[evaluation.result as keyof typeof t.practice.reasons] : t.practice.wrong;
+    if (evaluation.other) lines.push({ text: t.practice.otherMeaning(otherLabel, evaluation.other.meanings.join(', ')), lang: 'tr' });
+    if (hinted) lines.push({ text: t.practice.hintUsed });
+    return { kind: 'wrong', title: reason, answer: answerWord(false), lines: [meaning, ...lines], ...caution };
+  }
 
   if (evaluation.correct) {
     if (evaluation.result === 'also_valid') lines.push(german(t.practice.alsoAsked(stored)));
@@ -79,15 +96,28 @@ function useVisibleHeight() {
   }, []);
 }
 
+/** What only a listening question needs from the screen. */
+export interface ListenOptions {
+  /** Play as the question appears. Only after moving on from an answer, never for the first question or after a reload. */
+  autoplay: boolean;
+  onSkip: () => void;
+  onEnd: () => void;
+}
+
+/** Failures in a row before ending the session is offered. */
+const FAILURES_BEFORE_END = 2;
+
 interface QuestionStepProps {
   word: Word;
-  track: Track;
+  track: QuestionKind;
+  listen?: ListenOptions | undefined;
   /** Open dictionary warnings on this word. */
   issues: readonly Issue[];
   /** Changes with every question and every answer. */
   stepKey: string;
   answered: Answered | null;
-  hinted: boolean;
+  /** Hint stages shown for this attempt. */
+  hints: number;
   done: number;
   total: number;
   retries: number;
@@ -106,7 +136,7 @@ interface QuestionStepProps {
  * an answer does; this decides how it is asked. It stays mounted between questions, so the field keeps
  * focus and a phone keeps its keyboard.
  */
-export function QuestionStep({ word, track, issues, stepKey, answered, hinted, done, total, retries, tag = null, lastStep, saveMessage = null, onSubmit, onNext, onHint, onClose }: QuestionStepProps) {
+export function QuestionStep({ word, track, listen, issues, stepKey, answered, hints, done, total, retries, tag = null, lastStep, saveMessage = null, onSubmit, onNext, onHint, onClose }: QuestionStepProps) {
   const [draft, setDraft] = useState({ key: stepKey, text: '' });
   const input = useRef<HTMLInputElement>(null);
   const answeredAt = useRef(0);
@@ -133,6 +163,55 @@ export function QuestionStep({ word, track, issues, stepKey, answered, hinted, d
     return undefined;
   }, [stepKey]);
 
+  /* ---------- Listening ---------- */
+  const listening = track === 'listen';
+  const audioIndex = useAudioIndex();
+  const source = usePronunciation(listening ? word : null);
+  const status = usePlaybackStatus(source?.key ?? null);
+  // Kept for the question it happened on, so a new question starts clean while a failure stays until dealt with.
+  const [failedAt, setFailedAt] = useState<{ key: string; offline: boolean } | null>(null);
+  const [heardAt, setHeardAt] = useState<string | null>(null);
+  const failuresInRow = useRef(0);
+
+  useEffect(() => {
+    if (!listening) return;
+    if (status === 'playing') {
+      failuresInRow.current = 0;
+      setHeardAt(stepKey);
+    }
+    if (status === 'error') {
+      failuresInRow.current++;
+      setFailedAt({ key: stepKey, offline: player().getState().offline });
+    }
+  }, [status]);
+
+  const play = (auto = false) => {
+    if (!source) return;
+    setFailedAt(null);
+    player().play(source, { auto });
+  };
+
+  // Moving on plays the next recording, if the browser allows it. Declared after the stop above, so it runs after it.
+  useEffect(() => {
+    if (listening && listen?.autoplay && !answered && source) play(true);
+  }, [stepKey]);
+
+  // A word edited or removed from the dictionary since the round began has nothing left to play.
+  const unavailable = listening && audioIndex !== null && source === null;
+  const failed = failedAt?.key === stepKey ? failedAt : null;
+  const listenPrompt: ListenPrompt | undefined = listening && listen
+    ? {
+        label: heardAt === stepKey || answered ? t.practice.listenAgain : t.practice.listen,
+        status,
+        ready: source !== null,
+        failure: failed ? (failed.offline ? t.pronunciation.offline : t.pronunciation.failed) : unavailable ? t.pronunciation.failed : null,
+        canEnd: failuresInRow.current >= FAILURES_BEFORE_END,
+        onPlay: () => play(),
+        onSkip: listen.onSkip,
+        onEnd: listen.onEnd,
+      }
+    : undefined;
+
   const submit = (text: string) => {
     answeredAt.current = performance.now();
     onSubmit(text);
@@ -143,6 +222,9 @@ export function QuestionStep({ word, track, issues, stepKey, answered, hinted, d
       if (performance.now() - answeredAt.current >= ENTER_SETTLE_MS) onNext();
     } else if (input.current?.value.trim()) {
       submit(input.current.value);
+    } else if (listening) {
+      // Nothing typed yet: Enter hears it again.
+      play();
     }
   };
 
@@ -160,11 +242,25 @@ export function QuestionStep({ word, track, issues, stepKey, answered, hinted, d
 
   const doubt = doubtFrom(issues);
   const feedback = answered ? feedbackFor(answered, track, word, issues) : null;
-  const hint = hintFor(word, track);
-  const question = track === 'tr_de' ? meaningList(word) : track === 'article' ? word.lemma : bareOrFull(word, doubt.article);
-  const cue = track === 'tr_de' ? (word.article && !doubt.article ? t.practice.cue.tr_de_noun : t.practice.cue.tr_de) : t.practice.cue[track];
+  const { letters, stages } = hintsFor(word, track);
+  // A hinted question always shows at least the first stage, whatever count it was saved with.
+  const level = hints > 0 ? Math.min(hints, stages.length) : 0;
+  const hint = level > 0 ? stages[level - 1]! : null;
+  const hintMore = level < stages.length;
+  const hintSpoken = hint ? t.practice.hintSpoken(spokenStage(hint), String(letters)) : null;
+
+  const askHint = () => {
+    if (answered || !hintMore) return;
+    // The last stage is plain text, so a keyboard press on the button would leave focus nowhere. It goes back to the answer.
+    const fromButton = level + 1 === stages.length && document.activeElement instanceof HTMLElement && document.activeElement.classList.contains('practice-hint');
+    onHint();
+    if (fromButton) requestAnimationFrame(() => input.current?.focus());
+  };
+  // Asked by ear, the question has no text at all: only the instruction, which says whether a capital is due.
+  const question = listening ? '' : track === 'tr_de' ? meaningList(word) : track === 'article' ? word.lemma : bareOrFull(word, doubt.article);
+  const cue = listening ? (word.article || word.pos === 'noun' ? t.practice.listenCue.noun : t.practice.listenCue.word) : track === 'tr_de' ? (word.article && !doubt.article ? t.practice.cue.tr_de_noun : t.practice.cue.tr_de) : t.practice.cue[track];
   const empty = typed.trim() === '';
-  const say = feedback ? [feedback.title, feedback.answer ? `${t.practice.answerWas}: ${feedback.answer.text}` : '', ...(feedback.lines ?? []).map((line) => line.text), feedback.caution ?? '', saveMessage ?? ''].filter(Boolean).join('. ') : hinted && hint ? t.practice.hintShown(hint) : `${cue}: ${question}`;
+  const say = feedback ? [feedback.title, feedback.answer ? `${t.practice.answerWas}: ${feedback.answer.text}` : '', ...(feedback.lines ?? []).map((line) => line.text), feedback.caution ?? '', saveMessage ?? ''].filter(Boolean).join('. ') : hintSpoken ?? (listening ? cue : `${cue}: ${question}`);
 
   return (
     <PracticeView
@@ -175,13 +271,16 @@ export function QuestionStep({ word, track, issues, stepKey, answered, hinted, d
       tag={tag}
       question={question}
       questionLang={track === 'tr_de' ? 'tr' : 'de'}
+      listen={listenPrompt}
       {...(track === 'article' ? { detail: meaningList(word) } : {})}
       answer={answered ? answered.typed : typed}
       answerLang={track === 'de_tr' ? 'tr' : 'de'}
       feedback={feedback}
-      hint={hinted ? hint : null}
-      hintAvailable={hint !== null}
-      showLetters={track === 'tr_de'}
+      hint={hint}
+      hintSpoken={hintSpoken}
+      hintMore={hintMore}
+      hintAvailable={stages.length > 0}
+      showLetters={track === 'tr_de' || listening}
       {...(track === 'article' ? { choices: ARTICLE_CHOICES } : {})}
       announcement={say}
       actionLabel={answered ? (lastStep ? t.practice.seeSummary : t.practice.next) : t.practice.check}
@@ -194,7 +293,7 @@ export function QuestionStep({ word, track, issues, stepKey, answered, hinted, d
         if (answered) onNext();
         else submit(input.current?.value ?? '');
       }}
-      onHint={onHint}
+      onHint={askHint}
       onReveal={() => submit('')}
       onLetter={insertLetter}
       onChoice={submit}

@@ -33,6 +33,8 @@ export function placeFromHash(hash: string): Place {
   }
   if (section === 'collections') {
     if (second === undefined) return { route: 'group', groupId: first };
+    // Record ids are hex, so a word can never be called new.
+    if (second === 'new' && third === undefined) return { route: 'wordNew', groupId: first };
     if (third === undefined) return { route: 'word', groupId: first, wordId: second };
     if (third === 'edit') return { route: 'wordEdit', groupId: first, wordId: second };
   }
@@ -51,7 +53,8 @@ export function hrefFor(route: Exclude<Route, 'word' | 'wordEdit' | 'wordNew' | 
   return route === 'home' ? '#/' : `#/${route}`;
 }
 
-export const hrefForNewWord = (): string => '#/dictionary/new';
+/** A new word made from a list starts in that list and returns to it. */
+export const hrefForNewWord = (groupId?: string): string => (groupId ? `#/collections/${encodeURIComponent(groupId)}/new` : '#/dictionary/new');
 
 export const hrefForGroup = (groupId: string): string => `#/collections/${encodeURIComponent(groupId)}`;
 

@@ -3,7 +3,7 @@ import { newId } from '../../core/id';
 import { createCardSession, currentCard, dropCard, moveCard, restartCards, reviveCardSession, type CardSession } from '../../core/practice/cards';
 import { evaluateAnswer, type AnswerWord } from '../../core/practice/answers';
 import { ALL_WORDS, buildRound, doubtFrom, shuffled, type RoundItem } from '../../core/practice/selection';
-import { createSession, currentItem, doneCount, dropWord, isFinished, markHintUsed, nextQuestion, retriesWaiting, reviveSession, submitAnswer, summarize, type PracticeSettings, type Session } from '../../core/practice/session';
+import { createSession, currentItem, doneCount, dropWord, isFinished, markHintUsed, nextQuestion, retriesWaiting, reviveSession, roundSize, skipQuestion, submitAnswer, summarize, type PracticeSettings, type Session } from '../../core/practice/session';
 import { validatorWithin } from '../../dictionary/loadDictionary';
 import { loadPracticeData, type PracticeData } from '../../data/practice';
 import { getActiveWord, recordPracticeAttempt } from '../../data/repository';
@@ -13,6 +13,8 @@ import { ConfirmDialog } from '../components/Modal';
 import { DEFAULT_SETTINGS, eligibilityOf, PracticeSetup, settingsFor } from '../components/PracticeSetup';
 import { PracticeSummary } from '../components/PracticeSummary';
 import { QuestionStep } from '../components/QuestionStep';
+import { loadAudioIndex } from '../components/SpeakerButton';
+import { player } from '../../audio/pronunciation';
 import { LoadError, Screen } from '../components/Screen';
 import { useDb } from '../dbContext';
 import { readSavedCards, readSavedSession, readSavedSettings, readStudyChoice, saveCards, saveSession, saveSettings, saveStudyChoice, type StudyChoice } from '../practiceStorage';
@@ -52,6 +54,9 @@ export function PracticeScreen() {
   const [cards, setCardsState] = useState<CardSession | null>(null);
   const cardsRef = useRef<CardSession | null>(null);
   const [cardNotice, setCardNotice] = useState<string | null>(null);
+  // Set once the learner has moved on from an answer: from then on a listening question plays as it appears.
+  // A new round and a reloaded one start false, so their first recording waits for a tap.
+  const [movedOn, setMovedOn] = useState(false);
 
   /** Card study keeps only its place in the cards, in this tab. Nothing is written to learning data. */
   const setCards = useCallback((next: CardSession | null) => {
@@ -95,9 +100,11 @@ export function PracticeScreen() {
   const word = item ? words.get(item.wordId) ?? null : null;
   const answered = session?.answered ?? null;
   const hasProgress = session !== null && session.items.some((entry) => entry.attempts > 0);
-  const stepKey = session ? `${session.id}:${session.items.reduce((sum, entry) => sum + entry.attempts, 0)}:${answered ? 'a' : 'q'}` : '';
+  // Answers move it on, and so does a question passed over without one, which leaves the queue shorter.
+  const stepKey = session ? `${session.id}:${session.items.reduce((sum, entry) => sum + entry.attempts, 0)}:${session.queue.length}:${answered ? 'a' : 'q'}` : '';
 
   const leave = useCallback(() => {
+    player().stop();
     setSession(null);
     setCards(null);
     goHome();
@@ -201,13 +208,18 @@ export function PracticeScreen() {
         return;
       }
       const lastAsked = sessionRef.current ? lastAskedOf(sessionRef.current) : null;
-      const { eligible } = eligibilityOf(latest, current);
+      // Listening is asked from the typed settings with only the question kind changed, and those settings are
+      // what the round keeps, so the typed question type is still there afterwards.
+      const chosen = study.study === 'listen' ? settingsFor(current, study) : current;
+      const audio = chosen.mode === 'listen' ? await loadAudioIndex() : null;
+      const { eligible } = eligibilityOf(latest, chosen, audio);
       const active = new Set(latest.words.map((entry) => entry.id));
       const round = only
         ? shuffled(only.filter((entry) => active.has(entry.wordId)), Math.random)
-        : buildRound({ words: eligible, mode: current.mode, count: current.count, history: latest.history, doubtOf: (id) => doubtFrom(latest.flagged.get(id) ?? []), random: Math.random, lastAsked });
+        : buildRound({ words: eligible, mode: chosen.mode, count: chosen.count, history: latest.history, doubtOf: (id) => doubtFrom(latest.flagged.get(id) ?? []), random: Math.random, lastAsked });
       setFresh(latest);
       setSaveFailed(false);
+      setMovedOn(false);
       setSession(round.length > 0 ? createSession(newId(), current, round) : null);
     } finally {
       setStarting(false);
@@ -225,6 +237,8 @@ export function PracticeScreen() {
     const next = submitAnswer(current, clean, evaluation);
     setSaveFailed(false);
     setSession(next);
+    // Listening keeps its results in the round alone: nothing about it is written anywhere.
+    if (currentEntry.track === 'listen') return;
     // Shown at once and saved behind it. This writes to the history table only, so it cannot touch a schedule.
     recordPracticeAttempt(db, { wordId: currentEntry.wordId, track: currentEntry.track, at: Date.now(), typed: clean, result: evaluation.result, hintsUsed: current.hinted ? 1 : 0, sessionId: current.id, ...(retry ? { retry: true } : {}) }).catch((error: unknown) => {
       console.error(error);
@@ -236,9 +250,20 @@ export function PracticeScreen() {
   const advance = async () => {
     const current = sessionRef.current;
     if (!current?.answered || moving.current) return;
+    await settleOn(nextQuestion(current));
+  };
+
+  /** Passes over a question whose recording will not play. It is not an answer, so nothing counts it. */
+  const skip = async () => {
+    const current = sessionRef.current;
+    if (!current || current.answered || moving.current) return;
+    await settleOn(skipQuestion(current));
+  };
+
+  const settleOn = async (start: Session) => {
     moving.current = true;
     try {
-      let next = nextQuestion(current);
+      let next = start;
       for (let entry = currentItem(next); entry; entry = currentItem(next)) {
         const latest = await getActiveWord(db, entry.wordId);
         if (latest) {
@@ -248,6 +273,7 @@ export function PracticeScreen() {
         next = dropWord(next, entry.wordId);
       }
       setSaveFailed(false);
+      setMovedOn(true);
       setSession(next);
     } finally {
       moving.current = false;
@@ -312,12 +338,13 @@ export function PracticeScreen() {
       <QuestionStep
         word={word}
         track={item.track}
+        listen={item.track === 'listen' ? { autoplay: movedOn, onSkip: () => void skip(), onEnd: askToClose } : undefined}
         issues={data.flagged.get(word.id) ?? []}
         stepKey={stepKey}
         answered={answered}
-        hinted={session.hinted}
+        hints={session.hints}
         done={doneCount(session)}
-        total={session.items.length}
+        total={roundSize(session)}
         retries={retriesWaiting(session)}
         tag={(answered ? answered.retry : item.attempts > 0) ? t.practice.retry : null}
         lastStep={answered !== null && session.queue.length === 1}

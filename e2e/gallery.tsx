@@ -13,7 +13,8 @@ import { PracticeView, type PracticeViewProps } from '../src/ui/components/Pract
 
 const STATES: Record<string, PracticeViewProps> = {
   question: { done: 12, total: 20, cue: t.practice.cue.tr_de_noun, question: 'ayak', questionLang: 'tr', showLetters: true, hintAvailable: true, actionLabel: t.practice.check, actionDisabled: true },
-  typing: { done: 12, total: 20, retries: 2, cue: t.practice.cue.tr_de_noun, tag: t.practice.retry, question: 'ayak', questionLang: 'tr', answer: 'der F', showLetters: true, hint: 'F…', actionLabel: t.practice.check },
+  typing: { done: 12, total: 20, retries: 2, cue: t.practice.cue.tr_de_noun, tag: t.practice.retry, question: 'ayak', questionLang: 'tr', answer: 'der F', showLetters: true, hint: 'F••', hintSpoken: t.practice.hintSpoken('F…', '3'), hintAvailable: true, actionLabel: t.practice.check },
+  hint: { done: 12, total: 20, cue: t.practice.cue.tr_de_noun, question: 'Tuna buharlı gemi işletmeciliği şirketi', questionLang: 'tr', showLetters: true, hint: 'Donaudampf••••••••••••••••••••••••', hintSpoken: t.practice.hintSpoken('Donaudampf…', '34'), hintMore: true, hintAvailable: true, actionLabel: t.practice.check, actionDisabled: true },
   article: { done: 3, total: 10, cue: t.practice.cue.article, question: 'Geldautomat', questionLang: 'de', detail: 'bankamatik', choices: ['der', 'die', 'das'], actionLabel: t.practice.check, actionDisabled: true },
   correct: { done: 13, total: 20, cue: t.practice.cue.de_tr, question: 'lernen', questionLang: 'de', answer: 'öğrenmek', answerLang: 'tr', feedback: { kind: 'correct', title: t.practice.correct }, actionLabel: t.practice.next },
   wrong: { done: 13, total: 20, cue: t.practice.cue.de_tr, question: 'der Fuß', questionLang: 'de', answer: 'bacak', answerLang: 'tr', feedback: { kind: 'wrong', title: t.practice.wrong, answer: { text: 'ayak', lang: 'tr' } }, actionLabel: t.practice.next },

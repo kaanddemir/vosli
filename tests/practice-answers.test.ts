@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Article } from '../src/core/identity';
-import { evaluateAnswer, hintFor, type AnswerWord, type DictionaryDoubt, type Track } from '../src/core/practice/answers';
+import { evaluateAnswer, hintsFor, hintSource, type AnswerWord, type DictionaryDoubt, type QuestionKind, type Track } from '../src/core/practice/answers';
 
 let serial = 0;
 const word = (lemma: string, article: Article | null, ...meanings: string[]): AnswerWord => ({ id: `w${serial++}`, lemma, article, meanings: meanings.map((text) => ({ text })) });
@@ -27,7 +27,7 @@ const kir = word('kır', null, 'kır');
 const kirli = word('Schmutz', 'der', 'kir');
 const library = [apfel, fuss, tuer, tor, urlaub, ferien, seeM, seeF, morgenN, morgen, danke, hallo, was, wiedersehen, phrase, freuen, lampe, reis, kir, kirli];
 
-const check = (target: AnswerWord, track: Track, typed: string, doubt?: DictionaryDoubt) => evaluateAnswer(target, track, typed, { library, ...(doubt ? { doubt } : {}) });
+const check = (target: AnswerWord, track: QuestionKind, typed: string, doubt?: DictionaryDoubt) => evaluateAnswer(target, track, typed, { library, ...(doubt ? { doubt } : {}) });
 const german = (target: AnswerWord, typed: string, doubt?: DictionaryDoubt) => check(target, 'tr_de', typed, doubt);
 const turkish = (target: AnswerWord, typed: string) => check(target, 'de_tr', typed);
 
@@ -213,18 +213,87 @@ describe('dictionary doubts', () => {
   });
 });
 
-describe('hints', () => {
-  it('gives the first letter of the word, never of its article, and never the whole answer', () => {
-    expect(hintFor(apfel, 'tr_de')).toBe('A…');
-    expect(hintFor(tuer, 'tr_de')).toBe('T…');
-    expect(hintFor(word('Äpfel', 'die', 'elmalar'), 'tr_de')).toBe('Ä…');
-    expect(hintFor(apfel, 'de_tr')).toBe('e…');
-    expect(hintFor(word('(sich) freuen', null, 'sevinmek'), 'tr_de')).toBe('f…');
-    expect(hintFor(urlaub, 'de_tr')).toBe('t…');
-    expect(hintFor(word('X', null, 'x harfi'), 'tr_de')).toBeNull();
+describe('listening answers', () => {
+  const heard = (target: AnswerWord, typed: string) => check(target, 'listen', typed);
+
+  it('takes the word without its article, which cannot be heard, but never a wrong one', () => {
+    for (const typed of ['Apfel', 'der Apfel', ' Apfel ', 'Apfel, der']) expect(heard(apfel, typed)).toMatchObject({ correct: true });
+    expect(heard(apfel, 'die Apfel')).toMatchObject({ result: 'article_wrong', correct: false });
+    expect(heard(tuer, 'Tür')).toMatchObject({ result: 'correct' });
   });
 
-  it('has nothing to offer on an article question', () => {
-    expect(hintFor(apfel, 'article')).toBeNull();
+  it('keeps spelling strict: capitals on nouns, umlauts, ß, one wrong letter', () => {
+    expect(heard(apfel, 'apfel')).toMatchObject({ result: 'capitalization', correct: false });
+    expect(heard(tuer, 'Tur')).toMatchObject({ result: 'transliteration', correct: false });
+    expect(heard(tuer, 'Tuer')).toMatchObject({ result: 'transliteration', correct: false });
+    expect(heard(fuss, 'Fuss')).toMatchObject({ result: 'transliteration', correct: false });
+    expect(heard(apfel, 'Apfal')).toMatchObject({ result: 'typo', correct: false });
+    expect(heard(word('E-Mail', 'die', 'e-posta'), 'Email').correct).toBe(false);
+    expect(heard(word('E-Mail', 'die', 'e-posta'), 'E-Mail').correct).toBe(true);
+  });
+
+  it('a capital that only starts a non-noun is fine, and punctuation and spacing do not matter', () => {
+    expect(heard(danke, 'Danke')).toMatchObject({ correct: true, note: 'case' });
+    expect(heard(wiedersehen, 'auf wiedersehen').correct).toBe(false);
+    expect(heard(wiedersehen, 'Auf  Wiedersehen')).toMatchObject({ correct: true });
+  });
+
+  it('another saved word that sounds the same is named, not accepted', () => {
+    expect(heard(morgenN, 'morgen')).toMatchObject({ correct: false });
+    expect(heard(morgen, 'Morgen')).toMatchObject({ correct: false, other: { lemma: 'Morgen' } });
+  });
+
+  it('hints the German that is heard', () => {
+    expect(hintsFor(apfel, 'listen').stages).toEqual(hintsFor(apfel, 'tr_de').stages);
+    expect(hintSource(apfel, 'listen')).toBe('Apfel');
+  });
+});
+
+describe('hints', () => {
+  const stages = (target: AnswerWord, track: Track) => hintsFor(target, track).stages;
+
+  it('start from the first letter of the word, never of its article, and never show the whole answer', () => {
+    expect(stages(apfel, 'tr_de')[0]).toBe('A••••');
+    expect(stages(tuer, 'tr_de')).toEqual(['T••']);
+    expect(stages(word('Äpfel', 'die', 'elmalar'), 'tr_de')[0]).toBe('Ä••••');
+    expect(stages(apfel, 'de_tr')[0]).toBe('e•••');
+    expect(stages(freuen, 'tr_de')[0]).toBe('f•••••');
+    expect(stages(urlaub, 'de_tr')[0]).toBe('t••••');
+    expect(stages(word('X', null, 'x harfi'), 'tr_de')).toEqual([]);
+    for (const target of library) {
+      for (const track of ['tr_de', 'de_tr'] as const) {
+        for (const stage of stages(target, track)) {
+          expect(stage).toContain('•');
+          expect(stage).not.toMatch(/^(der|die|das) /u);
+        }
+      }
+    }
+  });
+
+  it('hint the answer of the direction asked: German for Turkish to German, Turkish for German to Turkish', () => {
+    expect(hintSource(apfel, 'tr_de')).toBe('Apfel');
+    expect(hintSource(apfel, 'de_tr')).toBe('elma');
+    expect(stages(reis, 'de_tr')).toEqual(['p•••••', 'pi••••', 'piri••']);
+  });
+
+  it('come from a form the answer check accepts', () => {
+    for (const [target, track] of [[freuen, 'tr_de'], [was, 'tr_de'], [wiedersehen, 'tr_de'], [phrase, 'tr_de'], [urlaub, 'de_tr'], [ferien, 'de_tr'], [hallo, 'de_tr'], [was, 'de_tr']] as const) {
+      const source = hintSource(target, track);
+      const typed = track === 'tr_de' && target.article ? `${target.article} ${source}` : source;
+      expect(check(target, track, typed).correct, `${target.lemma} ${track}`).toBe(true);
+    }
+    expect(hintSource(urlaub, 'de_tr')).toBe('tatil');
+    expect(hintSource(word('Haus', 'das', 'ev vb.'), 'de_tr')).toBe('ev');
+    expect(hintSource(word('Bank', 'die', 'banka/bank'), 'de_tr')).toBe('banka');
+  });
+
+  it('keep German capitals, umlauts and apostrophes as saved', () => {
+    expect(stages(word('Straße', 'die', 'cadde'), 'tr_de')).toEqual(['S•••••', 'St••••', 'Stra••']);
+    expect(stages(word("geht's", null, 'gidiyor'), 'tr_de')).toEqual(["g•••'•", "geh•'•"]);
+    expect(stages(wiedersehen, 'tr_de')[0]).toBe('A•• W••••••••••!');
+  });
+
+  it('have nothing to offer on an article question', () => {
+    expect(stages(apfel, 'article')).toEqual([]);
   });
 });

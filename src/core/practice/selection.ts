@@ -1,7 +1,8 @@
 import type { Issue, IssueCode } from '../issues';
-import { isAccepted, NO_DOUBT, type AnswerResult, type AnswerWord, type DictionaryDoubt, type Track } from './answers';
+import { isAccepted, NO_DOUBT, type AnswerResult, type AnswerWord, type DictionaryDoubt, type QuestionKind, type Track } from './answers';
 
-export type PracticeMode = Track | 'mixed';
+/** Listening is chosen as a way of studying, then asked through the same rounds as typed questions. */
+export type PracticeMode = Track | 'mixed' | 'listen';
 
 /** Everything chosen is put together; choosing nothing means every word. */
 export interface PracticeScope {
@@ -44,7 +45,7 @@ export function doubtFrom(issues: readonly Issue[]): DictionaryDoubt {
 }
 
 /** The question types a word can honestly be asked. */
-export function tracksFor(word: AnswerWord, mode: PracticeMode, doubt: DictionaryDoubt = NO_DOUBT): Track[] {
+export function tracksFor(word: AnswerWord, mode: Exclude<PracticeMode, 'listen'>, doubt: DictionaryDoubt = NO_DOUBT): Track[] {
   const articleOk = word.article !== null && !doubt.article;
   const hasMeaning = word.meanings.length > 0;
   const language: Track[] = hasMeaning ? ['tr_de', 'de_tr'] : [];
@@ -52,6 +53,12 @@ export function tracksFor(word: AnswerWord, mode: PracticeMode, doubt: Dictionar
   if (mode === 'article') return articleOk ? ['article'] : [];
   return language.includes(mode) ? [mode] : [];
 }
+
+/**
+ * The questions a word can be asked in a practice round. Whether a word has a recording to hear is known
+ * only to the screens, which pass listening rounds just the words that have one.
+ */
+export const questionsFor = (word: AnswerWord, mode: PracticeMode, doubt: DictionaryDoubt = NO_DOUBT): QuestionKind[] => (mode === 'listen' ? ['listen'] : tracksFor(word, mode, doubt));
 
 /** The union of everything chosen. Each word appears once, however many collections hold it. */
 export function wordsInScope<T extends SelectableWord>(words: readonly T[], scope: PracticeScope, members: readonly Membership[], difficult: ReadonlySet<string>): T[] {
@@ -98,10 +105,10 @@ export function shuffled<T>(items: readonly T[], random: Random): T[] {
 
 export interface RoundItem {
   wordId: string;
-  track: Track;
+  track: QuestionKind;
 }
 
-const seenKey = (wordId: string, track: Track) => `${wordId}|${track}`;
+const seenKey = (wordId: string, track: QuestionKind) => `${wordId}|${track}`;
 
 interface RoundInput<T extends AnswerWord> {
   words: readonly T[];
@@ -124,7 +131,7 @@ export function buildRound<T extends AnswerWord>({ words, mode, count, history, 
   for (const entry of history) seen.set(seenKey(entry.wordId, entry.track), Math.max(entry.at, seen.get(seenKey(entry.wordId, entry.track)) ?? 0));
 
   const candidates = shuffled(words, random)
-    .map((word) => ({ word, tracks: tracksFor(word, mode, doubtOf(word.id)) }))
+    .map((word) => ({ word, tracks: questionsFor(word, mode, doubtOf(word.id)) }))
     .filter((candidate) => candidate.tracks.length > 0)
     .map((candidate) => ({ ...candidate, lastSeen: Math.max(...candidate.tracks.map((track) => seen.get(seenKey(candidate.word.id, track)) ?? 0)) }))
     .sort((a, b) => a.lastSeen - b.lastSeen);
@@ -132,7 +139,7 @@ export function buildRound<T extends AnswerWord>({ words, mode, count, history, 
 
   // Each word takes the type asked least so far, then the one it saw longest ago. Words with fewer
   // options choose first, or the words that can only be asked two ways would starve the third.
-  const asked = new Map<Track, number>();
+  const asked = new Map<QuestionKind, number>();
   const items = [...picked].sort((a, b) => a.tracks.length - b.tracks.length).map(({ word, tracks }): RoundItem => {
     const best = [...shuffled(tracks, random)].sort((a, b) => (asked.get(a) ?? 0) - (asked.get(b) ?? 0) || (seen.get(seenKey(word.id, a)) ?? 0) - (seen.get(seenKey(word.id, b)) ?? 0))[0]!;
     asked.set(best, (asked.get(best) ?? 0) + 1);

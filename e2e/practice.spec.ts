@@ -365,15 +365,15 @@ test.describe('German letters', () => {
 });
 
 test.describe('hints', () => {
-  test('show a first letter once, stay with that attempt, and are saved with it', async ({ page }) => {
+  test('show a first letter, stay with that attempt, and are saved with it', async ({ page }) => {
     await seed(page, WORDS.slice(0, 2));
     await start(page, t.practice.modes.tr_de);
     const apfelFirst = (await question(page)) === 'elma';
     await page.getByRole('button', { name: t.practice.hint }).click();
-    await expect(page.getByTestId('practice-hint')).toHaveText(t.practice.hintShown(apfelFirst ? 'A…' : 'T…'));
+    await expect(page.getByTestId('practice-hint')).toHaveText(t.practice.hintShown(apfelFirst ? 'A••••' : 'T••'));
     await expect(field(page)).toHaveValue('');
     await expect(field(page)).toBeFocused();
-    await expect(page.getByTestId('practice-announcement')).toContainText(t.practice.hintShown(apfelFirst ? 'A…' : 'T…'));
+    await expect(page.getByTestId('practice-announcement')).toHaveText(t.practice.hintSpoken(apfelFirst ? 'A…' : 'T…', apfelFirst ? '5' : '3'));
 
     await field(page).fill(apfelFirst ? 'der Apfel' : 'die Tür');
     await page.keyboard.press('Enter');
@@ -382,6 +382,60 @@ test.describe('hints', () => {
 
     await nextByButton(page);
     await expect(page.getByRole('button', { name: t.practice.hint })).toBeVisible();
+    await expect(page.getByTestId('practice-hint')).toHaveCount(0);
+  });
+
+  test('each press shows more of a long answer, without moving focus, and never all of it', async ({ page, isMobile }) => {
+    await seed(page, [{ id: 'schmetterling', lemma: 'Schmetterling', article: 'der', meanings: ['kelebek'] }, WORDS[2]!]);
+    await start(page, t.practice.modes.tr_de);
+    if ((await question(page)) !== 'kelebek') {
+      await field(page).fill('das Haus');
+      await page.keyboard.press('Enter');
+      await nextByButton(page);
+    }
+    await expect(page.getByTestId('practice-question')).toHaveText('kelebek');
+    const hint = page.getByRole('button', { name: t.practice.hint });
+    const shown = page.getByTestId('practice-hint');
+    const box = await hint.boundingBox();
+
+    await hint.click();
+    await expect(shown).toHaveText(t.practice.hintShown('S••••••••••••'));
+    await expect(field(page)).toBeFocused();
+    // The same button, in the same place, gives the next stage.
+    expect((await hint.boundingBox())?.x).toBeCloseTo(box!.x, 0);
+    if (!isMobile) {
+      await hint.focus();
+      await page.keyboard.press('Enter');
+      await expect(shown).toHaveText(t.practice.hintShown('Sch••••••••••'));
+      await expect(hint).toBeFocused();
+      await page.keyboard.press('Enter');
+    } else {
+      await hint.click();
+      await expect(shown).toHaveText(t.practice.hintShown('Sch••••••••••'));
+      await hint.click();
+    }
+    await expect(shown).toHaveText(t.practice.hintShown('Schmetter••••'));
+    await expect(page.getByTestId('practice-announcement')).toHaveText(t.practice.hintSpoken('Schmetter…', '13'));
+    // Nothing more to give: the hint stays as text, and focus is back in the answer.
+    await expect(hint).toHaveCount(0);
+    await expect(field(page)).toBeFocused();
+    await expect(page.getByTestId('practice-announcement')).not.toContainText('•');
+
+    await field(page).fill('der Schmetterling');
+    await page.keyboard.press('Enter');
+    await expect(feedback(page)).toContainText(t.practice.correctHinted);
+    expect((await logs(page)).at(-1)).toMatchObject({ wordId: 'schmetterling', hintsUsed: 1, result: 'correct' });
+    await nextByButton(page);
+    await expect(shown).toHaveCount(0);
+  });
+
+  test('stages survive a reload of the same question', async ({ page }) => {
+    await seed(page, [{ id: 'schmetterling', lemma: 'Schmetterling', article: 'der', meanings: ['kelebek'] }]);
+    await start(page, t.practice.modes.tr_de);
+    await page.getByRole('button', { name: t.practice.hint }).click();
+    await page.getByRole('button', { name: t.practice.hint }).click();
+    await page.reload();
+    await expect(page.getByTestId('practice-hint')).toHaveText(t.practice.hintShown('Sch••••••••••'));
   });
 
   test('a correct answer after a hint is asked again and is not counted as a clean first try', async ({ page }) => {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { audioEntry, audioTags, authorFrom, cacheText, chooseAudio, creditTables, fileCode, licenseUrl, parseCache, type Confirmed, type SoundRecord } from '../scripts/dictionary-audio.mjs';
-import { commonsUrls, createAudioIndex, parseAudioTags, parseCredits, recordingFor } from '../src/audio/audioIndex';
+import { canDictate, commonsUrls, createAudioIndex, parseAudioTags, parseCredits, recordingFor, saysLemma, spokenWord } from '../src/audio/audioIndex';
 import { md5 } from '../src/audio/md5';
 import { createPlayer, type AudioLike } from '../src/audio/pronunciation';
 import type { Word } from '../src/data/types';
@@ -173,6 +173,42 @@ class FakeAudio implements AudioLike {
 
 const source = (title: string) => ({ title, author: 0, license: 0, key: title, ...commonsUrls(title) });
 
+describe('choosing words that can be asked by ear', () => {
+  it('reads the word a recording title says, and trusts no other shape', () => {
+    expect(spokenWord('De-Apfel.ogg')).toBe('Apfel');
+    expect(spokenWord('De-Apfel2.ogg')).toBe('Apfel');
+    expect(spokenWord('DE-Straße.wav')).toBe('Straße');
+    expect(spokenWord('De-wünschen.oga')).toBe('wünschen');
+    expect(spokenWord('De-guten Morgen.ogg')).toBe('guten Morgen');
+    expect(spokenWord('LL-Q188 (deu)-Jeuwre-Apfel.wav')).toBe('Apfel');
+    expect(spokenWord('LL-Q188 (deu)-Frank C. Müller-Ad-hoc.wav')).toBe('Ad-hoc');
+    expect(spokenWord('Apfel aussprechen.ogg')).toBeNull();
+    expect(spokenWord('De-.ogg')).toBeNull();
+  });
+
+  it('accepts a recording only when it says the saved spelling, case aside', () => {
+    expect(saysLemma({ title: 'De-Apfel.ogg' }, 'Apfel')).toBe(true);
+    expect(saysLemma({ title: 'De-Danke.ogg' }, 'danke')).toBe(true);
+    expect(saysLemma({ title: 'De-sieben.ogg' }, 'Sieben')).toBe(true);
+    expect(saysLemma({ title: 'De-Tu\u0308r.ogg' }, 'Tür'.normalize('NFD'))).toBe(false);
+    expect(saysLemma({ title: 'De-Tür.ogg' }, 'Tür'.normalize('NFD'))).toBe(true);
+    expect(saysLemma({ title: 'De-Einzimmerwohnung.ogg' }, 'Ein-Zimmer-Wohnung')).toBe(false);
+    expect(saysLemma({ title: 'De-Slowenisch.ogg' }, 'Slovenisch')).toBe(false);
+    expect(saysLemma({ title: 'De-Fuss.ogg' }, 'Fuß')).toBe(false);
+  });
+
+  it('asks only words with a confirmed recording that matches, and nothing ambiguous', () => {
+    const index = createAudioIndex(['Apfel\tS gm c a=*:', 'Ein-Zimmer-Wohnung\tS gf a=*:=De-Einzimmerwohnung.ogg', 'Hochzeit\tS gf c', 'so\tDO c a=d:|a! ', 'Was\tP a=*:', ''].join('\n'));
+    expect(canDictate(index, word('Apfel', 'noun', 'der'))).toBe(true);
+    expect(canDictate(index, word('Ein-Zimmer-Wohnung', 'noun', 'die'))).toBe(false);
+    expect(canDictate(index, word('Hochzeit', 'noun', 'die'))).toBe(false);
+    expect(canDictate(index, word('so', 'other'))).toBe(false);
+    // Words are looked up exactly as saved: a question mark is not taken off to find a recording.
+    expect(canDictate(index, word('Was?', 'other'))).toBe(false);
+    expect(canDictate(index, word('(sich) freuen', 'verb'))).toBe(false);
+  });
+});
+
 describe('the shared player', () => {
   const setup = (options: { online?: boolean } = {}) => {
     const audio = new FakeAudio();
@@ -274,6 +310,38 @@ describe('the shared player', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(second.player.getState().status).toBe('loading');
+  });
+
+  it('a start the app made itself, refused for want of a tap, goes quietly back to idle', async () => {
+    const { audio, player, states } = setup();
+    audio.playResult = () => Promise.reject(new DOMException('no', 'NotAllowedError'));
+    player.play(source('De-Apfel.ogg'), { auto: true });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(player.getState()).toMatchObject({ key: null, status: 'idle' });
+    expect(states).not.toContain('De-Apfel.ogg:error');
+    expect(audio.src).toBe('');
+    // A tap afterwards plays as usual.
+    audio.playResult = () => Promise.resolve();
+    player.play(source('De-Apfel.ogg'));
+    audio.emit('playing');
+    expect(player.getState().status).toBe('playing');
+  });
+
+  it('a start the app made itself that fails for real is still a failure', async () => {
+    const { audio, player } = setup();
+    player.play(source('De-Apfel.ogg'), { auto: true });
+    audio.emit('error');
+    expect(player.getState().status).toBe('error');
+  });
+
+  it('describes each start to the system, never with the file name', () => {
+    const audio = new FakeAudio();
+    const onStart = vi.fn();
+    const player = createPlayer({ createAudio: () => audio, onStart });
+    player.play(source('De-Apfel.ogg'));
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onStart).toHaveBeenCalledWith();
   });
 
   it('stops on request, so a card or question left behind goes quiet', () => {

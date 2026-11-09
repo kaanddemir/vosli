@@ -91,24 +91,55 @@ export function recordingFor(word: WordForm, line: string): Recording | null {
   return titles.size === 1 ? [...recordings.values()][0]! : null;
 }
 
+/**
+ * The word a recording's title says it holds: De-Apfel.ogg, De-Apfel2.ogg, DE-Apfel.wav and
+ * LL-Q188 (deu)-Speaker-Apfel.wav all say Apfel. Null for a title in any other shape, which is then
+ * not trusted to match anything.
+ */
+export function spokenWord(title: string): string | null {
+  const name = title.replace(/\.[a-z0-9]+$/iu, '');
+  const word = /^de-(.+)$/iu.exec(name)?.[1] ?? /^LL-Q188 \(deu\)-[^-]+-(.+)$/u.exec(name)?.[1];
+  return word === undefined ? null : word.replace(/\d+$/u, '').replaceAll('_', ' ').trim() || null;
+}
+
+/**
+ * A recording fit for dictation: the title says the spelling the learner saved, case aside, so writing
+ * what is heard can be right. Ein-Zimmer-Wohnung recorded as Einzimmerwohnung is not, nor is Slovenisch
+ * recorded as Slowenisch. danke recorded as Danke is: the sound and the letters are the same.
+ */
+export function saysLemma(recording: Pick<Recording, 'title'>, lemma: string): boolean {
+  const said = spokenWord(recording.title);
+  return said !== null && said.toLocaleLowerCase('de') === lemma.normalize('NFC').trim().toLocaleLowerCase('de');
+}
+
 export interface AudioIndex {
   sourceFor(word: WordForm): PronunciationSource | null;
+  /** A word that can be asked by ear. On the index itself, so callers need not load this module up front. */
+  canDictate(word: WordForm): boolean;
 }
 
 export function createAudioIndex(lemmasText: string): AudioIndex {
   const lines = new SortedLines(lemmasText);
-  return {
+  const index: AudioIndex = {
     sourceFor(word) {
       const line = lines.get(word.lemma);
       const recording = line === null ? null : recordingFor(word, line);
       return recording ? { ...recording, key: recording.title, ...commonsUrls(recording.title) } : null;
     },
+    canDictate: (word) => canDictate(index, word),
   };
+  return index;
 }
 
 export interface AudioCredits {
   author(index: number): string;
   license(index: number): { name: string; url: string } | null;
+}
+
+/** A word that can be asked by ear: it has a confirmed recording, and the recording says its spelling. */
+export function canDictate(index: Pick<AudioIndex, 'sourceFor'>, word: WordForm): boolean {
+  const source = index.sourceFor(word);
+  return source !== null && saysLemma(source, word.lemma);
 }
 
 export function parseCredits(text: string): AudioCredits {

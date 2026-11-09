@@ -42,8 +42,8 @@ export const saveReviewSession = (session: unknown): void => write(() => session
 export const readReviewIncludeFlagged = (): boolean => read(() => localStorage, REVIEW_FLAGGED_KEY) === true;
 export const saveReviewIncludeFlagged = (include: boolean): void => write(() => localStorage, REVIEW_FLAGGED_KEY, include);
 
-/** How Free Practice studies: by typing answers, or by looking through cards, and which side cards show first. */
-export type StudyMode = 'typed' | 'cards';
+/** How Free Practice studies: by typing answers, by looking through cards, or by typing what is heard; and which side cards show first. */
+export type StudyMode = 'typed' | 'cards' | 'listen';
 export interface StudyChoice {
   study: StudyMode;
   direction: CardDirection;
@@ -53,7 +53,7 @@ export const DEFAULT_STUDY: StudyChoice = { study: 'typed', direction: 'de_tr' }
 export function parseStudyChoice(value: unknown): StudyChoice {
   if (typeof value !== 'object' || value === null) return DEFAULT_STUDY;
   const { study, direction } = value as Record<string, unknown>;
-  return { study: study === 'cards' ? 'cards' : 'typed', direction: direction === 'tr_de' ? 'tr_de' : 'de_tr' };
+  return { study: study === 'cards' || study === 'listen' ? study : 'typed', direction: direction === 'tr_de' ? 'tr_de' : 'de_tr' };
 }
 
 /** Kept apart from the typed settings, so a saved typed round reads exactly as before. */

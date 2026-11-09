@@ -220,7 +220,7 @@ test.describe('with stand-in audio', () => {
     await expect(speaker(page.locator('main'))).toHaveCount(0);
   });
 
-  test('Collections use the same place: before the chevron, and before remove in a custom list', async ({ page }) => {
+  test('Collections use the same place: before the chevron, in source collections and custom lists alike', async ({ page }) => {
     await page.goto('./#/collections/lesson');
     const apfel = row(page, 'Apfel');
     const [box, chevron] = await Promise.all([speaker(apfel).boundingBox(), apfel.locator('.row-chevron').boundingBox()]);
@@ -232,9 +232,10 @@ test.describe('with stand-in audio', () => {
 
     await page.goto('./#/collections/custom');
     const haus = row(page, 'Haus');
-    const remove = haus.getByRole('button', { name: t.collections.remove('das Haus') });
-    const [speakerBox, removeBox] = await Promise.all([speaker(haus).boundingBox(), remove.boundingBox()]);
-    expect(speakerBox!.x + speakerBox!.width).toBeLessThanOrEqual(removeBox!.x + 1);
+    const [speakerBox, chevronBox] = await Promise.all([speaker(haus).boundingBox(), haus.locator('.row-chevron').boundingBox()]);
+    expect(speakerBox!.x + speakerBox!.width).toBeLessThanOrEqual(chevronBox!.x + 1);
+    // No control on the row takes the word out of the list: that is done by selecting.
+    await expect(haus.getByRole('button')).toHaveCount(1);
     await speaker(haus).click();
     // Playing never removes the word or leaves the list.
     await expect(haus).toBeVisible();

@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { AUTOCORRECT_OFF } from '../inputProps';
 import { searchWords } from '../../core/search';
-import { addWordsToGroup, createCustomGroup, GroupNameError, removeWordFromGroup, renameCustomGroup, restoreGroupMember, type GroupNameProblem } from '../../data/groups';
+import { addWordsToGroup, canRename, createCustomGroup, GROUP_NAME_MAX, GroupNameError, removeWordsFromGroup, renameGroup, restoreGroupMembers, type GroupNameProblem } from '../../data/groups';
 import { getGroupWithWords, listActiveWords, listGroupSummaries, listGroupWordIds } from '../../data/repository';
 import type { Group, GroupKind, GroupMember, Word } from '../../data/types';
 import { formatCount } from '../../i18n/format';
@@ -16,13 +16,13 @@ import { SelectionBar } from '../components/SelectionBar';
 import { GermanWord, meaningsOf, wordLabel } from '../components/WordList';
 import { WordList } from '../components/WordList';
 import { useDb } from '../dbContext';
-import { hrefFor, hrefForGroup } from '../router';
+import { hrefFor, hrefForGroup, hrefForNewWord } from '../router';
 import { useLoad } from '../useLoad';
 
 const KINDS: readonly GroupKind[] = ['pdf', 'lesson', 'custom'];
 
-/** Names a new list or renames one. */
-function NameDialog({ title, label, initial, onSubmit, onClose }: { title: string; label: string; initial: string; onSubmit: (name: string) => Promise<void>; onClose: () => void }) {
+/** Names a new list, or renames a list or a PDF collection. */
+function NameDialog({ title, label, initial, takenMessage = t.collections.nameErrors.taken, onSubmit, onClose }: { title: string; label: string; initial: string; takenMessage?: string; onSubmit: (name: string) => Promise<void>; onClose: () => void }) {
   const [name, setName] = useState(initial);
   const [problem, setProblem] = useState<GroupNameProblem | null>(null);
   const [failed, setFailed] = useState(false);
@@ -61,7 +61,7 @@ function NameDialog({ title, label, initial, onSubmit, onClose }: { title: strin
             class="field"
             type="text"
             value={name}
-            maxLength={100}
+            maxLength={GROUP_NAME_MAX}
             autocomplete="off"
             aria-invalid={problem ? true : undefined}
             aria-describedby={problem ? 'group-name-error' : undefined}
@@ -70,7 +70,7 @@ function NameDialog({ title, label, initial, onSubmit, onClose }: { title: strin
               setProblem(null);
             }}
           />
-          {problem && <p id="group-name-error" class="form-error">{t.collections.nameErrors[problem]}</p>}
+          {problem && <p id="group-name-error" class="form-error">{problem === 'taken' ? takenMessage : t.collections.nameErrors[problem]}</p>}
         </div>
         {failed && <p class="status-error" role="alert">{t.common.saveFailed}</p>}
         <div class="btn-row">
@@ -144,7 +144,8 @@ export function CollectionsScreen() {
           canSelectAll={groups.length > 1}
           allSelected={allSelected}
           onToggleAll={() => setSelected(allSelected ? new Set() : new Set(groups.map(({ group }) => group.id)))}
-          onDelete={() => setConfirming(true)}
+          actionLabel={t.common.delete}
+          onAction={() => setConfirming(true)}
         />
       )}
       {KINDS.map((kind) => {
@@ -280,6 +281,11 @@ function WordPicker({ group, onClose, onAdded }: { group: Group; onClose: () => 
         </>
       )}
       {failed && <p class="status-error" role="alert">{t.common.saveFailed}</p>}
+      {/* A word not in the dictionary yet is made in the usual form, with this list already ticked. */}
+      <a class="btn btn-quiet btn-block" href={hrefForNewWord(group.id)}>
+        <Icon name="plus" />
+        <span>{t.collections.createWord}</span>
+      </a>
       <div class="btn-row">
         <button type="button" class="btn" disabled={busy} onClick={onClose}>{t.common.cancel}</button>
         <button type="button" class="btn btn-primary" disabled={busy || selected.size === 0} onClick={() => void add()}>{t.collections.addSelected(formatCount(selected.size))}</button>
@@ -290,37 +296,68 @@ function WordPicker({ group, onClose, onAdded }: { group: Group; onClose: () => 
 
 type GroupDialog = 'add' | 'rename' | 'delete' | null;
 
+/**
+ * One collection. A list can be renamed, given words and have words taken out; a PDF collection can only be
+ * renamed; a lesson is read-only. Any of them can be deleted. Taking words out is a selection, as elsewhere,
+ * and only ever removes them from this list: the words, their other collections and their progress stay.
+ */
 export function GroupScreen({ groupId }: { groupId: string }) {
   const db = useDb();
   const { state, reload } = useLoad(() => getGroupWithWords(db, groupId), [db, groupId]);
   const [dialog, setDialog] = useState<GroupDialog>(null);
-  const [removed, setRemoved] = useState<{ member: GroupMember; label: string } | null>(null);
+  const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null);
+  const [removed, setRemoved] = useState<{ members: GroupMember[]; label: string } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const selectButton = useRef<HTMLButtonElement>(null);
+  const refocus = useRef(false);
   const back = { href: hrefFor('collections'), label: t.nav.collections };
+
+  const words = state.status === 'ready' ? state.data?.words ?? null : null;
+  // A word gone from the list in the meantime is no longer chosen, so the count stays exact.
+  const selected = useMemo(() => chosen && new Set((words ?? []).filter((word) => chosen.has(word.id)).map((word) => word.id)), [chosen, words]);
+
+  // The bar that held the action has gone with the selection, so focus returns to the button that began it.
+  useEffect(() => {
+    if (refocus.current && !selected) {
+      refocus.current = false;
+      selectButton.current?.focus();
+    }
+  }, [selected]);
 
   if (state.status === 'loading') return <Screen title={null} back={back} />;
   if (state.status === 'error') return <Screen title={t.collections.title} back={back}><LoadError onRetry={() => void reload()} /></Screen>;
   if (!state.data) return <Screen title={t.collections.notFound} back={back}><EmptyState title={t.collections.notFound} /></Screen>;
 
-  const { group, words } = state.data;
+  const { group } = state.data;
+  const list = state.data.words;
   const custom = group.kind === 'custom';
+  const allSelected = selected !== null && list.length > 0 && selected.size === list.length;
 
-  const remove = async (word: Word) => {
+  const removeSelected = async () => {
+    if (!selected || selected.size === 0 || busy) return;
+    const chosenWords = list.filter((word) => selected.has(word.id));
+    setBusy(true);
     setFailed(false);
     try {
-      const member = await removeWordFromGroup(db, group.id, word.id);
-      setRemoved(member && { member, label: wordLabel(word) });
+      const members = await removeWordsFromGroup(db, group.id, chosenWords.map((word) => word.id));
+      const only = members.length === 1 ? chosenWords.find((word) => word.id === members[0]!.wordId) : undefined;
+      setRemoved(members.length ? { members, label: only ? t.collections.removed(wordLabel(only)) : t.collections.removedMany(formatCount(members.length)) } : null);
       await reload();
+      refocus.current = true;
+      setChosen(null);
     } catch (error) {
       console.error(error);
       setFailed(true);
     }
+    setBusy(false);
   };
 
   const undo = async () => {
     if (!removed) return;
+    setFailed(false);
     try {
-      await restoreGroupMember(db, removed.member);
+      await restoreGroupMembers(db, removed.members);
       setRemoved(null);
       await reload();
     } catch (error) {
@@ -330,32 +367,79 @@ export function GroupScreen({ groupId }: { groupId: string }) {
   };
 
   const addButton = (primary: boolean) => (
-    <button type="button" class={primary ? 'btn btn-primary' : 'btn btn-small'} onClick={() => setDialog('add')}>
+    <button type="button" class={primary ? 'btn btn-primary' : 'btn btn-small btn-icon-compact'} {...(primary ? {} : { 'aria-label': t.collections.addWords, title: t.collections.addWords })} onClick={() => setDialog('add')}>
       {!primary && <Icon name="plus" />}
-      <span>{t.collections.addWords}</span>
+      <span class="btn-label">{t.collections.addWords}</span>
     </button>
   );
 
+  const headerButtons =
+    custom && list.length > 0 ? (
+      <div class="header-buttons">
+        {/* One button that changes its label, so focus stays on it. */}
+        <button ref={selectButton} type="button" class={selected ? 'btn btn-small' : 'btn btn-small btn-icon-compact'} {...(selected ? {} : { 'aria-label': t.common.select, title: t.common.select })} onClick={() => setChosen(selected ? null : new Set())}>
+          {!selected && <span class="btn-mark"><Icon name="select" /></span>}
+          <span class="btn-label">{selected ? t.common.cancel : t.common.select}</span>
+        </button>
+        {!selected && addButton(false)}
+      </div>
+    ) : undefined;
+
   return (
-    <Screen title={group.name} eyebrow={`${t.collections.kind[group.kind]} · ${t.common.words(formatCount(words.length))}`} back={back} actions={custom && words.length > 0 ? addButton(false) : undefined}>
+    <Screen title={group.name} eyebrow={`${t.collections.kind[group.kind]} · ${t.common.words(formatCount(list.length))}`} back={back} actions={headerButtons}>
+      {selected && (
+        <SelectionBar
+          count={selected.size}
+          canSelectAll={list.length > 1}
+          allSelected={allSelected}
+          actionLabel={t.collections.removeSelected}
+          onToggleAll={() => setChosen(allSelected ? new Set() : new Set(list.map((word) => word.id)))}
+          onAction={() => void removeSelected()}
+        />
+      )}
       <p class="list-footer status-line" role="status">
         {removed && (
           <>
-            <span>{t.collections.removed(removed.label)}</span>
+            <span>{removed.label}</span>
             <button type="button" class="link-btn" onClick={() => void undo()}>{t.common.undo}</button>
           </>
         )}
       </p>
       {failed && dialog === null && <p class="status-error" role="alert">{t.common.saveFailed}</p>}
-      {words.length === 0 ? (
-        <EmptyState title={t.collections.emptyGroup}>{custom && addButton(true)}</EmptyState>
+      {list.length === 0 ? (
+        <EmptyState title={t.collections.emptyGroup}>
+          {custom && (
+            <div class="empty-actions">
+              {addButton(true)}
+              <a class="btn" href={hrefForNewWord(group.id)}>{t.collections.createWord}</a>
+            </div>
+          )}
+        </EmptyState>
       ) : (
-        <WordList words={words} groupId={group.id} {...(custom ? { onRemove: (word: Word) => void remove(word) } : {})} />
+        <WordList
+          words={list}
+          groupId={group.id}
+          selection={
+            selected
+              ? {
+                  ids: selected,
+                  onToggle: (word, on) => {
+                    const next = new Set(selected);
+                    if (on) next.add(word.id);
+                    else next.delete(word.id);
+                    setChosen(next);
+                  },
+                }
+              : undefined
+          }
+        />
       )}
-      <List>
-        {custom && <Row action icon="edit" title={t.collections.renameList} onClick={() => setDialog('rename')} />}
-        <Row action icon="trash" title={custom ? t.collections.deleteList : t.collections.deleteCollection} onClick={() => setDialog('delete')} />
-      </List>
+      {!selected && (
+        <List>
+          {canRename(group) && <Row action icon="edit" title={custom ? t.collections.renameList : t.collections.renameCollection} onClick={() => setDialog('rename')} />}
+          <Row action icon="trash" title={custom ? t.collections.deleteList : t.collections.deleteCollection} onClick={() => setDialog('delete')} />
+        </List>
+      )}
 
       {dialog === 'add' && (
         <WordPicker
@@ -370,12 +454,13 @@ export function GroupScreen({ groupId }: { groupId: string }) {
       )}
       {dialog === 'rename' && (
         <NameDialog
-          title={t.collections.renameList}
-          label={t.collections.listName}
+          title={custom ? t.collections.renameList : t.collections.renameCollection}
+          label={custom ? t.collections.listName : t.collections.collectionName}
           initial={group.name}
+          {...(custom ? {} : { takenMessage: t.collections.pdfNameTaken })}
           onClose={() => setDialog(null)}
           onSubmit={async (name) => {
-            await renameCustomGroup(db, group.id, name);
+            await renameGroup(db, group.id, name);
             setDialog(null);
             await reload();
           }}

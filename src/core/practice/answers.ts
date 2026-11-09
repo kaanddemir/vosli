@@ -2,6 +2,7 @@ import { normalizeText, type Article } from '../identity';
 import type { Suggestion } from '../issues';
 import { foldForSearch } from '../search';
 import { splitMeanings } from '../vocabulary';
+import { progressiveHints, type Hints } from './hints';
 
 /**
  * Decides whether a typed answer is right. Everything here is a fixed, tested rule: there is no
@@ -10,6 +11,11 @@ import { splitMeanings } from '../vocabulary';
  */
 export type AnswerResult = 'correct' | 'article_wrong' | 'article_missing' | 'capitalization' | 'transliteration' | 'typo' | 'other_word' | 'also_valid' | 'unknown_accepted' | 'wrong';
 export type Track = 'de_tr' | 'tr_de' | 'article';
+/**
+ * What a practice question asks. Listening is asked in practice only: it never has a card, a schedule or a
+ * stored log, so it stays out of Track, which cards, review logs and backups share.
+ */
+export type QuestionKind = Track | 'listen';
 
 /** The parts of a saved word that answers depend on. */
 export interface AnswerWord {
@@ -219,9 +225,11 @@ interface AnswerContext {
   doubt?: DictionaryDoubt;
 }
 
-export function evaluateAnswer(word: AnswerWord, track: Track, typed: string, { library, doubt = NO_DOUBT }: AnswerContext): Evaluation {
+export function evaluateAnswer(word: AnswerWord, track: QuestionKind, typed: string, { library, doubt = NO_DOUBT }: AnswerContext): Evaluation {
   if (track === 'article') return evaluateArticle(word, typed);
   if (track === 'tr_de') return evaluateGerman(word, typed, !doubt.article, library, doubt);
+  // A recording says the word, not its gender, so the article may be left out. One written down must still be right.
+  if (track === 'listen') return evaluateGerman(word, typed, false, library, doubt);
   return evaluateTurkish(word, typed, library);
 }
 
@@ -229,13 +237,15 @@ export function evaluateAnswer(word: AnswerWord, track: Track, typed: string, { 
 const coreOf = (text: string): string => forms(text)[0] ?? normalizeText(text);
 
 /**
- * One first letter, or nothing when one letter would be the whole answer. It comes from the word and
- * never from the article, which is itself part of what is being asked.
+ * The text a hint is taken from: one form the answer check accepts, as the learner saved it. German
+ * keeps its capitals and its apostrophes; a Turkish meaning loses its notes and a trailing vb.
+ * It never includes the article, which is itself part of what is being asked.
  */
-export function hintFor(word: AnswerWord, track: Track): string | null {
-  if (track === 'article') return null;
-  const source = track === 'tr_de' ? stripMarks(forms(word.lemma)[0] ?? word.lemma) : stripMarks(coreOf(word.meanings[0]?.text ?? ''));
-  const letters = [...source];
-  if (letters.length < 2) return null;
-  return `${letters[0]}…`;
+export function hintSource(word: AnswerWord, track: QuestionKind): string {
+  if (track === 'article') return '';
+  if (track === 'tr_de' || track === 'listen') return forms(word.lemma)[0] ?? '';
+  return coreOf(word.meanings[0]?.text ?? '').replace(/\s+(vb|vs|vd)\.?$/iu, '');
 }
+
+/** Progressive hints for the answer, or no stages when a hint would give the whole answer away. */
+export const hintsFor = (word: AnswerWord, track: QuestionKind): Hints => progressiveHints(hintSource(word, track));

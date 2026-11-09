@@ -135,7 +135,7 @@ export function DictionaryScreen() {
   return (
     <Screen title={t.dictionary.title} eyebrow={words?.length ? t.common.words(formatCount(words.length)) : undefined} actions={words?.length ? headerButtons : undefined}>
       {selected && (
-        <SelectionBar count={selected.size} canSelectAll={results.length > 1} allSelected={allResultsSelected} onToggleAll={toggleAll} onDelete={() => setConfirming(true)} />
+        <SelectionBar count={selected.size} canSelectAll={results.length > 1} allSelected={allResultsSelected} actionLabel={t.common.delete} onToggleAll={toggleAll} onAction={() => setConfirming(true)} />
       )}
       <div class="search">
         <Icon name="search" />

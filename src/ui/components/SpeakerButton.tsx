@@ -52,6 +52,12 @@ const credits = sharedLoad<AudioCredits>(async () => {
 /** Reads the index ahead, from the app's own files, so a speaker shown after an answer is ready at once. */
 export const preparePronunciation = (): void => void index.start();
 
+/** The index itself, for choosing words that can be heard. Null if the app's own file could not be read. */
+export const loadAudioIndex = (): Promise<AudioIndex | null> => index.start();
+
+/** The index once it has loaded, or null until then. */
+export const useAudioIndex = (): AudioIndex | null => index.use();
+
 /** The recording for a word, or null while the index loads and for words without one. */
 export function usePronunciation(word: WordForm | null): PronunciationSource | null {
   const audioIndex = index.use();
@@ -61,7 +67,7 @@ export function usePronunciation(word: WordForm | null): PronunciationSource | n
 export const useAudioCredits = (): AudioCredits | null => credits.use();
 
 /** This recording's status. Only the speaker whose status changed renders again, not every row. */
-function usePlaybackStatus(key: string | null): PlaybackStatus {
+export function usePlaybackStatus(key: string | null): PlaybackStatus {
   const of = (state = player().getState()) => (key !== null && state.key === key ? state.status : 'idle');
   const [status, setStatus] = useState<PlaybackStatus>(() => of());
   useEffect(() => {
@@ -71,7 +77,7 @@ function usePlaybackStatus(key: string | null): PlaybackStatus {
   return status;
 }
 
-const ICONS = { idle: 'speaker', loading: 'speaker', playing: 'speaker-on', error: 'speaker-off' } as const;
+export const SPEAKER_ICONS = { idle: 'speaker', loading: 'speaker', playing: 'speaker-on', error: 'speaker-off' } as const;
 
 interface SpeakerButtonProps {
   word: WordForm;
@@ -104,7 +110,7 @@ export function SpeakerButton({ word, keepFocus = false, class: extra = '' }: Sp
         player().play(source);
       }}
     >
-      <Icon name={ICONS[status]} />
+      <Icon name={SPEAKER_ICONS[status]} />
     </button>
   );
 }

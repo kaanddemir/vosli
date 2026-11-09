@@ -5,7 +5,7 @@ import { dismissalKey } from '../src/core/issues';
 import { needsAttention, reviewRows, rowOutcome, SEPARATE, tallyRows, type ImportDraft } from '../src/core/review';
 import { createBackup, exportBackupText, parseBackup, restoreBackup } from '../src/data/backup';
 import { openDatabase, type AppDatabase } from '../src/data/db';
-import { deleteGroups, deleteGroupsWithWords, previewGroupDeletion, GroupNameError, ProtectedGroupError, renameCustomGroup } from '../src/data/groups';
+import { addWordsToGroup, createCustomGroup, deleteGroups, deleteGroupsWithWords, previewGroupDeletion, GroupNameError, ProtectedGroupError, removeWordsFromGroup, renameGroup } from '../src/data/groups';
 import { commitImport, type SourceCollections } from '../src/data/importCommit';
 import { getGroupWithWords, listGroupsOfWord, listOriginsOfWord, listGroupSummaries, listActiveWords } from '../src/data/repository';
 import { readDismissals } from '../src/data/dismissals';
@@ -303,13 +303,87 @@ describe('importing a PDF', () => {
     });
   });
 
-  it('source collections stay protected, and custom lists stay independent', async () => {
+  it('source collections keep their words, a lesson keeps its name, and custom lists stay independent', async () => {
     const db = await fresh();
     const prepared = await prepare(db, LESSON_ONE);
     const summary = await commitImport(db, { source: prepared.source, drafts: prepared.drafts, target: { kind: 'new_group', name: 'Benim listem' }, collections: prepared.collections }, T0);
     expect(summary.group).toMatchObject({ kind: 'custom', sourceId: null });
-    await expect(renameCustomGroup(db, summary.pdfGroup!.id, 'x')).rejects.toBeInstanceOf(ProtectedGroupError);
-    await expect(renameCustomGroup(db, summary.lessonGroups[0]!.id, 'x')).rejects.toBeInstanceOf(ProtectedGroupError);
+    const before = await createBackup(db, T0);
+    const [pdf, lesson] = [summary.pdfGroup!.id, summary.lessonGroups[0]!.id];
+    const word = (await listActiveWords(db))[0]!.id;
+    const outsider = (await addWord(db, { lemma: 'Haus', article: 'das', meanings: ['ev'], plural: null }, null, [], T0)) as { word: { id: string } };
+    for (const id of [pdf, lesson]) {
+      await expect(addWordsToGroup(db, id, [outsider.word.id], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
+      await expect(removeWordsFromGroup(db, id, [word])).rejects.toBeInstanceOf(ProtectedGroupError);
+    }
+    await expect(renameGroup(db, lesson, 'x')).rejects.toBeInstanceOf(ProtectedGroupError);
+    await deleteWord(db, outsider.word.id);
+    expect(await createBackup(db, T0)).toEqual(before);
+  });
+});
+
+describe('renaming a PDF collection', () => {
+  const problem = (promise: Promise<unknown>) => promise.then(() => null, (error: GroupNameError) => error.problem);
+
+  it('changes only the name: id, source, memberships, words and progress stay', async () => {
+    const db = await fresh();
+    const summary = await save(db, await prepare(db, LESSON_ONE));
+    const id = summary.pdfGroup!.id;
+    const before = await createBackup(db, T0);
+    await renameGroup(db, id, '  Almanca A1 —   Bölüm 7 ');
+    const after = await createBackup(db, T0);
+    expect(after.tables.groups.find((group) => group.id === id)).toEqual({ ...before.tables.groups.find((group) => group.id === id), name: 'Almanca A1 — Bölüm 7' });
+    for (const table of ['words', 'cards', 'reviewLogs', 'groupMembers', 'sources', 'importRows'] as const) expect(after.tables[table]).toEqual(before.tables[table]);
+  });
+
+  it('is found again by its source on a second import, keeping the new name', async () => {
+    const db = await fresh();
+    const first = await save(db, await prepare(db, LESSON_ONE));
+    await renameGroup(db, first.pdfGroup!.id, 'Almanca A1 — Bölüm 7');
+    const before = await createBackup(db, T0);
+    const prepared = await prepare(db, LESSON_ONE);
+    expect(prepared.info.reused).toBe(true);
+    const again = await save(db, prepared);
+    expect(again.pdfGroup).toMatchObject({ id: first.pdfGroup!.id, name: 'Almanca A1 — Bölüm 7' });
+    expect(await db.groups.where('kind').equals('pdf').count()).toBe(1);
+    expect(await createBackup(db, T0)).toEqual(before);
+  });
+
+  it('frees the old name: changed content under it is a new collection with that name', async () => {
+    const db = await fresh();
+    await renameGroup(db, (await save(db, await prepare(db, LESSON_ONE))).pdfGroup!.id, 'Bölüm 7');
+    const changed = buildPdf([tablePage([...FRUITS, ['Haus', 'das', 'ev']], { heading: 'Lektion 1' })]);
+    const summary = await save(db, await prepare(db, changed));
+    expect(summary.pdfGroup!.name).toBe('ders');
+    expect(await db.groups.where('kind').equals('pdf').count()).toBe(2);
+  });
+
+  it('refuses an empty, too long or already used PDF name, and may share a name with a list', async () => {
+    const db = await fresh();
+    const id = (await save(db, await prepare(db, LESSON_ONE))).pdfGroup!.id;
+    const changed = buildPdf([tablePage([...FRUITS, ['Haus', 'das', 'ev']], { heading: 'Lektion 1' })]);
+    const other = (await save(db, await prepare(db, changed, 'diger.pdf'))).pdfGroup!;
+    expect(await problem(renameGroup(db, id, '   '))).toBe('empty');
+    expect(await problem(renameGroup(db, id, 'x'.repeat(81)))).toBe('too_long');
+    expect(await problem(renameGroup(db, id, other.name.toLocaleUpperCase('tr')))).toBe('taken');
+    expect((await db.groups.get(id))!.name).toBe('ders');
+    await createCustomGroup(db, 'Bölüm 7', T0);
+    await renameGroup(db, id, 'bölüm 7');
+    await renameGroup(db, id, 'x'.repeat(80));
+    await renameGroup(db, id, 'Ders');
+    expect((await db.groups.get(id))!.name).toBe('Ders');
+  });
+
+  it('survives a backup and restore', async () => {
+    const db = await fresh();
+    const id = (await save(db, await prepare(db, LESSON_ONE))).pdfGroup!.id;
+    await renameGroup(db, id, 'Bölüm 7');
+    const parsed = parseBackup(await exportBackupText(db, T0));
+    if (!parsed.ok) throw new Error('backup did not parse');
+    const target = await fresh();
+    await restoreBackup(target, parsed.backup);
+    expect(await target.groups.get(id)).toMatchObject({ kind: 'pdf', name: 'Bölüm 7' });
+    expect(await target.groupMembers.where('[groupId+wordId]').between([id, ''], [id, '\uffff']).count()).toBe(FRUITS.length);
   });
 });
 

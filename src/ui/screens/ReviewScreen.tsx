@@ -232,7 +232,7 @@ export function ReviewScreen() {
           issues={issues}
           stepKey={`${session.id}:${session.current}:${item.attempts}:${answered ? 'a' : 'q'}`}
           answered={answered}
-          hinted={session.hinted}
+          hints={session.hints}
           done={askedCount(session)}
           total={totalCount(session)}
           retries={returningCount(session)}

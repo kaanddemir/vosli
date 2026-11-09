@@ -16,7 +16,11 @@ export class GroupNameError extends Error {
   }
 }
 
-/** PDF and lesson collections record where words came from, so they cannot be edited, only deleted whole. */
+/**
+ * PDF and lesson collections record where words came from, so their words cannot be changed, only the whole
+ * collection deleted. A PDF collection may be renamed, because a new import finds it by its source. A lesson
+ * may not: lessons are found by name, so a renamed one would be split in two by the next import.
+ */
 export class ProtectedGroupError extends Error {
   override readonly name = 'ProtectedGroupError';
 }
@@ -27,11 +31,12 @@ class GroupNotFoundError extends Error {
 
 const nameKey = (name: string) => normalizeText(name).toLocaleLowerCase('tr');
 
-async function checkName(db: AppDatabase, name: string, ownId: string | null): Promise<string> {
+/** Names are unique within their kind, as the importer keeps PDF names unique: a list may share a name with a PDF. */
+async function checkName(db: AppDatabase, name: string, ownId: string | null, kind: 'custom' | 'pdf' = 'custom'): Promise<string> {
   const clean = normalizeText(name);
   if (!clean) throw new GroupNameError('empty');
   if (clean.length > GROUP_NAME_MAX) throw new GroupNameError('too_long');
-  const taken = await db.groups.where('kind').equals('custom').filter((group) => group.id !== ownId && nameKey(group.name) === nameKey(clean)).count();
+  const taken = await db.groups.where('kind').equals(kind).filter((group) => group.id !== ownId && nameKey(group.name) === nameKey(clean)).count();
   if (taken) throw new GroupNameError('taken');
   return clean;
 }
@@ -53,10 +58,15 @@ export async function createCustomGroup(db: AppDatabase, name: string, now: numb
   });
 }
 
-export async function renameCustomGroup(db: AppDatabase, id: string, name: string): Promise<void> {
+export const canRename = (group: Pick<Group, 'kind'>): boolean => group.kind === 'custom' || group.kind === 'pdf';
+
+/** Changes only the name. The id, the source and every membership stay, so nothing that points at the collection changes. */
+export async function renameGroup(db: AppDatabase, id: string, name: string): Promise<void> {
   await db.transaction('rw', db.groups, async () => {
-    const group = await customGroup(db, id);
-    await db.groups.put({ ...group, name: await checkName(db, name, id) });
+    const group = await db.groups.get(id);
+    if (!group) throw new GroupNotFoundError(id);
+    if (group.kind === 'lesson') throw new ProtectedGroupError(id);
+    await db.groups.update(id, { name: await checkName(db, name, id, group.kind) });
   });
 }
 
@@ -116,22 +126,39 @@ export async function addWordsToGroup(db: AppDatabase, groupId: string, wordIds:
   });
 }
 
-/** Returns the removed membership, so it can be put back exactly. */
-export async function removeWordFromGroup(db: AppDatabase, groupId: string, wordId: string): Promise<GroupMember | null> {
+/**
+ * Takes words out of one list, all or none, and returns the memberships removed so they can be put back
+ * exactly. Only memberships change: the words, their other collections, cards and history are outside the
+ * transaction, so Dexie would refuse any write to them. A word no longer in the list is passed over.
+ */
+export async function removeWordsFromGroup(db: AppDatabase, groupId: string, wordIds: readonly string[]): Promise<GroupMember[]> {
   return db.transaction('rw', db.groups, db.groupMembers, async () => {
     await customGroup(db, groupId);
-    const member = await db.groupMembers.get([groupId, wordId]);
-    if (member) await db.groupMembers.delete([groupId, wordId]);
-    return member ?? null;
+    const found = await db.groupMembers.bulkGet([...new Set(wordIds)].map((wordId) => [groupId, wordId]));
+    const members = found.filter((member): member is GroupMember => member !== undefined);
+    await db.groupMembers.bulkDelete(members.map((member) => [member.groupId, member.wordId]));
+    return members;
   });
 }
 
-export async function restoreGroupMember(db: AppDatabase, member: GroupMember): Promise<void> {
-  await db.transaction('rw', db.groups, db.groupMembers, async () => {
-    await customGroup(db, member.groupId);
-    await db.groupMembers.put(member);
+/** Returns the removed membership, so it can be put back exactly. */
+export async function removeWordFromGroup(db: AppDatabase, groupId: string, wordId: string): Promise<GroupMember | null> {
+  return (await removeWordsFromGroup(db, groupId, [wordId]))[0] ?? null;
+}
+
+/**
+ * Puts removed memberships back exactly as they were, all or none. A word deleted in the meantime is
+ * passed over, so no membership ever points at a word that is gone. Words are only read here.
+ */
+export async function restoreGroupMembers(db: AppDatabase, members: readonly GroupMember[]): Promise<void> {
+  await db.transaction('rw', db.groups, db.groupMembers, db.words, async () => {
+    for (const groupId of new Set(members.map((member) => member.groupId))) await customGroup(db, groupId);
+    const words = await db.words.bulkGet(members.map((member) => member.wordId));
+    await db.groupMembers.bulkPut(members.filter((_, at) => words[at] !== undefined && words[at]!.deletedAt === null));
   });
 }
+
+export const restoreGroupMember = (db: AppDatabase, member: GroupMember): Promise<void> => restoreGroupMembers(db, [member]);
 
 /** Makes a word's custom-list memberships match the choice. Memberships of PDF and lesson collections are left alone. */
 export async function setWordCustomGroups(db: AppDatabase, wordId: string, groupIds: readonly string[], now: number): Promise<void> {

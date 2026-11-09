@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ARTICLE_COLORS_STORAGE_KEY, parseArticleColors } from '../src/articleColors';
 import { parseThemePreference, resolveTheme, THEME_STORAGE_KEY } from '../src/theme';
-import { hrefFor, hrefForGroup, hrefForWord, placeFromHash } from '../src/ui/router';
+import { hrefFor, hrefForGroup, hrefForNewWord, hrefForWord, placeFromHash } from '../src/ui/router';
 
 describe('theme preference', () => {
   it('falls back to system for missing or unknown values', () => {
@@ -61,6 +61,9 @@ describe('routes', () => {
     expect(placeFromHash(hrefForWord('a/b ç'))).toEqual({ route: 'word', wordId: 'a/b ç' });
     expect(placeFromHash(hrefForGroup('g 1'))).toEqual({ route: 'group', groupId: 'g 1' });
     expect(placeFromHash(hrefForWord('w', 'g'))).toEqual({ route: 'word', groupId: 'g', wordId: 'w' });
+    expect(placeFromHash(hrefForNewWord())).toEqual({ route: 'wordNew' });
+    expect(placeFromHash(hrefForNewWord('g 1'))).toEqual({ route: 'wordNew', groupId: 'g 1' });
+    expect(placeFromHash('#/collections/g/new/edit')).toEqual({ route: 'wordEdit', groupId: 'g', wordId: 'new' });
     expect(placeFromHash('#/dictionary/%E0%A4%A')).toEqual({ route: 'word', wordId: '%E0%A4%A' });
   });
 });
