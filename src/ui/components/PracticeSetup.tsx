@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { AudioIndex } from '../../audio/audioIndex';
+import type { DictionaryDoubt, Track } from '../../core/practice/answers';
+import { createChoicePool, testKindsFor, type ChoicePool } from '../../core/practice/choices';
 import { ALL_WORDS, doubtFrom, questionsFor, wordsInScope, type PracticeMode, type PracticeScope } from '../../core/practice/selection';
 import type { CardDirection } from '../../core/practice/cards';
 import type { PracticeSettings } from '../../core/practice/session';
@@ -15,7 +17,7 @@ import { EmptyState, Screen } from './Screen';
 import { useAudioIndex } from './SpeakerButton';
 
 const MODES: readonly Exclude<PracticeMode, 'listen'>[] = ['tr_de', 'de_tr', 'article', 'mixed'];
-const STUDIES: readonly StudyMode[] = ['typed', 'cards', 'listen'];
+const STUDIES: readonly StudyMode[] = ['typed', 'listen', 'cards', 'test'];
 const DIRECTIONS: readonly CardDirection[] = ['de_tr', 'tr_de'];
 const COUNTS: readonly (number | null)[] = [10, 20, 50, null];
 const KINDS: readonly GroupKind[] = ['pdf', 'lesson', 'custom'];
@@ -47,6 +49,37 @@ export function eligibilityOf(data: PracticeData, settings: PracticeSettings, au
   const askable = usable.filter((word) => questionsFor(word, settings.mode, doubtFrom(data.flagged.get(word.id) ?? [])).length > 0);
   const eligible = settings.mode === 'listen' ? askable.filter((word) => audio !== null && audio.canDictate(word)) : askable;
   return { inScope, flagged, eligible };
+}
+
+export interface TestPlan {
+  /** What a typed round would ask about with these settings. */
+  askable: Word[];
+  /** Those that can also be asked with safe options to choose from. */
+  eligible: Word[];
+  pool: ChoicePool;
+  kindsOf: (word: Word) => Track[];
+  doubtOf: (wordId: string) => DictionaryDoubt;
+  /** The chosen selection, whose words are offered as options first. */
+  preferred: ReadonlySet<string>;
+}
+
+/**
+ * A test asks the words a typed round would, each in a way that has three safe wrong options. Those
+ * options may come from any saved word, so a small collection still works; a word with an open
+ * dictionary warning is never shown as an option, whatever the setting for asking it.
+ */
+export function testPlanOf(data: PracticeData, settings: PracticeSettings): TestPlan {
+  const { inScope, eligible: askable } = eligibilityOf(data, settings);
+  const doubtOf = (wordId: string) => doubtFrom(data.flagged.get(wordId) ?? []);
+  const pool = createChoicePool(data.words, (wordId) => data.flagged.has(wordId));
+  const mode = settings.mode === 'listen' ? 'mixed' : settings.mode;
+  const kinds = new Map<string, Track[]>();
+  const kindsOf = (word: Word) => {
+    let known = kinds.get(word.id);
+    if (!known) kinds.set(word.id, (known = testKindsFor(pool, word, mode, doubtOf(word.id))));
+    return known;
+  };
+  return { askable, eligible: askable.filter((word) => kindsOf(word).length > 0), pool, kindsOf, doubtOf, preferred: new Set(inScope.map((word) => word.id)) };
 }
 
 /** False only when the browser knows it has no connection. True can still mean a connection that fails. */
@@ -84,6 +117,9 @@ function toggle(scope: PracticeScope, patch: Partial<PracticeScope>): PracticeSc
 export function PracticeSetup({ data, settings, study, onChange, onStudyChange, onStart }: { data: PracticeData; settings: PracticeSettings; study: StudyChoice; onChange: (settings: PracticeSettings) => void; onStudyChange: (study: StudyChoice) => void; onStart: () => void }) {
   const audio = useAudioIndex();
   const online = useOnline();
+  const testing = study.study === 'test';
+  // Worked out once per choice, not on every render: every word is checked against the whole library.
+  const plan = useMemo(() => (testing && data.words.length > 0 ? testPlanOf(data, settings) : null), [testing, data, settings]);
   const close = (
     <a class="icon-btn" href={hrefFor('home')} aria-label={t.common.close} title={t.common.close}>
       <Icon name="close" />
@@ -103,11 +139,15 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
   const { scope } = settings;
   const cards = study.study === 'cards';
   const listening = study.study === 'listen';
-  const { flagged, eligible } = eligibilityOf(data, settingsFor(settings, study), audio);
+  const { flagged, eligible: practiceEligible } = eligibilityOf(data, settingsFor(settings, study), audio);
+  const eligible = plan ? plan.eligible : practiceEligible;
   const questions = settings.count === null ? eligible.length : Math.min(settings.count, eligible.length);
+  // A test may have fewer questions than asked for, when some words have no safe options: it says how many.
+  const shortTest = plan !== null && questions > 0 && questions < (settings.count ?? plan.askable.length);
+  const nothing = cards ? t.practice.noCards : listening ? t.practice.noRecordings : plan && plan.askable.length > 0 ? t.practice.test.notEnough : settings.mode === 'article' ? t.practice.noArticles : t.practice.noneInScope;
   // What stops a round from starting, or for listening, how many words can be heard and that it needs a connection.
-  const blocked = listening && !online ? t.practice.listenOffline : listening && !audio ? t.practice.listenLoading : questions === 0 ? (cards ? t.practice.noCards : listening ? t.practice.noRecordings : settings.mode === 'article' ? t.practice.noArticles : t.practice.noneInScope) : null;
-  const startLine = blocked ?? (listening ? t.practice.listenCoverage(formatCount(eligible.length)) : null);
+  const blocked = listening && !online ? t.practice.listenOffline : listening && !audio ? t.practice.listenLoading : questions === 0 ? nothing : null;
+  const startLine = blocked ?? (listening ? t.practice.listenCoverage(formatCount(eligible.length)) : shortTest ? t.practice.test.available(formatCount(questions)) : null);
   const favorites = data.words.filter((word) => word.favoritedAt !== null).length;
   const setScope = (next: PracticeScope) => onChange({ ...settings, scope: next });
   const groupsOf = (kind: GroupKind): Group[] => data.groups.filter((item) => item.group.kind === kind && item.wordCount > 0).map((item) => item.group);
@@ -125,7 +165,7 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
       >
         <fieldset class="setup-group">
           <legend class="list-label">{t.practice.studyLabel}</legend>
-          <div class="segmented segmented-full">
+          <div class="segmented segmented-grid segmented-pairs">
             {STUDIES.map((option) => (
               <label key={option}>
                 <input type="radio" name="practice-study" checked={study.study === option} onChange={() => onStudyChange({ ...study, study: option })} />
@@ -218,7 +258,7 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
         <div class="practice-start">
           {/* Only what stops a round from starting is worth a line here. */}
           {startLine && <p class="practice-start-line" role="status" data-testid={blocked ? 'practice-blocked' : 'practice-coverage'}>{startLine}</p>}
-          <button type="submit" class="btn btn-primary btn-block" disabled={blocked !== null} data-questions={questions}>{cards ? t.practice.startCards : t.practice.start}</button>
+          <button type="submit" class="btn btn-primary btn-block" disabled={blocked !== null} data-questions={questions}>{cards ? t.practice.startCards : testing ? t.practice.test.start : t.practice.start}</button>
         </div>
       </form>
     </Screen>

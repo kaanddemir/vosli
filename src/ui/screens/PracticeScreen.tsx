@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { newId } from '../../core/id';
 import { createCardSession, currentCard, dropCard, moveCard, restartCards, reviveCardSession, type CardSession } from '../../core/practice/cards';
 import { evaluateAnswer, type AnswerWord } from '../../core/practice/answers';
+import { buildQuestion, type TestQuestion } from '../../core/practice/choices';
 import { ALL_WORDS, buildRound, doubtFrom, shuffled, type RoundItem } from '../../core/practice/selection';
+import { createTest, currentQuestion, dropWord as dropTestWord, leaveBlank, nextTestQuestion, reviveTest, scoreTest, shownPick, submitPick, testHasProgress, type TestSession } from '../../core/practice/test';
 import { createSession, currentItem, doneCount, dropWord, isFinished, markHintUsed, nextQuestion, retriesWaiting, reviveSession, roundSize, skipQuestion, submitAnswer, summarize, type PracticeSettings, type Session } from '../../core/practice/session';
 import { validatorWithin } from '../../dictionary/loadDictionary';
 import { loadPracticeData, type PracticeData } from '../../data/practice';
@@ -10,14 +12,16 @@ import { getActiveWord, recordPracticeAttempt } from '../../data/repository';
 import { t } from '../../i18n/strings';
 import { CardStudy } from '../components/CardStudy';
 import { ConfirmDialog } from '../components/Modal';
-import { DEFAULT_SETTINGS, eligibilityOf, PracticeSetup, settingsFor } from '../components/PracticeSetup';
+import { DEFAULT_SETTINGS, eligibilityOf, PracticeSetup, settingsFor, testPlanOf } from '../components/PracticeSetup';
 import { PracticeSummary } from '../components/PracticeSummary';
 import { QuestionStep } from '../components/QuestionStep';
+import { TestStep } from '../components/TestStep';
+import { TestSummary } from '../components/TestSummary';
 import { loadAudioIndex } from '../components/SpeakerButton';
 import { player } from '../../audio/pronunciation';
 import { LoadError, Screen } from '../components/Screen';
 import { useDb } from '../dbContext';
-import { readSavedCards, readSavedSession, readSavedSettings, readStudyChoice, saveCards, saveSession, saveSettings, saveStudyChoice, type StudyChoice } from '../practiceStorage';
+import { readSavedCards, readSavedSession, readSavedSettings, readSavedTest, readStudyChoice, saveCards, saveSession, saveSettings, saveStudyChoice, saveTest, type StudyChoice } from '../practiceStorage';
 import { hrefFor } from '../router';
 import { useLoad } from '../useLoad';
 
@@ -54,6 +58,8 @@ export function PracticeScreen() {
   const [cards, setCardsState] = useState<CardSession | null>(null);
   const cardsRef = useRef<CardSession | null>(null);
   const [cardNotice, setCardNotice] = useState<string | null>(null);
+  const [test, setTestState] = useState<TestSession | null>(null);
+  const testRef = useRef<TestSession | null>(null);
   // Set once the learner has moved on from an answer: from then on a listening question plays as it appears.
   // A new round and a reloaded one start false, so their first recording waits for a tap.
   const [movedOn, setMovedOn] = useState(false);
@@ -63,6 +69,13 @@ export function PracticeScreen() {
     cardsRef.current = next;
     setCardsState(next);
     saveCards(next);
+  }, []);
+
+  /** A test keeps its questions and answers in this tab only. Nothing about it reaches the database. */
+  const setTest = useCallback((next: TestSession | null) => {
+    testRef.current = next;
+    setTestState(next);
+    saveTest(next);
   }, []);
 
   const setSession = useCallback((next: Session | null) => {
@@ -79,14 +92,18 @@ export function PracticeScreen() {
     const data = await readData();
     const active = new Set(data.words.map((word) => word.id));
     const restored = reviveSession(readSavedSession(), active);
-    const restoredCards = restored ? null : reviveCardSession(readSavedCards(), active);
+    const restoredTest = restored ? null : reviveTest(readSavedTest(), active);
+    testRef.current = restoredTest;
+    setTestState(restoredTest);
+    saveTest(restoredTest);
+    const restoredCards = restored || restoredTest ? null : reviveCardSession(readSavedCards(), active);
     cardsRef.current = restoredCards;
     setCardsState(restoredCards);
     saveCards(restoredCards);
     sessionRef.current = restored;
     setSessionState(restored);
     saveSession(restored);
-    setSettingsState(restoredSettings(restored, data));
+    setSettingsState(restored?.settings ?? restoredTest?.settings ?? restoreSettings(data));
     return data;
   }, [readData]);
   const [fresh, setFresh] = useState<PracticeData | null>(null);
@@ -107,10 +124,17 @@ export function PracticeScreen() {
     player().stop();
     setSession(null);
     setCards(null);
+    setTest(null);
     goHome();
-  }, [setSession, setCards]);
+  }, [setSession, setCards, setTest]);
 
   const askToClose = useCallback(() => {
+    // A test asks the same as a round: once something is answered, leaving is confirmed first.
+    if (testRef.current) {
+      if (testHasProgress(testRef.current)) setClosing(true);
+      else leave();
+      return;
+    }
     if (sessionRef.current && !isFinished(sessionRef.current) && sessionRef.current.items.some((entry) => entry.attempts > 0)) setClosing(true);
     else leave();
   }, [leave]);
@@ -151,6 +175,7 @@ export function PracticeScreen() {
       const round = buildRound({ words: eligible, mode: chosen.mode, count: chosen.count, history: latest.history, doubtOf: (id) => doubtFrom(latest.flagged.get(id) ?? []), random: Math.random });
       setFresh(latest);
       setCardNotice(null);
+      setTest(null);
       setCards(round.length > 0 ? createCardSession(newId(), study.direction, round.map((entry) => entry.wordId)) : null);
     } finally {
       setStarting(false);
@@ -220,9 +245,76 @@ export function PracticeScreen() {
       setFresh(latest);
       setSaveFailed(false);
       setMovedOn(false);
+      // Practising what a test missed is an ordinary typed round; the test itself is over.
+      setTest(null);
       setSession(round.length > 0 ? createSession(newId(), current, round) : null);
     } finally {
       setStarting(false);
+    }
+  };
+
+  /**
+   * The same choice of words as a typed round, read fresh. Every question and its options are made
+   * here, once, so the test never changes under the learner, not even after a reload.
+   */
+  const beginTest = async () => {
+    if (starting) return;
+    setStarting(true);
+    try {
+      const latest = await readData();
+      const current = withKnownGroups(storedSettings, latest);
+      if (current !== storedSettings) {
+        setFresh(latest);
+        changeSettings(current);
+        setTest(null);
+        return;
+      }
+      const plan = testPlanOf(latest, current);
+      const round = buildRound({ words: plan.eligible, mode: current.mode, count: current.count, history: latest.history, doubtOf: plan.doubtOf, random: Math.random, kindsOf: plan.kindsOf });
+      const byId = new Map(latest.words.map((entry) => [entry.id, entry]));
+      const questions = round.flatMap((entry): TestQuestion[] => {
+        const target = byId.get(entry.wordId);
+        if (!target || entry.track === 'listen') return [];
+        const question = buildQuestion(plan.pool, target, entry.track, { doubt: plan.doubtOf(target.id), preferred: plan.preferred, random: Math.random });
+        return question ? [question] : [];
+      });
+      setFresh(latest);
+      setSession(null);
+      setCards(null);
+      setClosing(false);
+      setTest(questions.length > 0 ? createTest(newId(), current, questions) : null);
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  /** Records the answer once, and the question stays on screen with its answer shown. */
+  const answerTest = (at: number, option: number | 'blank') => {
+    const current = testRef.current;
+    if (!current) return;
+    const next = option === 'blank' ? leaveBlank(current, at) : submitPick(current, at, option);
+    if (next !== current) setTest(next);
+  };
+
+  /** Moves on, past any question whose word was deleted meanwhile. Only reads the database. */
+  const advanceTest = async (at: number) => {
+    const current = testRef.current;
+    if (!current || moving.current) return;
+    const next = nextTestQuestion(current, at);
+    if (next === current) return;
+    setTest(next);
+    moving.current = true;
+    try {
+      for (let question = currentQuestion(next); question; ) {
+        if (await getActiveWord(db, question.wordId)) break;
+        const now = testRef.current;
+        if (!now || now.id !== next.id) return;
+        const settled = dropTestWord(now, question.wordId);
+        setTest(settled);
+        question = currentQuestion(settled);
+      }
+    } finally {
+      moving.current = false;
     }
   };
 
@@ -314,6 +406,36 @@ export function PracticeScreen() {
     );
   }
 
+  if (test) {
+    const question = currentQuestion(test);
+    if (!question) {
+      const { missed } = scoreTest(test);
+      return (
+        <TestSummary test={test} onClose={leave}>
+          <button type="button" class="btn btn-primary btn-block" onClick={() => void beginTest()}>{t.practice.test.again}</button>
+          {missed.length > 0 && <button type="button" class="btn btn-block" onClick={() => void beginRound(missed.map(({ question: entry }) => ({ wordId: entry.wordId, track: entry.kind })))}>{t.practice.test.missedRound}</button>}
+          <button type="button" class="btn btn-quiet btn-block" onClick={() => setTest(null)}>{t.practice.changeSettings}</button>
+        </TestSummary>
+      );
+    }
+    const { at } = test;
+    return (
+      <>
+        <TestStep question={question} stepKey={`${test.id}:${at}`} at={at} total={test.questions.length} answered={shownPick(test)} last={at === test.questions.length - 1} onPick={answerTest} onBlank={(index) => answerTest(index, 'blank')} onNext={(index) => void advanceTest(index)} onClose={askToClose} />
+        {closing && testHasProgress(test) && (
+          <ConfirmDialog
+            title={t.practice.test.closeTitle}
+            body={<p class="dialog-warning">{t.practice.test.closeBody}</p>}
+            confirmLabel={t.practice.closeConfirm}
+            cancelLabel={t.practice.keepGoing}
+            onConfirm={leave}
+            onCancel={() => setClosing(false)}
+          />
+        )}
+      </>
+    );
+  }
+
   if (session && isFinished(session)) {
     const summary = summarize(session);
     return (
@@ -330,7 +452,7 @@ export function PracticeScreen() {
   }
 
   if (!session || !item || !word) {
-    return <PracticeSetup data={data} settings={settings} study={study} onChange={changeSettings} onStudyChange={changeStudy} onStart={() => void (study.study === 'cards' ? beginCards() : beginRound())} />;
+    return <PracticeSetup data={data} settings={settings} study={study} onChange={changeSettings} onStudyChange={changeStudy} onStart={() => void (study.study === 'cards' ? beginCards() : study.study === 'test' ? beginTest() : beginRound())} />;
   }
 
   return (
@@ -359,7 +481,7 @@ export function PracticeScreen() {
       {closing && hasProgress && (
         <ConfirmDialog
           title={t.practice.closeTitle}
-          body={<p class="dialog-warning">{t.practice.closeBody}</p>}
+          body={<p class="dialog-warning">{session.items.every((entry) => entry.track === 'listen') ? t.practice.closeBodyListen : t.practice.closeBody}</p>}
           confirmLabel={t.practice.closeConfirm}
           cancelLabel={t.practice.keepGoing}
           onConfirm={leave}
@@ -377,10 +499,6 @@ function withKnownGroups(settings: PracticeSettings, data: PracticeData): Practi
   if (groupIds.length === settings.scope.groupIds.length) return settings;
   const scope = settings.scope.favorites || settings.scope.difficult || groupIds.length > 0 ? { ...settings.scope, groupIds } : ALL_WORDS;
   return { ...settings, scope };
-}
-
-function restoredSettings(session: Session | null, data: PracticeData): PracticeSettings {
-  return session?.settings ?? restoreSettings(data);
 }
 
 function lastAskedOf(session: Session): RoundItem | null {

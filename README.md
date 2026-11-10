@@ -18,7 +18,7 @@ The interface is in Turkish.
 
 - Adds, edits, searches and favorites words, and organizes them into collections.
 - Imports pasted text, CSV and text-based PDF files, with a preview first.
-- Offers Free Practice by typing or with cards; these modes never change the review schedule.
+- Offers Free Practice four ways: typing, listening, cards, and a multiple-choice test with options drawn only from the learner's own words. None of them change the review schedule.
 - Schedules reviews in Smart Review with FSRS-6.
 - Checks German spelling and articles against an offline dictionary.
 - Plays real human pronunciation recordings.

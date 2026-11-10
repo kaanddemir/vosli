@@ -7,7 +7,7 @@ Guidance for AI coding agents working on Vosli. For what the app does and how to
 Vosli is a local-first German vocabulary trainer for Turkish speakers. The learning language is **German only**; the interface language is **Turkish only**.
 
 - Words are added by hand or imported (pasted text, CSV, text-based PDF) with a preview, then organized into favorites and collections.
-- Study modes: **Free Practice** (typing or Card Study) and **Smart Review** (FSRS-6 scheduling).
+- Study modes: **Free Practice** (Yazarak typing, Dinleyerek listening, Kartlarla cards, or a multiple-choice Test) and **Smart Review** (FSRS-6 scheduling).
 - An offline dictionary checks spelling and articles; pronunciation plays human recordings from Wikimedia Commons on demand.
 - There is no server or account. Data lives in IndexedDB, can be backed up to one JSON file, and the app works offline as an installable PWA.
 - Stack: Preact, TypeScript, Vite, vite-plugin-pwa, Dexie, ts-fsrs, PDF.js; Vitest, Playwright and axe for tests.
@@ -31,7 +31,9 @@ Vosli is a local-first German vocabulary trainer for Turkish speakers. The learn
 - **Study modes:**
   - Smart Review (`src/data/smartReview.ts`) is the only path that changes cards and writes `scheduled` logs.
   - Free Practice writes `practice` logs (history only, no scheduling fields).
+  - Listening keeps its results in the round only and writes no logs.
   - Card Study is unscored and writes nothing to scheduling.
+  - Test (`src/core/practice/choices.ts`, `test.ts`) is read-only: options come only from saved words, and its state lives in `sessionStorage`.
 - **Dictionary:** `public/dictionary/` holds generated, sorted text files read by binary search (`src/core/dictionary.ts`). They are produced by `scripts/build-dictionary.mjs` from a Kaikki/Wiktionary dump; do not hand-edit them. The dictionary only warns and suggests; it never silently changes a learner's words.
 - **Pronunciation:** recordings are selected at dictionary build time and stored as tags in `lemmas.txt`; credits are in `audio-credits.txt`. The app streams audio from Commons through one shared player (`src/audio/pronunciation.ts`) only after an explicit tap, using `SpeakerButton`. No TTS, no audio caching, no guessed filenames.
 - **Commons metadata sync:** `npm run audio:sync` (`scripts/sync-commons-audio.mjs`, logic in `scripts/commons-sync.mjs`) is a separate, explicit, rate-limited, resumable command that writes `scripts/data/commons-audio.tsv` under a lock. The dictionary build reads that file offline and leaves unconfirmed recordings silent.
@@ -105,7 +107,7 @@ Use Node.js 24 (`.nvmrc`, `engines`).
 
 - Never silently delete or rewrite learner words, review history, cards or collections.
 - Keep migrations append-only and backups compatible unless a change is explicitly authorized.
-- Only Smart Review may change FSRS state. Free Practice and Card Study must never touch cards or scheduled logs.
+- Only Smart Review may change FSRS state. Free Practice, Card Study and Test must never touch cards or scheduled logs.
 - Do not reveal hidden answers through audio, visual styling or accessibility metadata. Speakers appear only when the German side is visible or the answer has been revealed.
 - Never store pronunciation audio in IndexedDB, caches or JSON backups.
 - `npm run build`, `npm run dev` and CI must never contact Wikimedia Commons.

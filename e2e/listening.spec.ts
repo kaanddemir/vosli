@@ -160,9 +160,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('setup', () => {
-  test('Dinleyerek is a third way to study; it hides the question type and keeps it for typing', async ({ page }) => {
+  test('Dinleyerek is the second way to study; it hides the question type and keeps it for typing', async ({ page }) => {
     await openSetup(page);
-    await expect(page.locator('input[name="practice-study"]')).toHaveCount(3);
+    await expect(page.locator('input[name="practice-study"]')).toHaveCount(4);
+    await expect(page.locator('input[name="practice-study"]').nth(1)).toHaveAccessibleName(t.practice.studies.listen);
     await studyOption(page, t.practice.modes.article).click();
     await studyOption(page, t.practice.studies.listen).click();
     await expect(page.getByText(t.practice.modeLabel, { exact: true })).toHaveCount(0);
@@ -181,7 +182,7 @@ test.describe('setup', () => {
     // The choice is remembered on this device.
     await studyOption(page, t.practice.studies.listen).click();
     await page.reload();
-    await expect(page.locator('input[name="practice-study"]').nth(2)).toBeChecked();
+    await expect(page.locator('input[name="practice-study"]').nth(1)).toBeChecked();
   });
 
   test('counts what the chosen words can offer, and cannot start without a recording', async ({ page }) => {
@@ -368,7 +369,7 @@ test.describe('fit and access', () => {
         await page.evaluate((value) => (document.documentElement.style.fontSize = value), size);
         await studyOption(page, t.practice.studies.listen).click();
         const options = await page.locator('input[name="practice-study"] + span').evaluateAll((spans) => spans.map((span) => span.getBoundingClientRect().width));
-        // Three equal options when they fit side by side.
+        // Four equal options, two to a row or one to a row.
         if (size === '16px') expect(Math.max(...options) - Math.min(...options)).toBeLessThan(2);
         await scan(`${size} setup`);
         await start(page).click();

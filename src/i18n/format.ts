@@ -9,3 +9,6 @@ export const formatDate = (ms: number): string => plainDates.format(ms);
 export const formatDateTime = (ms: number): string => dates.format(ms);
 /** 4 Kasım Çarşamba */
 export const formatDay = (ms: number): string => days.format(ms);
+const percents = new Intl.NumberFormat('tr-TR', { style: 'percent', maximumFractionDigits: 0 });
+/** 0.75 becomes %75, the way Turkish readers write it. */
+export const formatPercent = (ratio: number): string => percents.format(ratio);

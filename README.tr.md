@@ -16,7 +16,7 @@ Vosli, Almanca kelimeleri eklemeyi, içe aktarmayı ve aralıklı tekrarla çal�
 
 - Kelime ekler, düzenler, arar, favorilere alır ve koleksiyonlarda düzenler.
 - Yapıştırılan metin, CSV ve metin katmanlı PDF dosyalarını önizlemeyle içe aktarır.
-- Serbest Pratik'te yazarak veya kartlarla çalışmayı sağlar; bu modlar tekrar takvimini değiştirmez.
+- Serbest Pratik'te dört yolla çalışmayı sağlar: yazarak, dinleyerek, kartlarla ve seçenekleri yalnızca kullanıcının kendi kelimelerinden gelen çoktan seçmeli test. Hiçbiri tekrar takvimini değiştirmez.
 - Akıllı Tekrar'da FSRS-6 ile tekrar planlar.
 - Çevrimdışı sözlükle Almanca yazımı ve artikelleri denetler.
 - Kelimelerin telaffuzunu gerçek insan kayıtlarıyla dinletir.

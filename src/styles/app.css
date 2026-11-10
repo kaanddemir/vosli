@@ -81,6 +81,7 @@ button {
 .today-reminder,
 .row-press,
 .check-row,
+.choice-row,
 .switch-row,
 .row-reveal,
 .link-btn,
@@ -2569,6 +2570,118 @@ select.field {
   text-align: center;
 }
 
+/* ---------- Test: options to choose from, in place of the typed answer ---------- */
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* The whole row is the radio's target. Choosing is frequent and often by keyboard, so nothing animates. */
+.choice-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.choice-row > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.choice-key {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+/* A long compound or a long meaning wraps inside its row rather than widening the session. */
+.choice-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Chosen, not yet judged: the accent marks the choice, as on a segmented control. */
+.choice-row:has(> input:checked:enabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choice-row:has(> input:checked:enabled) .choice-key {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Answered: the options are closed. The right one is green with a check, a wrong pick red with a cross. */
+.choice-row:has(> input:disabled),
+.choice-row > input:disabled {
+  cursor: default;
+}
+
+.choice-row.choice-right {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.choice-row.choice-wrong {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choice-right .choice-key {
+  background: var(--success);
+  color: var(--success-soft);
+}
+
+.choice-wrong .choice-key {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.choice-key .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.choice-row:has(> input:focus-visible) {
+  outline: var(--focus-ring) solid var(--accent);
+  outline-offset: var(--focus-ring);
+}
+
+.test-answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.test-show-all {
+  align-self: flex-start;
+}
+
 /* Nothing was typed, so an empty box has nothing to say. It stays in place and focused, or a phone would close its keyboard. */
 .field-revealed {
   position: absolute;
@@ -2802,7 +2915,8 @@ select.field {
 
 .segmented-grid label {
   flex: 1 1 calc(50% - 2px);
-  min-width: 9rem;
+  /* Never wider than the row itself, or very large text would push the page sideways. */
+  min-width: min(9rem, 100%);
 }
 
 .segmented-grid span {
@@ -2936,6 +3050,11 @@ html:has(.practice-start) {
   position: relative;
   display: block;
   flex: 1 1 3.5rem;
+}
+
+/* Two to a row at every width with room for two, so four choices read as a square rather than a strip. */
+.segmented.segmented-pairs label {
+  flex-basis: calc(50% - 2px);
 }
 
 .segmented input {
@@ -3127,6 +3246,10 @@ dialog::backdrop {
     background: var(--fill);
   }
 
+  .choice-row:has(> input:enabled):hover {
+    border-color: var(--border-strong);
+  }
+
   .letter:hover:not(:disabled) {
     border-color: var(--border-strong);
   }
@@ -3207,6 +3330,8 @@ dialog::backdrop {
   }
 
   .segmented input:checked + span,
+  .choice-row:has(> input:checked:enabled),
+  .choice-row.choice-right,
   .nav-link[aria-current] {
     outline: var(--focus-ring) solid Highlight;
     outline-offset: calc(var(--focus-ring) * -1);

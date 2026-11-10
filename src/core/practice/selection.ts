@@ -120,18 +120,20 @@ interface RoundInput<T extends AnswerWord> {
   random: Random;
   /** The question just asked, which should not open the next round. */
   lastAsked?: RoundItem | null;
+  /** The questions a word can be asked, when a caller knows more than the word alone says, such as a test. */
+  kindsOf?: (word: T) => QuestionKind[];
 }
 
 /**
  * One question per word. Words practiced longest ago come first, so rounds move through the whole
  * selection before anything comes back, and there is still never a limit on how many rounds run.
  */
-export function buildRound<T extends AnswerWord>({ words, mode, count, history, doubtOf, random, lastAsked = null }: RoundInput<T>): RoundItem[] {
+export function buildRound<T extends AnswerWord>({ words, mode, count, history, doubtOf, random, lastAsked = null, kindsOf = (word) => questionsFor(word, mode, doubtOf(word.id)) }: RoundInput<T>): RoundItem[] {
   const seen = new Map<string, number>();
   for (const entry of history) seen.set(seenKey(entry.wordId, entry.track), Math.max(entry.at, seen.get(seenKey(entry.wordId, entry.track)) ?? 0));
 
   const candidates = shuffled(words, random)
-    .map((word) => ({ word, tracks: questionsFor(word, mode, doubtOf(word.id)) }))
+    .map((word) => ({ word, tracks: kindsOf(word) }))
     .filter((candidate) => candidate.tracks.length > 0)
     .map((candidate) => ({ ...candidate, lastSeen: Math.max(...candidate.tracks.map((track) => seen.get(seenKey(candidate.word.id, track)) ?? 0)) }))
     .sort((a, b) => a.lastSeen - b.lastSeen);

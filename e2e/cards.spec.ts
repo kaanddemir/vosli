@@ -78,7 +78,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(t.practice.title);
 });
 
-test('Yazarak stays the default, and Okuyarak swaps only what differs', async ({ page }) => {
+test('Yazarak stays the default, and Kartlarla swaps only what differs', async ({ page }) => {
   const study = page.getByRole('group', { name: t.practice.studyLabel });
   await expect(study.getByRole('radio', { name: t.practice.studies.typed })).toBeChecked();
   await expect(page.getByRole('group', { name: t.practice.modeLabel })).toBeVisible();
@@ -266,8 +266,9 @@ test('Escape and close leave cards without asking, and arrow keys never move whi
   await expect(startCards(page)).toBeVisible();
   // On the setup screen, arrows belong to the radio groups.
   await page.getByRole('radio', { name: t.practice.studies.cards }).focus();
+  // Kartlarla follows Dinleyerek, so the arrow moves the choice there.
   await page.keyboard.press('ArrowLeft');
-  await expect(page.getByRole('radio', { name: t.practice.studies.typed })).toBeChecked();
+  await expect(page.getByRole('radio', { name: t.practice.studies.listen })).toBeChecked();
 });
 
 for (const theme of ['light', 'dark'] as const) {

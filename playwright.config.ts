@@ -20,8 +20,8 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-    { name: 'mobile-chromium', use: { ...devices['Pixel 7'] }, testMatch: /(shell|vocabulary|pdf|validation|practice|review|article-colors|dictionary-view|cards|pronunciation|listening)\.spec\.ts/ },
-    { name: 'mobile-webkit', use: { ...devices['iPhone 15'] }, testMatch: /(shell|vocabulary|pdf|validation|practice|review|article-colors|dictionary-view|cards|pronunciation|listening)\.spec\.ts/ },
+    { name: 'mobile-chromium', use: { ...devices['Pixel 7'] }, testMatch: /(shell|vocabulary|pdf|validation|practice|review|article-colors|dictionary-view|cards|pronunciation|listening|test)\.spec\.ts/ },
+    { name: 'mobile-webkit', use: { ...devices['iPhone 15'] }, testMatch: /(shell|vocabulary|pdf|validation|practice|review|article-colors|dictionary-view|cards|pronunciation|listening|test)\.spec\.ts/ },
     ...(includeFirefox ? [{ name: 'firefox', use: { ...devices['Desktop Firefox'] } }] : []),
   ],
 });
