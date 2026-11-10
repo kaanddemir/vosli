@@ -124,13 +124,17 @@ function expectSound(question: TestQuestion, library: readonly ChoiceWord[], dou
 const KINDS: readonly Track[] = ['de_tr', 'tr_de', 'article'];
 
 describe('every question has exactly one defensible answer', () => {
-  it('holds for every word, every way it can be asked, over many random draws', () => {
+  // Every option of about 8,000 questions goes through the full independent check, which takes a couple of
+  // seconds here and longer on a slow CI runner. The work is the point, so this test alone gets more time.
+  it('holds for every word, every way it can be asked, over many random draws', { timeout: 30_000 }, () => {
     const pool = createChoicePool(TRICKY);
+    // Which ways a word can be asked does not depend on the draw, so it is worked out once.
+    const kinds = TRICKY.map((target) => [target, testKindsFor(pool, target, 'mixed')] as const);
     let asked = 0;
     for (let seed = 0; seed < 60; seed++) {
       const random = seeded(seed);
-      for (const target of TRICKY) {
-        for (const kind of testKindsFor(pool, target, 'mixed')) {
+      for (const [target, ways] of kinds) {
+        for (const kind of ways) {
           const question = buildQuestion(pool, target, kind, { random });
           expect(question, `${target.lemma} ${kind}`).not.toBeNull();
           expectSound(question!, TRICKY);
