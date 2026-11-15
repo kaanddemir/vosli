@@ -410,8 +410,6 @@ export const t = {
     },
     pdfCollection: 'PDF koleksiyonu',
     pdfCollectionEmpty: 'Bir ad yaz.',
-    lessonName: 'Ders adı (isteğe bağlı)',
-    lessonSection: (n: string) => `Ders ${n}`,
     targetExtra: 'Listeye de ekle',
     warnings: {
       article_missing: 'Artikel boş. PDF’te eksik olabilir.',

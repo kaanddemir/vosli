@@ -39,7 +39,7 @@ const reviewStep = (source: ImportSource, drafts: ImportDraft[], tableInput?: Ta
 
 /** The collections the imported words joined, named, so the summary shows where they went. */
 function groupNames(summary: ImportSummary): string[] {
-  return [summary.pdfGroup, ...summary.lessonGroups, summary.group].flatMap((group) => (group ? [group.name] : []));
+  return [summary.pdfGroup, summary.group].flatMap((group) => (group ? [group.name] : []));
 }
 
 const toDrafts = (rows: readonly ParsedRow[]): ImportDraft[] => rows.map((row) => blankDraft(newId(), row.rowIndex, row));

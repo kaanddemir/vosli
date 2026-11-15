@@ -74,14 +74,16 @@ test('a PDF goes from selection to the dictionary, with its source and collectio
   await openSettings(page);
   await expect(page.getByTestId('pdf-details')).toContainText('Ders+1.pdf');
   await expect(page.getByLabel(t.import.pdfCollection)).toHaveValue('Ders 1');
-  await expect(page.getByLabel(t.import.lessonName)).toHaveValue('Lektion 1');
+  // Headings in the file make no lesson collections: the PDF collection is the only name asked for.
+  await expect(page.locator('#pdf-collection')).toBeVisible();
+  await expect(page.locator('[id^="lesson-"]')).toHaveCount(0);
   expect(await dump(page, 'words')).toEqual([]);
 
   await commit(page);
   await expect(page.getByTestId('summary-created')).toHaveText('5');
-  await expect(page.getByTestId('summary-groups')).toHaveText('Ders 1 · Lektion 1');
+  await expect(page.getByTestId('summary-groups')).toHaveText('Ders 1');
   const groups = await dump(page, 'groups');
-  expect(groups.map((group) => [group.kind, group.name])).toEqual(expect.arrayContaining([['pdf', 'Ders 1'], ['lesson', 'Lektion 1']]));
+  expect(groups.map((group) => [group.kind, group.name])).toEqual([['pdf', 'Ders 1']]);
   expect(await dump(page, 'sources')).toMatchObject([{ fileName: 'Ders+1.pdf' }]);
   expect((await dump(page, 'importRows')).map((row) => [row.page, row.rowIndex])).toEqual(expect.arrayContaining([[1, 1], [2, 2]]));
 
@@ -90,7 +92,10 @@ test('a PDF goes from selection to the dictionary, with its source and collectio
   await page.getByRole('link', { name: /Bär/ }).click();
   await expect(page.getByRole('main')).toContainText('Ders+1.pdf');
   await expect(page.getByRole('main')).toContainText(t.import.page('2'));
-  await expect(page.getByRole('main')).toContainText('Lektion 1');
+  await expect(page.getByRole('main')).not.toContainText('Lektion 1');
+  await page.getByRole('link', { name: t.nav.collections }).first().click();
+  await expect(page.getByRole('heading', { name: t.collections.kinds.pdf })).toBeVisible();
+  await expect(page.getByRole('heading', { name: t.collections.kinds.lesson })).toHaveCount(0);
 });
 
 test('counts and notices wait behind the info icon, which says when one needs reading', async ({ page, browserName }) => {
@@ -312,7 +317,8 @@ test('the list starts high on a phone, with settings one tap away', async ({ pag
   await expect(page.getByTestId('pdf-details')).toBeHidden();
   await openSettings(page);
   await expect(page.getByTestId('pdf-details')).toContainText(t.import.notices.repaired('159'));
-  await expect(page.getByLabel(t.import.lessonName)).toBeVisible();
+  await expect(page.getByLabel(t.import.pdfCollection)).toBeVisible();
+  await expect(page.locator('[id^="lesson-"]')).toHaveCount(0);
 });
 
 test('an emptied collection name opens the settings to say so', async ({ page }) => {
@@ -353,12 +359,12 @@ test('leaving the screen keeps a PDF review, with its corrections and names', as
   await choose(page, pdf('ders.pdf', LESSON));
   await reviewed(page);
   await openSettings(page);
-  await page.getByLabel(t.import.lessonName).fill('Benim dersim');
+  await page.getByLabel(t.import.pdfCollection).fill('Benim dersim');
   await rows(page).first().getByRole('checkbox').uncheck();
   await page.getByRole('link', { name: t.nav.collections }).first().click();
   await page.goto('./#/import');
   await reviewed(page);
-  await expect(page.getByLabel(t.import.lessonName)).toHaveValue('Benim dersim');
+  await expect(page.getByLabel(t.import.pdfCollection)).toHaveValue('Benim dersim');
   await expect(rows(page).first().getByRole('checkbox')).not.toBeChecked();
 });
 
@@ -503,7 +509,7 @@ test('importing again, overlapping and changed files', async ({ page }) => {
   await expect(page.getByTestId('summary-linked')).toHaveText('1');
   expect((await dump(page, 'sources')).length).toBe(2);
   expect((await dump(page, 'words')).filter((word) => word.lemma === 'Apfel').length).toBe(1);
-  expect((await dump(page, 'groups')).map((group) => group.name)).toEqual(expect.arrayContaining(['ders', 'ders (2)', 'Lektion 1', 'Lektion 2']));
+  expect((await dump(page, 'groups')).map((group) => [group.kind, group.name]).sort()).toEqual([['pdf', 'ders'], ['pdf', 'ders (2)']]);
 });
 
 test('a backup keeps PDF collections and recognizes the file after restoring', async ({ page, isMobile }) => {
@@ -527,7 +533,7 @@ test('a backup keeps PDF collections and recognizes the file after restoring', a
   await choose(page, pdf('ders.pdf', LESSON));
   await reviewed(page);
   await expect(page.getByTestId('pdf-notes')).toContainText(t.import.notices.reused);
-  expect((await dump(page, 'groups')).map((group) => group.kind)).toEqual(expect.arrayContaining(['pdf', 'lesson']));
+  expect((await dump(page, 'groups')).map((group) => group.kind)).toEqual(['pdf']);
 });
 
 test('a PDF collection deleted on its own page comes back on import, without new words', async ({ page }) => {
@@ -547,7 +553,7 @@ test('a PDF collection deleted on its own page comes back on import, without new
   await dialog.getByRole('button', { name: t.common.delete }).click();
   await expect(heading(page)).toHaveText(t.collections.title);
   await expect(page.getByRole('link', { name: /^ders/ })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /Lektion 1/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Lektion 1/ })).toHaveCount(0);
   expect(await dump(page, 'sources')).toEqual(sources);
   expect(await dump(page, 'importRows')).toEqual(importRows);
 
@@ -652,7 +658,7 @@ test.describe('the real course PDFs', () => {
     for (const word of words) expect(JSON.stringify(word)).not.toMatch(/[\u0000-\u001f]/);
     expect(words.find((word) => word.lemma === 'Liebe')).toMatchObject({ article: 'die', meanings: [{ text: 'aşk' }] });
     expect(words.find((word) => word.lemma === 'Geldautomat')).toMatchObject({ article: 'das' });
-    expect((await dump(page, 'groups')).filter((group) => group.kind === 'lesson').map((group) => group.name).sort()).toEqual(['ALFABE - DAS ALPHABET', 'SELAMLAŞMA VE VEDALAŞMAK. - DIE GRUßFORMELN', 'TELAFFUZ - DIE AUSSPRACHE']);
+    expect((await dump(page, 'groups')).map((group) => group.kind)).toEqual(['pdf', 'pdf', 'pdf']);
   });
 });
 

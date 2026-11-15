@@ -27,8 +27,6 @@ export interface PdfReviewInfo {
   namesCollection: boolean;
   /** Another PDF with this name, but different content, was imported before. */
   sameNameDifferent: boolean;
-  /** The headings found in the file, or one empty entry when there are none. */
-  sections: string[];
 }
 
 export interface PdfImport {
@@ -82,17 +80,8 @@ export async function preparePdfImport(db: AppDatabase, lib: PdfLibrary, fileNam
 
   const known = await db.sources.where('fileHash').equals(fileHash).first();
   const sameName = known ? 0 : await db.sources.filter((source) => source.fileName === fileName).count();
-  const lessons = known ? await db.groups.where('kind').equals('lesson').filter((group) => group.sourceId === known.id).toArray() : [];
 
-  const sections = parsed.sections.length ? parsed.sections : [''];
-  const lessonNames: Record<string, string> = {};
-  for (const section of sections) {
-    // A second import repeats the choice made the first time, including no lesson at all.
-    if (known) lessonNames[section] = sections.length === 1 ? (lessons[0]?.name ?? '') : (lessons.find((lesson) => lesson.name === section.slice(0, GROUP_NAME_MAX))?.name ?? '');
-    else lessonNames[section] = section.slice(0, GROUP_NAME_MAX);
-  }
-
-  const drafts = parsed.rows.map((row) => blankDraft(newId(), row.rowIndex, { page: row.page, german: row.german, article: row.article, turkish: row.turkish, plural: row.plural, flags: row.flags, section: row.section }));
+  const drafts = parsed.rows.map((row) => blankDraft(newId(), row.rowIndex, { page: row.page, german: row.german, article: row.article, turkish: row.turkish, plural: row.plural, flags: row.flags }));
 
   const prepared = known ? await linkEarlierRows(db, known.id, drafts) : drafts;
   const stillLinked = known ? await db.importRows.where('sourceId').equals(known.id).filter((row) => row.wordId !== null).count() : 0;
@@ -110,8 +99,7 @@ export async function preparePdfImport(db: AppDatabase, lib: PdfLibrary, fileNam
       missingWords,
       namesCollection: ownGroup === 0,
       sameNameDifferent: sameName > 0,
-      sections,
     },
-    collections: { pdfName: collectionNameOf(fileName), lessons: lessonNames },
+    collections: { pdfName: collectionNameOf(fileName) },
   };
 }

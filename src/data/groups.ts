@@ -18,8 +18,8 @@ export class GroupNameError extends Error {
 
 /**
  * PDF and lesson collections record where words came from, so their words cannot be changed, only the whole
- * collection deleted. A PDF collection may be renamed, because a new import finds it by its source. A lesson
- * may not: lessons are found by name, so a renamed one would be split in two by the next import.
+ * collection deleted. A PDF collection may be renamed, because a new import finds it by its source. Lessons are
+ * no longer created by imports; ones made by earlier versions stay read-only under their original name.
  */
 export class ProtectedGroupError extends Error {
   override readonly name = 'ProtectedGroupError';

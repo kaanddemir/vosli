@@ -29,8 +29,6 @@ export type ImportTarget = { kind: 'none' } | { kind: 'group'; id: string } | { 
 export interface SourceCollections {
   /** Used the first time this source is imported; afterwards its collection is reused. */
   pdfName: string;
-  /** Lesson name for each section of the source. An empty name means no lesson collection. */
-  lessons: Readonly<Record<string, string>>;
 }
 
 export interface ImportSummary {
@@ -50,7 +48,6 @@ export interface ImportSummary {
   meaningsAdded: number;
   group: Group | null;
   pdfGroup: Group | null;
-  lessonGroups: Group[];
   /** This exact content was imported before. */
   sourceReused: boolean;
 }
@@ -67,9 +64,9 @@ function plan(row: ReviewedRow): { create: true } | { create: false; ref: string
 const nameKey = (name: string) => normalizeText(name).toLocaleLowerCase('tr');
 const rowKey = (row: Pick<ImportRow, 'page' | 'rowIndex'>) => `${row.page}:${row.rowIndex}`;
 
-async function addSourceGroup(db: AppDatabase, kind: 'pdf' | 'lesson', name: string, sourceId: string, now: number): Promise<Group> {
+async function addPdfGroup(db: AppDatabase, name: string, sourceId: string, now: number): Promise<Group> {
   const last = await db.groups.orderBy('order').last();
-  const group: Group = { id: newId(), kind, name, order: (last?.order ?? -1) + 1, sourceId, createdAt: now };
+  const group: Group = { id: newId(), kind: 'pdf', name, order: (last?.order ?? -1) + 1, sourceId, createdAt: now };
   await db.groups.add(group);
   return group;
 }
@@ -84,15 +81,7 @@ async function pdfGroupFor(db: AppDatabase, source: Source, name: string, now: n
   const taken = new Set((await db.groups.where('kind').equals('pdf').toArray()).map((group) => nameKey(group.name)));
   let unique = clean;
   for (let n = 2; taken.has(nameKey(unique)); n++) unique = `${clean} (${n})`;
-  return addSourceGroup(db, 'pdf', unique, source.id, now);
-}
-
-/** Lessons are found by name, so two files of the same lesson share one collection. */
-async function lessonGroupFor(db: AppDatabase, name: string, sourceId: string, now: number): Promise<Group> {
-  const clean = normalizeText(name);
-  if (clean.length > GROUP_NAME_MAX) throw new GroupNameError('too_long');
-  const found = await db.groups.where('kind').equals('lesson').filter((group) => nameKey(group.name) === nameKey(clean)).first();
-  return found ?? addSourceGroup(db, 'lesson', clean, sourceId, now);
+  return addPdfGroup(db, unique, source.id, now);
 }
 
 /**
@@ -130,12 +119,11 @@ export async function commitImport(db: AppDatabase, input: { source: ImportSourc
     const collections = input.collections;
     const savesWords = reviewed.some((row) => plan(row) !== null);
     const pdfGroup = collections && savesWords ? await pdfGroupFor(db, source, collections.pdfName, now) : null;
-    const lessonBySection = new Map<string, Group>();
 
     const words = new Map(active.map((word) => [word.id, word]));
     const made = new Map<string, Word>();
     const linked = new Set<string>();
-    const summary: ImportSummary = { rows: reviewed.length, created: 0, existing: 0, repeats: 0, excluded: 0, invalid: 0, linked: 0, meaningsAdded: 0, group, pdfGroup, lessonGroups: [], sourceReused: isRepeat };
+    const summary: ImportSummary = { rows: reviewed.length, created: 0, existing: 0, repeats: 0, excluded: 0, invalid: 0, linked: 0, meaningsAdded: 0, group, pdfGroup, sourceReused: isRepeat };
 
     const join = async (target: Group, wordId: string, importRowId: string | null): Promise<boolean> => {
       if (await db.groupMembers.get([target.id, wordId])) return false;
@@ -194,20 +182,10 @@ export async function commitImport(db: AppDatabase, input: { source: ImportSourc
       let joined = false;
       if (group && (await join(group, word.id, rowId))) joined = true;
       if (pdfGroup && (await join(pdfGroup, word.id, rowId))) joined = true;
-      const lessonName = collections?.lessons[row.draft.section] ?? '';
-      if (normalizeText(lessonName)) {
-        let lesson = lessonBySection.get(row.draft.section);
-        if (!lesson) {
-          lesson = await lessonGroupFor(db, lessonName, sourceId, now);
-          lessonBySection.set(row.draft.section, lesson);
-        }
-        if (await join(lesson, word.id, rowId)) joined = true;
-      }
       if (!made.has(rowRef(row.draft.id)) && outcome === 'existing' && (newToSource || joined)) linked.add(word.id);
     }
     await addDismissals(db, reviewed.filter((row) => !row.draft.excluded).flatMap((row) => row.draft.dismissed.filter(isDismissalKey)));
     summary.linked = linked.size;
-    summary.lessonGroups = [...new Map([...lessonBySection.values()].map((lesson) => [lesson.id, lesson])).values()];
     return summary;
   });
 }

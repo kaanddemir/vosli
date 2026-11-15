@@ -62,20 +62,6 @@ function PdfSettings({ source, info, collections, nameMissing, onChange }: { sou
           {nameMissing && <p id="pdf-collection-error" class="form-error">{t.import.pdfCollectionEmpty}</p>}
         </div>
       )}
-      {info.sections.map((section, index) => (
-        <div class="form-field" key={section}>
-          <label class="form-label" for={`lesson-${index}`}>{info.sections.length > 1 ? t.import.lessonSection(formatCount(index + 1)) : t.import.lessonName}</label>
-          <input
-            id={`lesson-${index}`}
-            class="field field-compact"
-            type="text"
-            value={collections.lessons[section] ?? ''}
-            maxLength={GROUP_NAME_MAX}
-            autocomplete="off"
-            onInput={(event) => onChange({ ...collections, lessons: { ...collections.lessons, [section]: event.currentTarget.value } })}
-          />
-        </div>
-      ))}
       <ul class="pdf-notes" data-testid="pdf-details">
         <li>{t.import.pdfFile}: {source.fileName}</li>
         {background.map((note) => <li key={note}>{note}</li>)}

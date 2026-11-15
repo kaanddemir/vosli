@@ -221,6 +221,52 @@ test.describe('setup', () => {
     await expect(count(page)).toHaveText('0 / 2');
   });
 
+  test('a chosen legacy lesson deleted since then falls back to all words, in Test and in practice', async ({ page }) => {
+    await write(page, {
+      groups: [{ id: 'g-lesson', kind: 'lesson', name: 'Ders Bir', order: 1, sourceId: null, createdAt: 1 }],
+      groupMembers: [
+        { groupId: 'g-lesson', wordId: 'tisch', addedAt: 1, importRowId: null },
+        { groupId: 'g-lesson', wordId: 'buch', addedAt: 1, importRowId: null },
+      ],
+    });
+    await openSetup(page);
+    const lessons = page.locator('.setup-collections .list-label').filter({ hasText: t.collections.kinds.lesson });
+    await expect(lessons).toHaveCount(1);
+    await pick(page, t.practice.studies.test);
+    await pick(page, t.practice.modes.de_tr);
+    await pick(page, t.practice.countAll);
+    await page.getByRole('checkbox', { name: /Ders Bir/ }).check();
+    await expect(startTest(page)).toHaveAttribute('data-questions', '2');
+
+    // Deleted the way the Collections screen deletes it: the collection and its memberships, nothing else.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const request = indexedDB.open('vosli');
+          request.onsuccess = () => {
+            const tx = request.result.transaction(['groups', 'groupMembers'], 'readwrite');
+            tx.objectStore('groups').delete('g-lesson');
+            for (const wordId of ['tisch', 'buch']) tx.objectStore('groupMembers').delete(['g-lesson', wordId]);
+            tx.oncomplete = () => {
+              request.result.close();
+              resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+          };
+        }),
+    );
+    await openSetup(page);
+    await expect(lessons).toHaveCount(0);
+    await expect(page.getByRole('checkbox', { name: /Ders Bir/ })).toHaveCount(0);
+    await expect(startTest(page)).toHaveAttribute('data-questions', '10');
+    await startTest(page).click();
+    await expect(radios(page)).toHaveCount(4);
+    await page.getByRole('button', { name: t.common.close }).click();
+    await openSetup(page);
+    await pick(page, t.practice.studies.typed);
+    await expect(page.getByRole('button', { name: t.practice.start, exact: true })).toBeEnabled();
+  });
+
   test('a library too small for four different options cannot start a translation test', async ({ page }) => {
     await keepOnly(page, WORDS.slice(0, 3));
     await pick(page, t.practice.studies.test);

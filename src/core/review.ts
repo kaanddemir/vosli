@@ -82,8 +82,6 @@ export interface ImportDraft {
   flags: string[];
   excluded: boolean;
   choice: string | null;
-  /** The part of the source this row belongs to, such as a lesson heading. Empty when there is none. */
-  section: string;
   /** Someone changed the text; kept with the row's record of where it came from. */
   edited: boolean;
   /** Warnings someone looked at and accepted. */
@@ -173,7 +171,7 @@ export function blankDraft(id: string, rowIndex: number, fields: Partial<ImportD
   const german = fields.german ?? '';
   const article = fields.article ?? '';
   const turkish = fields.turkish ?? '';
-  return { id, page: 0, rowIndex, german, article, turkish, plural: '', flags: [], excluded: false, choice: null, section: '', edited: false, dismissed: [], extracted: { german: normalizeText(german), article: normalizeText(article), turkish: normalizeText(turkish) }, linked: null, ...fields };
+  return { id, page: 0, rowIndex, german, article, turkish, plural: '', flags: [], excluded: false, choice: null, edited: false, dismissed: [], extracted: { german: normalizeText(german), article: normalizeText(article), turkish: normalizeText(turkish) }, linked: null, ...fields };
 }
 
 /** What a row adds up to. Every row has exactly one outcome, so the counts always add up to the rows. */
