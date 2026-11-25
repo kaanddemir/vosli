@@ -4,7 +4,7 @@ import { newId } from '../core/id';
 import { affectedTracks } from '../core/scheduling/invalidation';
 import { fieldsFor, meaningKey, type WordDraft } from '../core/vocabulary';
 import type { AppDatabase } from './db';
-import type { Meaning, Word } from './types';
+import type { LearningLanguage, Meaning, Word } from './types';
 
 export class WordNotFoundError extends Error {
   override readonly name = 'WordNotFoundError';
@@ -17,6 +17,25 @@ export class DuplicateWordError extends Error {
     super(`Duplicate of ${existing.id}`);
   }
 }
+
+/**
+ * Something would link records of two learning languages, or give a word what its language does not have, such as
+ * an English word with a German article. Nothing was changed.
+ */
+export class LanguageMismatchError extends Error {
+  override readonly name = 'LanguageMismatchError';
+}
+
+/** German nouns carry der, die or das. No other learning language has them, so nothing else may store one. */
+export function assertArticleFits(language: LearningLanguage, article: Word['article']): void {
+  if (article !== null && language !== 'de') throw new LanguageMismatchError(`A ${language} word cannot have the article ${article}`);
+}
+
+/** The word holding an identity within one language. The same spelling in another language is another word. */
+const holderOf = (db: AppDatabase, language: LearningLanguage, key: string) => db.words.where('[language+identityKey]').equals([language, key]).first();
+
+/** The active words of one language, which are all a new entry is ever compared with. */
+export const activeWordsOf = (db: AppDatabase, language: LearningLanguage): Promise<Word[]> => db.words.where('language').equals(language).filter((word) => word.deletedAt === null).toArray();
 
 export const knownEntryOf = (word: Word): KnownEntry => ({ ref: word.id, lemma: word.lemma, article: word.article, meanings: word.meanings.map((meaning) => meaning.text) });
 
@@ -74,16 +93,17 @@ export async function purgeMarkedWords(db: AppDatabase): Promise<number> {
  * start with no history. If an active word holds the identity, the first meaning becomes a sense tag
  * and the two stay separate.
  */
-export async function insertWord(db: AppDatabase, draft: WordDraft, now: number): Promise<Word> {
+export async function insertWord(db: AppDatabase, draft: WordDraft, now: number, language: LearningLanguage): Promise<Word> {
+  assertArticleFits(language, draft.article);
   let fields = fieldsFor(draft, null);
-  let holder = await db.words.where('identityKey').equals(fields.identityKey).first();
+  let holder = await holderOf(db, language, fields.identityKey);
   if (holder && holder.deletedAt === null) {
     fields = fieldsFor(draft, draft.meanings[0] ?? null);
-    holder = await db.words.where('identityKey').equals(fields.identityKey).first();
+    holder = await holderOf(db, language, fields.identityKey);
     if (holder && holder.deletedAt === null) throw new DuplicateWordError(holder);
   }
   if (holder) await purgeWord(db, holder.id);
-  const word: Word = { ...fields, id: newId(), meanings: toMeanings(draft.meanings), favoritedAt: null, createdAt: now, updatedAt: now, deletedAt: null };
+  const word: Word = { ...fields, id: newId(), language, meanings: toMeanings(draft.meanings), favoritedAt: null, createdAt: now, updatedAt: now, deletedAt: null };
   await db.words.add(word);
   return word;
 }
@@ -95,14 +115,14 @@ export type AddOutcome = { kind: 'saved'; word: Word } | { kind: 'conflict'; fou
  * answer as choice: SEPARATE, or the id of the word to join. Runs in one transaction with the
  * collection choice, so a word never appears without the collections asked for.
  */
-export async function addWord(db: AppDatabase, draft: WordDraft, choice: string | null, groupIds: readonly string[], now: number): Promise<AddOutcome> {
+export async function addWord(db: AppDatabase, draft: WordDraft, choice: string | null, groupIds: readonly string[], now: number, language: LearningLanguage): Promise<AddOutcome> {
   return db.transaction('rw', [...wordTables(db), db.groups], async (): Promise<AddOutcome> => {
-    const active = await db.words.filter((word) => word.deletedAt === null).toArray();
+    const active = await activeWordsOf(db, language);
     const found = classifyEntry(draft.lemma, draft.article, draft.meanings, indexKnown(active.map(knownEntryOf)));
 
     let word: Word;
     if (found.kind === 'new' || (found.kind === 'ambiguous' && choice === SEPARATE)) {
-      word = await insertWord(db, draft, now);
+      word = await insertWord(db, draft, now, language);
     } else {
       const target = found.kind === 'existing' ? (choice === found.entry.ref ? found.entry.ref : null) : found.candidates.find((entry) => entry.ref === choice)?.ref ?? null;
       const existing = target ? active.find((candidate) => candidate.id === target) : undefined;
@@ -114,6 +134,7 @@ export async function addWord(db: AppDatabase, draft: WordDraft, choice: string 
     for (const groupId of groupIds) {
       const group = await db.groups.get(groupId);
       if (group?.kind !== 'custom') continue;
+      if (group.language !== word.language) throw new LanguageMismatchError(`Collection ${groupId} is not ${word.language}`);
       if (!(await db.groupMembers.get([groupId, word.id]))) await db.groupMembers.add({ groupId, wordId: word.id, addedAt: now, importRowId: null });
     }
     return { kind: 'saved', word };
@@ -129,8 +150,9 @@ export async function updateWord(db: AppDatabase, id: string, draft: WordDraft, 
   return db.transaction('rw', wordTables(db), async () => {
     const word = await db.words.get(id);
     if (!word || word.deletedAt !== null) throw new WordNotFoundError(id);
+    assertArticleFits(word.language, draft.article);
     const fields = fieldsFor(draft, word.senseTag, word.pos);
-    const holder = await db.words.where('identityKey').equals(fields.identityKey).first();
+    const holder = await holderOf(db, word.language, fields.identityKey);
     if (holder && holder.id !== id) {
       if (holder.deletedAt === null) throw new DuplicateWordError(holder);
       await purgeWord(db, holder.id);

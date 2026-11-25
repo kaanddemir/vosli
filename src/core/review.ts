@@ -1,4 +1,5 @@
 import { normalizeText, stripClosingPunctuation, type Article } from './identity';
+import type { LearningLanguage } from './learningLanguage';
 import { meaningKey, parseArticle, splitMeanings, validateFields, type DraftError } from './vocabulary';
 
 /** An entry something can be compared with: a stored word, or an earlier row of the same import. */
@@ -223,6 +224,22 @@ export function rowWarnings(draft: ImportDraft): WarningFlag[] {
 }
 
 export const rowCorrections = (draft: ImportDraft): CorrectionFlag[] => CORRECTION_FLAGS.filter((flag) => draft.flags.includes(flag));
+
+/**
+ * Rows on their way into a learning language. The parsers know German layouts: they may take der, die or das off the
+ * front of a word, and warn about articles and German capitals. Another language has none of that, so a row keeps its
+ * text whole, with any article put back where it stood, and those warnings go. A plural is a German noun's field,
+ * which another language's words neither show nor edit, so it is not kept. Nothing else is dropped: what the source
+ * said stays recorded, and the review shows every row before anything is saved.
+ */
+export function draftsFor(language: LearningLanguage, drafts: readonly ImportDraft[]): ImportDraft[] {
+  if (language === 'de') return [...drafts];
+  return drafts.map((draft) => {
+    const article = normalizeText(draft.article);
+    const german = article ? normalizeText(`${article} ${draft.german}`) : draft.german;
+    return { ...draft, german, article: '', plural: '', flags: draft.flags.filter((flag) => !(WARNING_FLAGS as readonly string[]).includes(flag)) };
+  });
+}
 
 const sameDecisions = (a: ImportDraft, b: ImportDraft) => a.german === b.german && a.article === b.article && a.turkish === b.turkish && a.plural === b.plural && a.excluded === b.excluded && a.choice === b.choice && a.dismissed.length === b.dismissed.length;
 

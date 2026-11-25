@@ -74,13 +74,13 @@ describe('practice data', () => {
   it('holds active words only, and difficulty comes from the history', async () => {
     await recordPracticeAttempt(db, { ...attempt, wordId: 'w-fuss', result: 'wrong' });
     await deleteWord(db, 'w-spinat');
-    const data = await loadPracticeData(db, null);
+    const data = await loadPracticeData(db, null, 'de');
     expect(data.words.map((word) => word.id)).not.toContain('w-spinat');
     expect(data.difficult.has('w-fuss')).toBe(true);
   });
 
   it('without a dictionary nothing is flagged and nothing is held back', async () => {
-    const data = await loadPracticeData(db, null);
+    const data = await loadPracticeData(db, null, 'de');
     expect(data.flagged.size).toBe(0);
   });
 
@@ -92,7 +92,7 @@ describe('practice data', () => {
 
     it('flags a real article mismatch, and a word it does not know or one missing an article stays usable', async () => {
       await add();
-      const { flagged } = await loadPracticeData(db, validate());
+      const { flagged } = await loadPracticeData(db, validate(), 'de');
       expect(flagged.get('w-automat')?.map((item) => item.code)).toEqual(['article_wrong']);
       for (const id of ['w-hund', 'w-yok', 'w-lampe']) expect(flagged.has(id)).toBe(false);
     });
@@ -100,14 +100,14 @@ describe('practice data', () => {
     it('respects a warning the person already accepted', async () => {
       await add();
       await addDismissals(db, [dismissalKey('article_wrong', 'Geldautomat', 'das')]);
-      const { flagged } = await loadPracticeData(db, validate());
+      const { flagged } = await loadPracticeData(db, validate(), 'de');
       expect(flagged.has('w-automat')).toBe(false);
     });
 
     it('never changes the word it flagged', async () => {
       await add();
       const before = await db.words.get('w-automat');
-      await loadPracticeData(db, validate());
+      await loadPracticeData(db, validate(), 'de');
       expect(await db.words.get('w-automat')).toEqual(before);
     });
   });

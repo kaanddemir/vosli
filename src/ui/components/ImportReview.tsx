@@ -20,6 +20,7 @@ import { ConfirmDialog } from './Modal';
 import { PopoverButton } from './PopoverButton';
 import { IssueList, validationText } from './Validation';
 import { LoadError, LoadingState, Screen } from './Screen';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 const PAGE = 100;
 const label = (entry: Pick<KnownEntry, 'article' | 'lemma'>) => (entry.article ? `${entry.article} ${entry.lemma}` : entry.lemma);
@@ -88,27 +89,31 @@ function statusBadge(status: RowStatus): { text: string; attention: boolean; qui
 }
 
 function RowEditor({ row, validation, onChange }: { row: ReviewedRow; validation: Validation; onChange: (patch: Partial<ImportDraft>) => void }) {
+  const language = useLearningLanguage();
   const { draft } = row;
   const origin = [draft.page > 0 ? t.import.rowOrigin(draft.page, draft.rowIndex) : '', ...rowCorrections(draft).map((flag) => t.import.corrections[flag])].filter(Boolean);
   const checked = validationText(validation);
   const known = ARTICLES.includes(draft.article.toLowerCase() as (typeof ARTICLES)[number]) || draft.article === '';
   return (
     <div class="review-editor">
-      <div class="form-field review-article">
-        <label class="form-label" for={`article-${draft.id}`}>{t.import.articleField}</label>
-        <select id={`article-${draft.id}`} class="field field-compact" lang="de" value={known ? draft.article.toLowerCase() : draft.article} onChange={(event) => onChange({ article: event.currentTarget.value })}>
-          <option value="">–</option>
-          {ARTICLES.map((article) => <option key={article} value={article}>{article}</option>)}
-          {!known && <option value={draft.article}>{draft.article}</option>}
-        </select>
-      </div>
+      {/* German nouns carry an article; another language's rows are only their text. */}
+      {language === 'de' && (
+        <div class="form-field review-article">
+          <label class="form-label" for={`article-${draft.id}`}>{t.import.articleField}</label>
+          <select id={`article-${draft.id}`} class="field field-compact" lang="de" value={known ? draft.article.toLowerCase() : draft.article} onChange={(event) => onChange({ article: event.currentTarget.value })}>
+            <option value="">–</option>
+            {ARTICLES.map((article) => <option key={article} value={article}>{article}</option>)}
+            {!known && <option value={draft.article}>{draft.article}</option>}
+          </select>
+        </div>
+      )}
       <div class="form-field review-german">
-        <label class="form-label" for={`german-${draft.id}`}>{t.import.germanField}</label>
-        <input id={`german-${draft.id}`} class="field field-compact" type="text" lang="de" value={draft.german} autocomplete="off" autocapitalize="off" autocorrect={AUTOCORRECT_OFF} spellcheck={false} onInput={(event) => onChange({ german: event.currentTarget.value })} />
+        <label class="form-label" for={`german-${draft.id}`}>{t.lang[language].word}</label>
+        <input id={`german-${draft.id}`} class="field field-compact" type="text" lang={language} value={draft.german} autocomplete="off" autocapitalize="off" autocorrect={AUTOCORRECT_OFF} spellcheck={false} onInput={(event) => onChange({ german: event.currentTarget.value })} />
       </div>
       <div class="form-field review-turkish">
-        <label class="form-label" for={`turkish-${draft.id}`}>{t.import.turkishField}</label>
-        <input id={`turkish-${draft.id}`} class="field field-compact" type="text" lang="tr" value={draft.turkish} autocomplete="off" onInput={(event) => onChange({ turkish: event.currentTarget.value })} />
+        <label class="form-label" for={`turkish-${draft.id}`}>{t.lang[language].meaning}</label>
+        <input id={`turkish-${draft.id}`} class="field field-compact" type="text" lang={meaningLang(language)} value={draft.turkish} autocomplete="off" onInput={(event) => onChange({ turkish: event.currentTarget.value })} />
       </div>
       {origin.length > 0 && <p class="review-origin" data-testid="row-origin">{origin.join(' · ')}</p>}
       {checked && <p class="review-origin" data-testid="row-check">{checked}</p>}
@@ -117,6 +122,7 @@ function RowEditor({ row, validation, onChange }: { row: ReviewedRow; validation
 }
 
 function ReviewItem({ row, validation, issues, onChange }: { row: ReviewedRow; validation: Validation; issues: readonly Issue[]; onChange: (patch: Partial<ImportDraft>) => void }) {
+  const language = useLearningLanguage();
   const { draft, status } = row;
   const invalid = status.kind === 'invalid';
   const [editing, setEditing] = useState(invalid);
@@ -138,11 +144,11 @@ function ReviewItem({ row, validation, issues, onChange }: { row: ReviewedRow; v
           <input type="checkbox" checked={!draft.excluded} aria-label={t.import.include(name)} onChange={(event) => onChange({ excluded: !event.currentTarget.checked })} />
         </label>
         <div class="row-text">
-          <span class="row-title" lang="de">
+          <span class="row-title" lang={language}>
             {row.article && <span class="article">{row.article} </span>}
             {row.lemma || t.import.emptyRow}
           </span>
-          <span class="row-detail" lang="tr">{draft.turkish || '–'}</span>
+          <span class="row-detail" lang={meaningLang(language)}>{draft.turkish || '–'}</span>
         </div>
         <span class={`badge ${badge.attention ? 'badge-attention' : ''} ${badge.quiet ? 'badge-quiet' : ''}`}>{badge.text}</span>
         {count > 0 && (
@@ -177,7 +183,7 @@ function ReviewItem({ row, validation, issues, onChange }: { row: ReviewedRow; v
         )}
       </div>
 
-      {status.kind === 'invalid' && <p class="review-message status-error">{status.errors.map((error) => t.import.errors[error]).join(' · ')}</p>}
+      {status.kind === 'invalid' && <p class="review-message status-error">{status.errors.map((error) => (error === 'german_missing' ? t.lang[language].importWordMissing : error === 'turkish_missing' ? t.lang[language].importMeaningMissing : t.import.errors[error])).join(' · ')}</p>}
       {status.kind === 'existing' && status.newMeanings.length > 0 && <p class="review-message">{t.import.newMeanings(status.newMeanings.join(', '))}</p>}
       {status.kind === 'ambiguous' && (
         <div class="review-choice">
@@ -220,10 +226,12 @@ interface ImportReviewProps {
 /** Works on drafts from any parser: it never knows whether they came from a paste, a CSV file or a PDF. */
 export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eyebrow, back, cancel, children }: ImportReviewProps) {
   const db = useDb();
+  // Rows are compared with the words of the language the import began in, never another's. The dictionary is German.
+  const { language } = source;
   const { state, reload } = useLoad(async () => {
-    const [words, groups, dismissed, dictionary] = await Promise.all([listActiveWords(db), listCustomGroups(db), readDismissals(db), loadValidator()]);
+    const [words, groups, dismissed, dictionary] = await Promise.all([listActiveWords(db, language), listCustomGroups(db, language), readDismissals(db), language === 'de' ? loadValidator() : Promise.resolve(null)]);
     return { known: words.map(knownEntryOf), groups, dismissed, validate: dictionary, available: dictionary !== null };
-  }, [db]);
+  }, [db, language]);
 
   const known = state.status === 'ready' ? state.data.known : null;
   const rows = useMemo(() => (known ? reviewRows(drafts, known) : []), [drafts, known]);
@@ -245,7 +253,10 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
   // A row being fixed stays on screen until the filter changes, instead of vanishing mid-typing.
   const [pinned, setPinned] = useState<ReadonlySet<string> | null>(null);
   // What the file itself may have got wrong opens first. Dictionary advice waits in its filter, so a list never opens half hidden.
-  const activeFilter: Filter = filter ?? (problems.length ? 'problems' : rows.some((row) => rowWarnings(row.draft).length > 0) ? 'warnings' : 'all');
+  // German rows are sorted by what needs a look: the file, the dictionary and articles. Another language has no
+  // dictionary or article warnings to sort by, so all its rows show at once, each with its own message.
+  const filtered = language === 'de';
+  const activeFilter: Filter = !filtered ? 'all' : filter ?? (problems.length ? 'problems' : rows.some((row) => rowWarnings(row.draft).length > 0) ? 'warnings' : 'all');
   const matching = (which: Filter) => (which === 'warnings' ? warned : which === 'problems' ? problems : rows);
   const pins = pinned ?? new Set(matching(activeFilter).map((row) => row.draft.id));
   const visible = activeFilter === 'all' ? rows : rows.filter((row) => pins.has(row.draft.id) || (activeFilter === 'warnings' ? hasWarning(row) : needsAttention(row.status)));
@@ -307,7 +318,7 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
     setConfirming(true);
   };
 
-  const notes = [...(pdf ? [...pdf.info.notices.filter((notice) => !isBackground(notice)).map(noticeText), ...(pdf.info.remaining === 'all' ? [t.import.notices.reused] : []), ...(pdf.info.remaining === 'some' ? [t.import.notices.reusedPartly(pdf.info.missingWords)] : []), ...(pdf.info.sameNameDifferent ? [t.import.notices.sameName] : [])] : []), ...(ready && !ready.available ? [t.validation.unavailable] : [])];
+  const notes = [...(pdf ? [...pdf.info.notices.filter((notice) => !isBackground(notice)).map(noticeText), ...(pdf.info.remaining === 'all' ? [t.import.notices.reused] : []), ...(pdf.info.remaining === 'some' ? [t.import.notices.reusedPartly(pdf.info.missingWords)] : []), ...(pdf.info.sameNameDifferent ? [t.import.notices.sameName] : [])] : []), ...(ready && language === 'de' && !ready.available ? [t.validation.unavailable] : [])];
 
   const commit = async () => {
     setBusy(true);
@@ -408,17 +419,21 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
         )}
       </div>
 
-      <div class="review-toolbar">
-        <fieldset class="segmented" aria-label={t.import.filterLabel}>
-          {([...['problems' as const], ...(canWarn ? ['warnings' as const] : []), 'all' as const]).map((option) => (
-            <label key={option}>
-              <input ref={activeFilter === option ? filterRadio : null} type="radio" name="review-filter" value={option} checked={activeFilter === option} onChange={() => chooseFilter(option)} />
-              <span>{option === 'all' ? t.import.filterAll : option === 'warnings' ? `${t.import.filterWarnings} (${formatCount(warned.length)})` : `${t.import.filterProblems} (${formatCount(problems.length)})`}</span>
-            </label>
-          ))}
-        </fieldset>
-        {problems.length > 0 && <button type="button" class="btn btn-small btn-quiet" onClick={excludeProblems}>{t.import.excludeProblems}</button>}
-      </div>
+      {(filtered || problems.length > 0) && (
+        <div class="review-toolbar">
+          {filtered && (
+            <fieldset class="segmented" aria-label={t.import.filterLabel}>
+              {([...['problems' as const], ...(canWarn ? ['warnings' as const] : []), 'all' as const]).map((option) => (
+                <label key={option}>
+                  <input ref={activeFilter === option ? filterRadio : null} type="radio" name="review-filter" value={option} checked={activeFilter === option} onChange={() => chooseFilter(option)} />
+                  <span>{option === 'all' ? t.import.filterAll : option === 'warnings' ? `${t.import.filterWarnings} (${formatCount(warned.length)})` : `${t.import.filterProblems} (${formatCount(problems.length)})`}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+          {problems.length > 0 && <button type="button" class="btn btn-small btn-quiet" onClick={excludeProblems}>{t.import.excludeProblems}</button>}
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <p class="review-empty">{activeFilter === 'warnings' ? t.import.noWarnings : t.import.noProblems}</p>

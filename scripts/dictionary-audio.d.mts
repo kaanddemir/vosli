@@ -3,6 +3,8 @@ export interface Confirmed {
   title: string;
   license: string;
   author: string;
+  /** For English: the variety Commons files the recording under. */
+  kind?: string;
 }
 export interface AudioEntry {
   keys: string[];
@@ -33,5 +35,6 @@ export function licenseUrl(name: string): string;
 export function creditsText(tables: { authors: string[]; licenses: string[] }): string;
 export function plainText(html: unknown): string;
 export function authorFrom(artist: unknown, uploader: unknown): string;
+export function commonsCachePath(language: 'de' | 'en'): string;
 export function parseCache(text: string): Map<string, Confirmed | false>;
-export function cacheText(cache: Map<string, Confirmed | false>): string;
+export function cacheText(cache: Map<string, Confirmed | false>, options?: { categories?: boolean }): string;

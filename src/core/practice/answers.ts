@@ -1,4 +1,5 @@
 import { normalizeText, type Article } from '../identity';
+import type { LearningLanguage } from '../learningLanguage';
 import type { Suggestion } from '../issues';
 import { foldForSearch } from '../search';
 import { splitMeanings } from '../vocabulary';
@@ -20,6 +21,8 @@ export type QuestionKind = Track | 'listen';
 /** The parts of a saved word that answers depend on. */
 export interface AnswerWord {
   id: string;
+  /** The word's learning language, which decides how its text is compared. Absent means German, as words always were. */
+  language?: LearningLanguage | undefined;
   lemma: string;
   article: Article | null;
   meanings: readonly { text: string }[];
@@ -114,15 +117,23 @@ const bareLetters = (text: string) => foldForSearch(text);
 /** Fuss, Fuess, Fus and Tur for Tür: the letters are right but a German mark was dropped or spelled out. */
 const sameWithoutMarks = (typed: string, target: string) => lowerAll(typed) !== lowerAll(target) && (spelledOut(typed) === spelledOut(target) || bareLetters(typed) === bareLetters(target));
 
-/** Every German text that counts as the word. Punctuation and spacing do not change it; capitals do. */
-export const lemmasOf = (word: Pick<AnswerWord, 'lemma'>) => forms(word.lemma).map(stripMarks);
+/**
+ * Every text that counts as the word. Punctuation and spacing do not change it; capitals do. An English word keeps
+ * its apostrophes: its and it's are two words.
+ */
+export const lemmasOf = (word: Pick<AnswerWord, 'lemma' | 'language'>) => forms(word.lemma).map(isEnglish(word) ? englishMarks : stripMarks);
 
-/** Every Turkish text that counts as a meaning. Notes in parentheses, case and punctuation do not change it. */
-export const meaningKeysOf = (word: Pick<AnswerWord, 'meanings'>) => new Set(word.meanings.flatMap((meaning) => turkishForms(meaning.text)));
+/**
+ * Every text that counts as a meaning. Notes in parentheses, case and punctuation do not change it. Meanings are the
+ * learner's own, in any language. A German word's are compared as Turkish, as they always were: kir and kır differ.
+ * Another language's may be Turkish or not, so a capital I may be either I: both readings count, while kir and kır
+ * still differ.
+ */
+export const meaningKeysOf = (word: Pick<AnswerWord, 'meanings' | 'language'>) => new Set(word.meanings.flatMap((meaning) => meaningForms(meaning.text, word.language)));
 
 function findSaved(typed: Typed, library: readonly AnswerWord[], self: AnswerWord): AnswerWord[] {
   const lemma = stripMarks(typed.lemma);
-  return library.filter((word) => word.id !== self.id && lemmasOf(word).includes(lemma));
+  return library.filter((word) => word.id !== self.id && !isEnglish(word) && lemmasOf(word).includes(lemma));
 }
 
 const samePair = (typed: Typed, word: AnswerWord) => typed.article === word.article;
@@ -179,27 +190,71 @@ function evaluateGerman(word: AnswerWord, text: string, requireArticle: boolean,
   return hit('wrong');
 }
 
-/* ---------- Turkish ---------- */
+/* ---------- English ---------- */
+
+const isEnglish = (word: Pick<AnswerWord, 'language'>) => word.language === 'en';
+
+/** Curly and straight apostrophes are one mark, and kept. Other marks become spaces, as in German. */
+const englishMarks = (text: string): string => normalizeText(text.replace(/[’‘`]/gu, "'").replace(/[?!.,;:…"„“”«»¿¡]/gu, ' '));
+const lowerEnglish = (text: string) => text.toLocaleLowerCase('en');
+
+/**
+ * An English word has no article and no gender, so there is nothing to parse off the front: die out is a phrase,
+ * not the article die. Capitals never decide a word here: monday is a capitalization slip of Monday, accepted and
+ * noted. A synonym among the learner's own English words is right; any other saved English word is a mix-up.
+ */
+function evaluateEnglish(word: AnswerWord, text: string, library: readonly AnswerWord[]): Evaluation {
+  const typed = englishMarks(text);
+  if (!typed) return hit('wrong');
+  const targets = lemmasOf(word);
+  if (targets.includes(typed)) return hit('correct');
+  if (targets.some((target) => lowerEnglish(target) === lowerEnglish(typed))) return hit('correct', null, 'case');
+
+  const saved = library.filter((other) => other.id !== word.id && isEnglish(other) && lemmasOf(other).some((form) => lowerEnglish(form) === lowerEnglish(typed)));
+  const first = saved[0];
+  if (first) {
+    const shared = meaningKeysOf(word);
+    return [...meaningKeysOf(first)].some((key) => shared.has(key)) ? hit('also_valid', asOther(first)) : hit('other_word', asOther(first));
+  }
+  if (targets.some((target) => target.length >= MIN_TYPO_LENGTH && oneSlip(lowerEnglish(typed), lowerEnglish(target)))) return hit('typo');
+  return hit('wrong');
+}
+
+/* ---------- Meanings ---------- */
 
 const turkishKey = (text: string) => stripMarks(text).toLocaleLowerCase('tr');
+/** Lowercase without the Turkish rule, so the English I of Idea is i. */
+const plainKey = (text: string) => stripMarks(text).toLocaleLowerCase('en');
 
 /** vb., vs. and vd. at the end only trail off: ev vb. is a way of saying ev. */
 const withoutTrailOff = (key: string) => key.replace(/\s+(vb|vs|vd)$/u, '');
 
-function turkishForms(text: string): string[] {
-  return forms(text).map((form) => withoutTrailOff(turkishKey(form))).filter(Boolean);
+/** The keys one written meaning is known by: the Turkish reading for a German word, both readings for any other. */
+function keysOf(text: string, language: LearningLanguage | undefined): string[] {
+  const keys = [withoutTrailOff(turkishKey(text))];
+  if (language === 'en') keys.push(withoutTrailOff(plainKey(text)));
+  return [...new Set(keys.filter(Boolean))];
+}
+
+function meaningForms(text: string, language: LearningLanguage | undefined): string[] {
+  return forms(text).flatMap((form) => keysOf(form, language));
 }
 
 function evaluateTurkish(word: AnswerWord, text: string, library: readonly AnswerWord[]): Evaluation {
   // Only what stands outside parentheses is the answer, as with the saved meanings.
-  const parts = splitMeanings(text).flatMap((part) => (withoutNotes(part)[0] ?? '').split('/')).map((form) => withoutTrailOff(turkishKey(form))).filter(Boolean);
+  const parts = splitMeanings(text)
+    .flatMap((part) => (withoutNotes(part)[0] ?? '').split('/'))
+    .map((form) => keysOf(form, word.language))
+    .filter((keys) => keys.length > 0);
   if (parts.length === 0) return hit('wrong');
 
   const targets = meaningKeysOf(word);
-  if (parts.every((part) => targets.has(part))) return hit('correct');
+  const known = (keys: readonly string[]) => keys.some((key) => targets.has(key));
+  if (parts.every(known)) return hit('correct');
 
-  const wrongPart = parts.find((part) => !targets.has(part))!;
-  const other = library.find((candidate) => candidate.id !== word.id && meaningKeysOf(candidate).has(wrongPart));
+  const wrongKeys = parts.find((keys) => !known(keys))!;
+  const wrongPart = wrongKeys[0]!;
+  const other = library.find((candidate) => candidate.id !== word.id && candidate.language === word.language && wrongKeys.some((key) => meaningKeysOf(candidate).has(key)));
   if (other) return hit('other_word', asOther(other));
 
   const list = [...targets];
@@ -226,6 +281,8 @@ interface AnswerContext {
 }
 
 export function evaluateAnswer(word: AnswerWord, track: QuestionKind, typed: string, { library, doubt = NO_DOUBT }: AnswerContext): Evaluation {
+  // An English word is never asked its article, and its text follows English rules.
+  if (isEnglish(word)) return track === 'de_tr' ? evaluateTurkish(word, typed, library) : track === 'article' ? hit('wrong') : evaluateEnglish(word, typed, library);
   if (track === 'article') return evaluateArticle(word, typed);
   if (track === 'tr_de') return evaluateGerman(word, typed, !doubt.article, library, doubt);
   // A recording says the word, not its gender, so the article may be left out. One written down must still be right.

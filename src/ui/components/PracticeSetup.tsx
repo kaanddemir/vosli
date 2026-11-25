@@ -9,15 +9,16 @@ import type { PracticeData } from '../../data/practice';
 import type { Group, GroupKind, Word } from '../../data/types';
 import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
-import type { StudyChoice, StudyMode } from '../practiceStorage';
+import type { StudyChoice } from '../practiceStorage';
 import { hrefFor } from '../router';
 import { FlaggedWords } from './FlaggedWords';
 import { Icon } from './Icon';
 import { EmptyState, Screen } from './Screen';
 import { useAudioIndex } from './SpeakerButton';
+import { studiesFor } from '../practiceStorage';
+import { useLearningLanguage } from '../workspace';
 
 const MODES: readonly Exclude<PracticeMode, 'listen'>[] = ['tr_de', 'de_tr', 'article', 'mixed'];
-const STUDIES: readonly StudyMode[] = ['typed', 'listen', 'cards', 'test'];
 const DIRECTIONS: readonly CardDirection[] = ['de_tr', 'tr_de'];
 const COUNTS: readonly (number | null)[] = [10, 20, 50, null];
 const KINDS: readonly GroupKind[] = ['pdf', 'lesson', 'custom'];
@@ -115,6 +116,7 @@ function toggle(scope: PracticeScope, patch: Partial<PracticeScope>): PracticeSc
 }
 
 export function PracticeSetup({ data, settings, study, onChange, onStudyChange, onStart }: { data: PracticeData; settings: PracticeSettings; study: StudyChoice; onChange: (settings: PracticeSettings) => void; onStudyChange: (study: StudyChoice) => void; onStart: () => void }) {
+  const language = useLearningLanguage();
   const audio = useAudioIndex();
   const online = useOnline();
   const testing = study.study === 'test';
@@ -166,7 +168,8 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
         <fieldset class="setup-group">
           <legend class="list-label">{t.practice.studyLabel}</legend>
           <div class="segmented segmented-grid segmented-pairs">
-            {STUDIES.map((option) => (
+            {/* Each language offers what it can: listening only where it has recordings of its own. */}
+            {studiesFor(language).map((option) => (
               <label key={option}>
                 <input type="radio" name="practice-study" checked={study.study === option} onChange={() => onStudyChange({ ...study, study: option })} />
                 <span>{t.practice.studies[option]}</span>
@@ -176,7 +179,7 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
         </fieldset>
 
         {/* Keyed, so switching modes builds fresh radios rather than reusing the other group's checked state. */}
-        {/* Listening has no question type: it always asks for the German that is heard. The typed choice is kept for later. */}
+        {/* Listening has no question type: it always asks for the word that is heard. The typed choice is kept for later. */}
         {listening ? null : cards ? (
           <fieldset key="direction" class="setup-group">
             <legend class="list-label">{t.practice.directionLabel}</legend>
@@ -184,7 +187,7 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
               {DIRECTIONS.map((direction) => (
                 <label key={direction}>
                   <input type="radio" name="card-direction" checked={study.direction === direction} onChange={() => onStudyChange({ ...study, direction })} />
-                  <span>{t.practice.directions[direction]}</span>
+                  <span>{t.lang[language].directions[direction]}</span>
                 </label>
               ))}
             </div>
@@ -193,10 +196,11 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
           <fieldset key="mode" class="setup-group">
             <legend class="list-label">{t.practice.modeLabel}</legend>
             <div class="segmented segmented-grid">
-              {MODES.map((mode) => (
+              {/* Article questions are German only. */}
+              {MODES.filter((mode) => mode !== 'article' || language === 'de').map((mode) => (
                 <label key={mode}>
                   <input type="radio" name="practice-mode" checked={settings.mode === mode} onChange={() => onChange({ ...settings, mode })} />
-                  <span>{t.practice.modes[mode]}</span>
+                  <span>{mode === 'tr_de' || mode === 'de_tr' ? t.lang[language].directions[mode] : t.practice.modes[mode]}</span>
                 </label>
               ))}
             </div>

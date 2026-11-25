@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const word = { id: 'apfel', identityKey: 'Apfel|der', lemma: 'Apfel', article: 'der', pos: 'noun', plural: null, meanings: [{ text: 'elma', note: null }], senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null };
@@ -33,8 +34,8 @@ async function seed(page: Page) {
         request.onsuccess = () => {
           const db = request.result;
           const tx = db.transaction(['words', 'groups'], 'readwrite');
-          tx.objectStore('words').put(w);
-          tx.objectStore('groups').put(g);
+          tx.objectStore('words').put(Object.assign({ language: 'de' }, w));
+          tx.objectStore('groups').put(Object.assign({ language: 'de' }, g));
           tx.oncomplete = () => {
             db.close();
             resolve();
@@ -57,6 +58,15 @@ async function seed(page: Page) {
 
 const count = (page: Page, table: string) =>
   inDb<number>(page, `(db) => new Promise((ok, no) => { const r = db.transaction('${table}').objectStore('${table}').count(); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); })`);
+
+/** After a reset the first-start welcome returns. Choosing German closes it, as a learner would. */
+async function finishWelcome(page: Page) {
+  const welcome = page.locator('dialog.welcome-dialog');
+  await expect(welcome).toBeVisible();
+  await welcome.getByRole('radio', { name: t.lang.de.name }).check();
+  await welcome.getByTestId('welcome-continue').click();
+  await expect(welcome).toHaveCount(0);
+}
 
 const openDialog = async (page: Page) => {
   await page.getByRole('button', { name: t.settings.reset }).click();
@@ -86,7 +96,7 @@ test('confirming clears only Vosli data and lands on the empty Home with default
   const dialog = await openDialog(page);
   await dialog.getByRole('button', { name: t.settings.resetConfirm }).click();
 
-  await expect(page.locator('.today-support')).toHaveText(t.home.emptySupport);
+  await expect(page.locator('.today-support')).toHaveText(t.home.workspace(0));
   await expect(page.getByRole('status').filter({ hasText: t.settings.resetDone })).toBeVisible();
   expect(new URL(page.url()).hash).toBe('#/');
   for (const table of ['words', 'cards', 'reviewLogs', 'groups', 'groupMembers', 'sources', 'importRows']) expect(await count(page, table)).toBe(0);
@@ -97,6 +107,8 @@ test('confirming clears only Vosli data and lands on the empty Home with default
   expect(stored.other).toBe('keep');
   expect(stored.otherSession).toBe('keep');
 
+  // Learning starts over too: the welcome asks again, over the empty Home, until a language is chosen.
+  await finishWelcome(page);
   await page.goto('./#/dictionary');
   await expect(page.getByText(t.dictionary.emptyTitle)).toBeVisible();
   await page.goto('./#/settings');
@@ -109,7 +121,7 @@ test('the notice shows once', async ({ page }) => {
   await (await openDialog(page)).getByRole('button', { name: t.settings.resetConfirm }).click();
   await expect(page.getByText(t.settings.resetDone)).toBeVisible();
   await page.reload();
-  await expect(page.locator('.today-support')).toHaveText(t.home.emptySupport);
+  await expect(page.locator('.today-support')).toHaveText(t.home.workspace(0));
   await expect(page.getByText(t.settings.resetDone)).toHaveCount(0);
 });
 
@@ -140,7 +152,7 @@ test('settings that cannot be cleared are reported, not hidden', async ({ page }
     };
   });
   await (await openDialog(page)).getByRole('button', { name: t.settings.resetConfirm }).click();
-  await expect(page.locator('.today-support')).toHaveText(t.home.emptySupport);
+  await expect(page.locator('.today-support')).toHaveText(t.home.workspace(0));
   await expect(page.getByText(t.settings.resetPartial)).toBeVisible();
   expect(await count(page, 'words')).toBe(0);
 });
@@ -151,6 +163,7 @@ test('another open tab starts over too', async ({ page, context }) => {
   await other.goto('./#/dictionary');
   await expect(other.getByText('Apfel').first()).toBeVisible();
   await (await openDialog(page)).getByRole('button', { name: t.settings.resetConfirm }).click();
-  await expect(page.locator('.today-support')).toHaveText(t.home.emptySupport);
-  await expect(other.getByText(t.dictionary.emptyTitle)).toBeVisible();
+  await expect(page.locator('.today-support')).toHaveText(t.home.workspace(0));
+  // The other tab starts over as well, at the same welcome.
+  await expect(other.locator('dialog.welcome-dialog')).toBeVisible();
 });

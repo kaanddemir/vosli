@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const word = (id: string, lemma: string, meaning: string, favorite = false) => ({ id, identityKey: `${lemma}|`, lemma, article: null, pos: 'other', plural: null, meanings: [{ text: meaning, note: null }], senseTag: null, searchTokens: [], favoritedAt: favorite ? 1 : null, createdAt: 1, updatedAt: 1, deletedAt: null });
@@ -23,7 +24,7 @@ const put = (page: Page, data: Record<string, unknown[]>) =>
         const open = indexedDB.open('vosli');
         open.onsuccess = () => {
           const tx = open.result.transaction(Object.keys(tables), 'readwrite');
-          for (const [name, rows] of Object.entries(tables)) for (const row of rows) tx.objectStore(name).put(row);
+          for (const [name, rows] of Object.entries(tables)) for (const row of rows) tx.objectStore(name).put(['words', 'groups', 'sources'].includes(name) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             open.result.close();
             resolve();
@@ -73,7 +74,7 @@ test.beforeEach(async ({ page }) => {
 
 test('Seç sits just before add, and becomes Vazgeç with focus kept', async ({ page }) => {
   const names = await main(page).locator('.header-buttons > *').evaluateAll((elements) => elements.map((element) => element.getAttribute('aria-label') ?? element.textContent));
-  expect(names).toEqual([t.dictionary.direction, t.dictionary.hideAnswers, t.common.select, t.dictionary.addWord]);
+  expect(names).toEqual([t.lang.de.meaningFirst, t.dictionary.hideAnswers, t.common.select, t.dictionary.addWord]);
   await enter(page);
   const cancel = main(page).getByRole('button', { name: t.common.cancel, exact: true });
   await expect(cancel).toBeFocused();
@@ -180,7 +181,7 @@ test('confirming removes the words with everything of theirs, from every collect
   await expect(page.getByRole('link', { name: /Listem/ })).toContainText('0');
   await expect(page.getByRole('link', { name: /Dosya/ })).toContainText('1');
   await page.goto('./#/');
-  await expect(page.locator('.today-support')).not.toHaveText(t.home.emptySupport);
+  await expect(page.locator('.today-support')).not.toHaveText(t.home.workspace(0));
 });
 
 test('deleting every word leads to the empty state and an empty Home', async ({ page }) => {
@@ -190,7 +191,7 @@ test('deleting every word leads to the empty state and an empty Home', async ({ 
   await confirm(page);
   await expect(page.getByText(t.dictionary.emptyTitle)).toBeVisible();
   await page.goto('./#/');
-  await expect(page.locator('.today-support')).toHaveText(t.home.emptySupport);
+  await expect(page.locator('.today-support')).toHaveText(t.home.workspace(0));
 });
 
 test('a failure changes nothing and says so', async ({ page }) => {

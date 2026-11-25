@@ -1,9 +1,9 @@
 /** Types for commons-sync.mjs, so its tests are checked like the app. */
-import type { AudioEntry, Confirmed } from './dictionary-audio.mjs';
+import type { AudioChoice, AudioEntry, Confirmed } from './dictionary-audio.mjs';
 
 export class LockError extends Error {}
 export function acquireLock(path: string, options?: { recoverStale?: boolean }): { release(): void };
-export function saveCache(path: string, cache: Map<string, Confirmed | false>): void;
+export function saveCache(path: string, cache: Map<string, Confirmed | false>, options?: { categories?: boolean }): void;
 
 type Recordings = Map<string, AudioEntry[]>;
 export interface SyncOptions {
@@ -22,5 +22,7 @@ export interface SyncOptions {
   pauseMs?: number;
   saveEvery?: number;
   now?: () => number;
+  categorize?: ((categories: string) => string) | null;
+  choose?: (entries: AudioEntry[], lookup: (name: string) => Confirmed | false | undefined) => AudioChoice;
 }
 export function syncCommons(options: SyncOptions): Promise<{ requests: number; checked: number; stillToCheck: number; minutes: number }>;

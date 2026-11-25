@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 interface Seed {
@@ -37,8 +38,8 @@ async function seed(page: Page, words: readonly Seed[] = WORDS, extra: Record<st
           const db = request.result;
           const names = ['words', ...Object.keys(others as object)];
           const tx = db.transaction(names, 'readwrite');
-          for (const record of records as unknown[]) tx.objectStore('words').put(record);
-          for (const [name, rows] of Object.entries(others as Record<string, unknown[]>)) for (const row of rows) tx.objectStore(name).put(row);
+          for (const record of records as unknown[]) tx.objectStore('words').put(Object.assign({ language: 'de' }, record));
+          for (const [name, rows] of Object.entries(others as Record<string, unknown[]>)) for (const row of rows) tx.objectStore(name).put(['words', 'groups', 'sources'].includes(name) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             db.close();
             resolve();

@@ -27,15 +27,15 @@ afterEach(() => open.splice(0).forEach((db) => db.close()));
 
 const FRUITS: readonly VocabRow[] = [['Apfel', 'der', 'elma'], ['Birne', 'die', 'armut'], ['essen', '-', 'yemek yemek'], ['Straße', 'die', 'cadde, yol'], ['Bär', 'der', 'ayı'], ['Çiçek', '', 'şğıİ']];
 const LESSON_ONE = buildPdf([tablePage(FRUITS, { heading: 'Lektion 1' })]);
-const prepare = (db: AppDatabase, bytes: Uint8Array<ArrayBuffer>, name = 'ders.pdf') => preparePdfImport(db, lib, name, bytes.slice());
+const prepare = (db: AppDatabase, bytes: Uint8Array<ArrayBuffer>, name = 'ders.pdf') => preparePdfImport(db, 'de', lib, name, bytes.slice());
 const save = (db: AppDatabase, prepared: PdfImport, collections: Partial<SourceCollections> = {}, drafts: ImportDraft[] = prepared.drafts) =>
   commitImport(db, { source: prepared.source, drafts, target: { kind: 'none' }, collections: { ...prepared.collections, ...collections } }, T0);
 const problem = (promise: Promise<unknown>) => promise.then(() => 'no error', (error: PdfReadError) => error.problem);
 /** A lesson collection as earlier versions made them: imports no longer create these, but learners may still have them. */
 async function seedLegacyLesson(db: AppDatabase, sourceId: string | null, name = 'Lektion 1'): Promise<string> {
   const id = 'legacy-lesson';
-  const words = await listActiveWords(db);
-  await db.groups.add({ id, kind: 'lesson', name, order: 99, sourceId, createdAt: T0 });
+  const words = await listActiveWords(db, 'de');
+  await db.groups.add({ id, language: 'de', kind: 'lesson', name, order: 99, sourceId, createdAt: T0 });
   await db.groupMembers.bulkAdd(words.map((word) => ({ groupId: id, wordId: word.id, addedAt: T0, importRowId: null })));
   return id;
 }
@@ -154,7 +154,7 @@ describe('importing a PDF', () => {
     const [source] = await db.sources.toArray();
     expect(source).toMatchObject({ fileName: 'Ders+1.pdf', fileHash: prepared.source.fileHash });
     expect(summary.pdfGroup!.sourceId).toBe(source!.id);
-    const baer = (await listActiveWords(db)).find((word) => word.lemma === 'Bär')!;
+    const baer = (await listActiveWords(db, 'de')).find((word) => word.lemma === 'Bär')!;
     expect(await listOriginsOfWord(db, baer.id)).toEqual([{ source: source, pages: [2] }]);
     expect((await listGroupsOfWord(db, baer.id)).map((group) => group.kind)).toEqual(['pdf']);
   });
@@ -167,7 +167,7 @@ describe('importing a PDF', () => {
     expect(summary).toMatchObject({ rows: FRUITS.length, created: FRUITS.length });
     expect(await db.groups.count()).toBe(1);
     expect(await db.groups.where('kind').equals('lesson').count()).toBe(0);
-    expect((await getGroupWithWords(db, summary.pdfGroup!.id))?.words).toHaveLength(FRUITS.length);
+    expect((await getGroupWithWords(db, summary.pdfGroup!.id, 'de'))?.words).toHaveLength(FRUITS.length);
   });
 
   it('refuses an empty collection name and writes nothing', async () => {
@@ -180,7 +180,7 @@ describe('importing a PDF', () => {
     const db = await fresh();
     const prepared = await prepare(db, LESSON_ONE);
     const first = await save(db, prepared);
-    const [word] = await listActiveWords(db);
+    const [word] = await listActiveWords(db, 'de');
     await db.cards.add(makeCard(word!.id));
     const snapshot = async () => ({ words: await db.words.toArray(), cards: await db.cards.toArray(), logs: await db.reviewLogs.toArray(), sources: await db.sources.toArray(), rows: await db.importRows.toArray() });
     const before = await snapshot();
@@ -220,7 +220,7 @@ describe('importing a PDF', () => {
   });
 
   describe('a file seen before, by what is left of its words', () => {
-    const wordIds = async (db: AppDatabase) => (await listActiveWords(db)).map((word) => word.id);
+    const wordIds = async (db: AppDatabase) => (await listActiveWords(db, 'de')).map((word) => word.id);
 
     it('all still there: the duplicate import stays as it was', async () => {
       const db = await fresh();
@@ -233,7 +233,7 @@ describe('importing a PDF', () => {
     it('some deleted: the count is of those, they come back without their history, and the rest keep theirs', async () => {
       const db = await fresh();
       await save(db, await prepare(db, LESSON_ONE));
-      const [gone, kept] = await listActiveWords(db);
+      const [gone, kept] = await listActiveWords(db, 'de');
       await db.cards.bulkAdd([makeCard(gone!.id), makeCard(kept!.id)]);
       await deleteWords(db, [gone!.id]);
 
@@ -279,7 +279,7 @@ describe('importing a PDF', () => {
       const db = await fresh();
       await save(db, await prepare(db, LESSON_ONE));
       await deleteWords(db, await wordIds(db));
-      await addWord(db, { lemma: 'Apfel', article: 'der', meanings: ['elma'], plural: null }, null, [], T0);
+      await addWord(db, { lemma: 'Apfel', article: 'der', meanings: ['elma'], plural: null }, null, [], T0, 'de');
       const again = await prepare(db, LESSON_ONE);
       expect(again.info).toMatchObject({ remaining: 'none', missingWords: FRUITS.length - 1 });
     });
@@ -298,8 +298,8 @@ describe('importing a PDF', () => {
     const lesson = await seedLegacyLesson(db, summary.pdfGroup!.sourceId);
     const before = await createBackup(db, T0);
     const pdf = summary.pdfGroup!.id;
-    const word = (await listActiveWords(db))[0]!.id;
-    const outsider = (await addWord(db, { lemma: 'Haus', article: 'das', meanings: ['ev'], plural: null }, null, [], T0)) as { word: { id: string } };
+    const word = (await listActiveWords(db, 'de'))[0]!.id;
+    const outsider = (await addWord(db, { lemma: 'Haus', article: 'das', meanings: ['ev'], plural: null }, null, [], T0, 'de')) as { word: { id: string } };
     for (const id of [pdf, lesson]) {
       await expect(addWordsToGroup(db, id, [outsider.word.id], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
       await expect(removeWordsFromGroup(db, id, [word])).rejects.toBeInstanceOf(ProtectedGroupError);
@@ -355,7 +355,7 @@ describe('renaming a PDF collection', () => {
     expect(await problem(renameGroup(db, id, 'x'.repeat(81)))).toBe('too_long');
     expect(await problem(renameGroup(db, id, other.name.toLocaleUpperCase('tr')))).toBe('taken');
     expect((await db.groups.get(id))!.name).toBe('ders');
-    await createCustomGroup(db, 'Bölüm 7', T0);
+    await createCustomGroup(db, 'Bölüm 7', T0, 'de');
     await renameGroup(db, id, 'bölüm 7');
     await renameGroup(db, id, 'x'.repeat(80));
     await renameGroup(db, id, 'Ders');
@@ -394,7 +394,7 @@ describe('legacy lesson collections', () => {
     const db = await fresh();
     const summary = await save(db, await prepare(db, LESSON_ONE));
     const lesson = await seedLegacyLesson(db, summary.pdfGroup!.sourceId);
-    const [word] = await listActiveWords(db);
+    const [word] = await listActiveWords(db, 'de');
     await db.cards.add(makeCard(word!.id));
     await db.reviewLogs.add({ wordId: word!.id, track: 'de_tr', at: T0, typed: 'elma', result: 'correct', hintsUsed: 0, mode: 'practice' });
     await setFavorite(db, word!.id, true, T0);
@@ -406,7 +406,7 @@ describe('legacy lesson collections', () => {
     expect(await db.groups.get(lesson)).toBeUndefined();
     expect(await db.groupMembers.where('groupId').equals(lesson).count()).toBe(0);
     expect(await snapshot()).toEqual(before);
-    expect((await getGroupWithWords(db, summary.pdfGroup!.id))?.words).toHaveLength(FRUITS.length);
+    expect((await getGroupWithWords(db, summary.pdfGroup!.id, 'de'))?.words).toHaveLength(FRUITS.length);
   });
 });
 
@@ -481,10 +481,10 @@ describe('importing a PDF again', () => {
     const db = await fresh();
     const first = await prepare(db, buildPdf([tablePage([['Geldautomat', 'das', 'ATM']])]));
     await save(db, first);
-    const word = (await listActiveWords(db))[0]!;
+    const word = (await listActiveWords(db, 'de'))[0]!;
     await db.words.put({ ...word, article: 'der', identityKey: 'Geldautomat|der' });
     const again = await prepare(db, buildPdf([tablePage([['Geldautomat', 'das', 'ATM']])]));
-    const rows = reviewRows(again.drafts, (await listActiveWords(db)).map(knownEntryOf));
+    const rows = reviewRows(again.drafts, (await listActiveWords(db, 'de')).map(knownEntryOf));
     expect(rows[0]!.status).toMatchObject({ kind: 'ambiguous', reason: 'article' });
     expect((await db.words.get(word.id))?.article).toBe('der');
   });
@@ -498,11 +498,11 @@ describe('words shared between PDFs', () => {
     const one = await save(db, await prepare(db, LESSON_ONE, 'bir.pdf'));
     const two = await save(db, await prepare(db, buildPdf([tablePage(SECOND, { heading: 'Lektion 2' })]), 'iki.pdf'));
     expect(two).toMatchObject({ rows: 3, created: 1, existing: 2, linked: 2 });
-    const apfel = (await listActiveWords(db)).find((word) => word.lemma === 'Apfel')!;
+    const apfel = (await listActiveWords(db, 'de')).find((word) => word.lemma === 'Apfel')!;
     expect(await db.words.filter((word) => word.lemma === 'Apfel').count()).toBe(1);
     expect((await listGroupsOfWord(db, apfel.id)).map((group) => group.id).sort()).toEqual([one.pdfGroup!.id, two.pdfGroup!.id].sort());
     expect((await listOriginsOfWord(db, apfel.id)).map((origin) => origin.source.fileName).sort()).toEqual(['bir.pdf', 'iki.pdf']);
-    const counts = new Map((await listGroupSummaries(db)).map(({ group, wordCount }) => [group.name, wordCount]));
+    const counts = new Map((await listGroupSummaries(db, 'de')).map(({ group, wordCount }) => [group.name, wordCount]));
     expect(counts.get('bir')).toBe(6);
     expect(counts.get('iki')).toBe(3);
   });
@@ -519,7 +519,7 @@ describe('words shared between PDFs', () => {
     const db = await fresh();
     await save(db, await prepare(db, buildPdf([tablePage([['See', 'der', 'göl'], ['Bank', 'die', 'banka']])])));
     const next = await prepare(db, buildPdf([tablePage([['See', 'die', 'deniz'], ['Bank', 'die', 'sıra']])]), 'iki.pdf');
-    const rows = reviewRows(next.drafts, (await listActiveWords(db)).map(knownEntryOf));
+    const rows = reviewRows(next.drafts, (await listActiveWords(db, 'de')).map(knownEntryOf));
     expect(rows.map((row) => row.status)).toMatchObject([{ kind: 'ambiguous', reason: 'article' }, { kind: 'ambiguous', reason: 'meaning' }]);
     await expect(save(db, next)).rejects.toThrow();
     expect(await db.sources.count()).toBe(1);
@@ -534,7 +534,7 @@ describe('words shared between PDFs', () => {
     expect(rows.map(rowOutcome)).toEqual(['create', 'create', 'repeat']);
     const summary = await save(db, prepared);
     expect(summary).toMatchObject({ rows: 3, created: 2, repeats: 1 });
-    const apfel = (await listActiveWords(db)).find((word) => word.lemma === 'Apfel')!;
+    const apfel = (await listActiveWords(db, 'de')).find((word) => word.lemma === 'Apfel')!;
     expect((await listOriginsOfWord(db, apfel.id))[0]!.pages).toEqual([1, 2]);
     expect(await db.groupMembers.where('wordId').equals(apfel.id).count()).toBe(1);
   });
@@ -543,7 +543,7 @@ describe('words shared between PDFs', () => {
 describe('protecting what is already there', () => {
   it('keeps favorites, cards and history when a PDF links to a known word', async () => {
     const db = await fresh();
-    const outcome = await addWord(db, { lemma: 'Apfel', article: 'der', meanings: ['elma'], plural: null }, null, [], T0);
+    const outcome = await addWord(db, { lemma: 'Apfel', article: 'der', meanings: ['elma'], plural: null }, null, [], T0, 'de');
     if (outcome.kind !== 'saved') throw new Error('expected a save');
     const id = outcome.word.id;
     await setFavorite(db, id, true, T0);
@@ -562,20 +562,20 @@ describe('protecting what is already there', () => {
   it('importing the same file again after a delete makes a fresh word, and leaves the others alone', async () => {
     const db = await fresh();
     await save(db, await prepare(db, LESSON_ONE));
-    const words = await listActiveWords(db);
+    const words = await listActiveWords(db, 'de');
     const apfel = words.find((word) => word.lemma === 'Apfel')!;
     await db.cards.add(makeCard(apfel.id));
     await deleteWord(db, apfel.id);
     const [sources, groups] = [await db.sources.count(), await db.groups.count()];
     const summary = await save(db, await prepare(db, LESSON_ONE));
     expect(summary.created).toBe(1);
-    const again = (await listActiveWords(db)).filter((word) => word.lemma === 'Apfel');
+    const again = (await listActiveWords(db, 'de')).filter((word) => word.lemma === 'Apfel');
     expect(again).toHaveLength(1);
     expect(again[0]!.id).not.toBe(apfel.id);
     expect(await db.cards.where('wordId').equals(apfel.id).count()).toBe(0);
     expect(await db.sources.count()).toBe(sources);
     expect(await db.groups.count()).toBe(groups);
-    expect((await listActiveWords(db)).map((word) => word.id).filter((id) => id !== again[0]!.id).sort()).toEqual(words.map((word) => word.id).filter((id) => id !== apfel.id).sort());
+    expect((await listActiveWords(db, 'de')).map((word) => word.id).filter((id) => id !== again[0]!.id).sort()).toEqual(words.map((word) => word.id).filter((id) => id !== apfel.id).sort());
   });
 
   it('rolls everything back when a write fails partway', async () => {
@@ -602,7 +602,7 @@ describe('protecting what is already there', () => {
     await restoreBackup(other, parsed.backup);
     const [a, b] = [await createBackup(db, T0), await createBackup(other, T0)];
     for (const table of ['words', 'cards', 'reviewLogs', 'groups', 'groupMembers', 'sources', 'importRows'] as const) expect(b.tables[table]).toEqual(a.tables[table]);
-    const opened = await getGroupWithWords(other, summary.pdfGroup!.id);
+    const opened = await getGroupWithWords(other, summary.pdfGroup!.id, 'de');
     expect(opened?.group.kind).toBe('pdf');
     expect(opened?.words).toHaveLength(FRUITS.length);
     const again = await prepare(other, LESSON_ONE);
@@ -670,7 +670,7 @@ describe('dictionary suggestions and the record of a source', () => {
     const counts = [await db.words.count(), await db.importRows.count(), await db.groupMembers.count()];
 
     const again = await prepare(db, page());
-    const stored = (await listActiveWords(db)).map(knownEntryOf);
+    const stored = (await listActiveWords(db, 'de')).map(knownEntryOf);
     const rows = reviewRows(again.drafts, stored);
     expect(rows.map((row) => needsAttention(row.status))).toEqual([false, false]);
     expect(rows[0]).toMatchObject({ lemma: 'Geldautomat', article: 'der', status: { kind: 'existing' } });
@@ -694,9 +694,9 @@ describe('dictionary suggestions and the record of a source', () => {
 
   it('a correction that meets an existing word asks a person, and merges nothing by itself', async () => {
     const db = await fresh();
-    await addWord(db, { lemma: 'Geldautomat', article: 'der', meanings: ['bankamatik'], plural: null }, null, [], 1);
+    await addWord(db, { lemma: 'Geldautomat', article: 'der', meanings: ['bankamatik'], plural: null }, null, [], 1, 'de');
     const first = await prepare(db, page());
-    const rows = reviewRows(accept(first.drafts), (await listActiveWords(db)).map(knownEntryOf));
+    const rows = reviewRows(accept(first.drafts), (await listActiveWords(db, 'de')).map(knownEntryOf));
     expect(rows[0]!.status).toMatchObject({ kind: 'ambiguous', reason: 'meaning', choice: null });
     expect(needsAttention(rows[0]!.status)).toBe(true);
   });

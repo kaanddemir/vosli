@@ -20,6 +20,8 @@
   --success-soft: #edf5f0;
   --fill: rgb(39 39 39 / 0.05);
   --scrim: rgb(0 0 0 / 0.45);
+  /* Behind the first-start welcome: Home stays recognizable, but out of focus. */
+  --backdrop-blur: 6px;
   /* Home roofline. Decorative and never behind text, so only the steps between them matter. */
   --scene-far: #efebe3;
   --scene-near: #e4ded3;
@@ -31,6 +33,10 @@
   --flag-red: #b7473a;
   --flag-gold: #c9a24e;
   --flag-cream: #e6dcc8;
+  /* English workspace: the Union Jack's navy, red and white, muted to sit beside the German flags. */
+  --flag-navy: #2f3f5f;
+  --flag-crimson: #a93a44;
+  --flag-white: #e1ded7;
   /* Optional article colors: muted, and at least 4.5:1 on every surface a word sits on. */
   --article-der: #3c6694;
   --article-die: #a63f6b;
@@ -128,6 +134,9 @@
   --flag-red: #b5574b;
   --flag-gold: #b08f47;
   --flag-cream: #cfc6b4;
+  --flag-navy: #4d5c7c;
+  --flag-crimson: #b0525a;
+  --flag-white: #d3cfc7;
   --article-der: #8eaed4;
   --article-die: #df98b6;
   --article-das: #b8a2dc;

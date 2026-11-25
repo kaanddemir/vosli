@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { daytimeMood } from '../src/core/foxMood';
 import { t } from '../src/i18n/strings';
 
@@ -33,7 +34,7 @@ const seed = (page: Page) =>
         const open = indexedDB.open('vosli');
         open.onsuccess = () => {
           const tx = open.result.transaction('words', 'readwrite');
-          for (const row of words) tx.objectStore('words').put(row);
+          for (const row of words) tx.objectStore('words').put(Object.assign({ language: 'de' }, row));
           tx.oncomplete = () => {
             open.result.close();
             resolve();

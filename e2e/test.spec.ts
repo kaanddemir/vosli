@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { formatPercent } from '../src/i18n/format';
 import { t } from '../src/i18n/strings';
 
@@ -46,7 +47,7 @@ const write = (page: Page, tables: Record<string, unknown[]>) =>
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const tx = request.result.transaction(Object.keys(data), 'readwrite');
-          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(row);
+          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(['words', 'groups', 'sources'].includes(name) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             request.result.close();
             resolve();

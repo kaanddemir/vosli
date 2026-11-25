@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignRole, decodeBytes, detectDelimiter, guessColumns, mappingIsComplete, parseDelimited, parseImportText, rowsFromLines, rowsFromTable, splitLine } from '../src/core/tabular';
+import { assignRole, columnRolesFor, decodeBytes, detectDelimiter, guessColumns, mappingIsComplete, parseDelimited, parseImportText, rowsFromLines, rowsFromTable, splitLine } from '../src/core/tabular';
 
 describe('decoding files', () => {
   const text = 'Fuß;ıspanak;çiçek;Größe';
@@ -60,6 +60,24 @@ describe('column mapping', () => {
 
   it('finds an unnamed article column by its contents', () => {
     expect(guessColumns([['der', 'Apfel', 'elma'], ['', 'essen', 'yemek']])).toEqual({ mapping: { hasHeader: false, roles: ['article', 'german', 'turkish'] }, confident: true });
+  });
+
+  it('takes English or İngilizce as the word column of an English file, and nothing German', () => {
+    expect(guessColumns([['English', 'Türkçe'], ['apple', 'elma']], 'en').mapping).toEqual({ hasHeader: true, roles: ['german', 'turkish'] });
+    expect(guessColumns([['İngilizce', 'Anlam'], ['apple', 'elma']], 'en').mapping).toEqual({ hasHeader: true, roles: ['german', 'turkish'] });
+    expect(guessColumns([['INGILIZCE', 'Meaning'], ['apple', 'elma']], 'en').mapping).toEqual({ hasHeader: true, roles: ['german', 'turkish'] });
+    expect(guessColumns([['Word', 'Meaning'], ['apple', 'elma']], 'en').mapping.roles).toEqual(['german', 'turkish']);
+    // Articles and plurals are German: an English file's such columns are not used, and no column is read as articles.
+    expect(guessColumns([['English', 'Article', 'Türkçe', 'Plural'], ['apple', 'the', 'elma', 'apples']], 'en').mapping.roles).toEqual(['german', 'ignore', 'turkish', 'ignore']);
+    expect(guessColumns([['der', 'Apfel', 'elma'], ['', 'essen', 'yemek']], 'en').mapping.roles).not.toContain('article');
+    expect(columnRolesFor('en')).toEqual(['german', 'turkish', 'ignore']);
+    expect(columnRolesFor('de')).toEqual(['german', 'article', 'turkish', 'plural', 'ignore']);
+  });
+
+  it('keeps a German file as it was: English is not its word column, and German headers still are', () => {
+    expect(guessColumns([['Almanca', 'English', 'Türkçe'], ['Apfel', 'apple', 'elma']]).mapping.roles).toEqual(['german', 'ignore', 'turkish']);
+    expect(guessColumns([['English', 'Deutsch', 'Türkçe'], ['apple', 'Apfel', 'elma']], 'de').mapping.roles).toEqual(['ignore', 'german', 'turkish']);
+    expect(guessColumns([['Deutsch', 'Englisch', 'Türkçe'], ['Apfel', 'apple', 'elma']], 'en').mapping).toEqual({ hasHeader: true, roles: ['ignore', 'german', 'turkish'] });
   });
 
   it('asks a person when the columns cannot be told apart', () => {
@@ -131,5 +149,11 @@ describe('choosing how to read the input', () => {
   it('reads a file as a table when a delimiter fits, and as lines when none does', () => {
     expect(parseImportText('Almanca,Türkçe\nApfel,elma', 'file')).toMatchObject({ kind: 'table', confident: true, mapping: { hasHeader: true } });
     expect(parseImportText('Apfel - elma\nBirne - armut', 'file').kind).toBe('lines');
+  });
+
+  it('reads a file for the workspace it goes into', () => {
+    expect(parseImportText('English,Türkçe\napple,elma', 'file', 'en')).toMatchObject({ kind: 'table', confident: true, mapping: { hasHeader: true, roles: ['german', 'turkish'] } });
+    // German does not know that header, so it reads the file as two unnamed columns, as before.
+    expect(parseImportText('English,Türkçe\napple,elma', 'file')).toMatchObject({ kind: 'table', mapping: { hasHeader: false } });
   });
 });

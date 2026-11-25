@@ -15,12 +15,12 @@ const keepFocus = (event: MouseEvent) => event.preventDefault();
 
 export interface FeedbackLine {
   text: string;
-  lang?: string;
+  lang?: string | undefined;
   /**
    * Shown before the text as "label: text". It is in its own language: an interface word such as "Meaning", or
    * a German word, while the text is the learner's own, so each part is read aloud in the right voice.
    */
-  label?: { text: string; lang?: string };
+  label?: { text: string; lang?: string | undefined };
   /** The same German word as text, drawn with its article on its own. Only ever set after an answer. */
   word?: Pick<Word, 'article' | 'lemma'>;
 }
@@ -64,7 +64,7 @@ export interface PracticeViewProps {
   /** A short word before the cue: this is a repeat, or a new word. */
   tag?: string | null;
   question: string;
-  questionLang: string;
+  questionLang: string | undefined;
   /** A second line that decides the answer, such as the meaning behind an article. */
   detail?: string;
   /** Asked by ear: a recording takes the question's place. */
@@ -72,7 +72,7 @@ export interface PracticeViewProps {
   /** Something to choose from in place of the typed answer, as a test asks. The rest of the session stays the same. */
   answerArea?: ComponentChildren;
   answer?: string;
-  answerLang?: string;
+  answerLang?: string | undefined;
   feedback?: FeedbackView | null;
   /** The hint stage on screen, with hidden letters masked. */
   hint?: string | null;

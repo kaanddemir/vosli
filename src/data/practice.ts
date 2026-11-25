@@ -6,7 +6,7 @@ import { readDismissals } from './dismissals';
 import { checkSignature, readCheckedFlags, saveCheckedFlags } from './flaggedCache';
 import type { AppDatabase } from './db';
 import { listActiveWords, listGroupSummaries, type GroupSummary } from './repository';
-import type { GroupMember, ReviewLog, Word } from './types';
+import type { GroupMember, LearningLanguage, ReviewLog, Word } from './types';
 
 /** Everything a practice round is chosen from, read once when the round is set up. */
 export interface PracticeData {
@@ -36,7 +36,10 @@ interface FlagCheck {
  * Which words have open warnings. An earlier answer is reused only for exactly the same words,
  * accepted warnings and app build, so a stored result can save the wait but never be out of date.
  */
-export function flagsFor(words: readonly Word[], validate: Validate | null, dismissed: ReadonlySet<string>): FlagCheck {
+export function flagsFor(words: readonly Word[], validate: Validate | null, dismissed: ReadonlySet<string>, language: LearningLanguage = 'de'): FlagCheck {
+  // The dictionary is German. Another language's words are never checked against it, so none has a warning, and
+  // nothing is read from or written to the German result stored on this device.
+  if (language !== 'de') return { flagged: new Map(), checked: true };
   const signature = checkSignature(words, dismissed);
   if (!validate) {
     const stored = readCheckedFlags(signature);
@@ -51,7 +54,11 @@ export function flagsFor(words: readonly Word[], validate: Validate | null, dism
   return { flagged, checked: true };
 }
 
-export async function loadPracticeData(db: AppDatabase, validate: Validate | null): Promise<PracticeData> {
-  const [words, groups, members, history, dismissed] = await Promise.all([listActiveWords(db), listGroupSummaries(db), db.groupMembers.toArray(), db.reviewLogs.orderBy('seq').toArray(), readDismissals(db)]);
-  return { words, groups, members, history, difficult: findDifficult(history), flagged: flagsFor(words, validate, dismissed).flagged };
+/** One learning language's words, collections and history. Another language's never enter a round. */
+export async function loadPracticeData(db: AppDatabase, validate: Validate | null, language: LearningLanguage): Promise<PracticeData> {
+  const [words, groups, allMembers, allHistory, dismissed] = await Promise.all([listActiveWords(db, language), listGroupSummaries(db, language), db.groupMembers.toArray(), db.reviewLogs.orderBy('seq').toArray(), readDismissals(db)]);
+  const own = new Set(words.map((word) => word.id));
+  const members = allMembers.filter((member) => own.has(member.wordId));
+  const history = allHistory.filter((entry) => own.has(entry.wordId));
+  return { words, groups, members, history, difficult: findDifficult(history), flagged: flagsFor(words, language === 'de' ? validate : null, dismissed, language).flagged };
 }

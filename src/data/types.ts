@@ -3,7 +3,9 @@ import type { Article } from '../core/identity';
 import type { AnswerResult, Track } from '../core/practice/answers';
 import type { PartOfSpeech } from '../core/vocabulary';
 
-export type { AnswerResult, PartOfSpeech, Track };
+import type { LearningLanguage } from '../core/learningLanguage';
+
+export type { AnswerResult, LearningLanguage, PartOfSpeech, Track };
 export type GroupKind = 'pdf' | 'lesson' | 'custom';
 
 export interface Meaning {
@@ -13,6 +15,8 @@ export interface Meaning {
 
 export interface Word {
   id: string;
+  /** The workspace the word belongs to. Its identity is unique within it, never across languages. */
+  language: LearningLanguage;
   identityKey: string;
   lemma: string;
   article: Article | null;
@@ -69,6 +73,8 @@ export type ReviewLog = ScheduledLog | PracticeLog;
 
 export interface Group {
   id: string;
+  /** A collection holds words of its own language only. */
+  language: LearningLanguage;
   kind: GroupKind;
   name: string;
   order: number;
@@ -85,6 +91,8 @@ export interface GroupMember {
 
 export interface Source {
   id: string;
+  /** The same file imported into two languages is two sources, so neither import can link to the other's words. */
+  language: LearningLanguage;
   fileName: string;
   fileHash: string;
   importedAt: number;
@@ -109,4 +117,14 @@ export interface ImportRow {
 export interface MetaEntry {
   key: string;
   value: unknown;
+}
+
+/**
+ * How this database came to know its learning language. legacy: it existed before languages did, and everything
+ * in it is German. default: made before the learner could choose. welcome: chosen at first start. restore: came with
+ * a backup. Its presence means the first-start choice is settled.
+ */
+export interface Onboarding {
+  via: 'legacy' | 'default' | 'welcome' | 'restore';
+  at: number;
 }

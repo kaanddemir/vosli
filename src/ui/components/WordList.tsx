@@ -7,6 +7,7 @@ import { hrefForWord } from '../router';
 import { Icon } from './Icon';
 import { List } from './List';
 import { SpeakerButton } from './SpeakerButton';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 const PAGE = 100;
 
@@ -58,7 +59,7 @@ export interface ListView {
 }
 
 /** Takes focus once, when it replaces the button that revealed it, so a screen reader reads the answer out. */
-function RevealedAnswer({ lang, focus, onFocused, children }: { lang: string; focus: boolean; onFocused: () => void; children: ComponentChildren }) {
+function RevealedAnswer({ lang, focus, onFocused, children }: { lang: string | undefined; focus: boolean; onFocused: () => void; children: ComponentChildren }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!focus) return;
@@ -71,14 +72,16 @@ function RevealedAnswer({ lang, focus, onFocused, children }: { lang: string; fo
 
 export function WordList({ words, groupId, selection, view }: { words: readonly Word[]; groupId?: string; selection?: Selection | undefined; view?: ListView | undefined }) {
   const [shown, setShown] = useState(PAGE);
+  const language = useLearningLanguage();
+  const meaning = meaningLang(language);
   const focusAnswer = useRef<string | null>(null);
   const turkishFirst = view?.direction === 'tr_de';
   const german = (word: Word) => <GermanWord word={word} />;
   // Which side leads, with its language, so a screen reader reads each line in the right voice.
   const sides = (word: Word) =>
     turkishFirst
-      ? { top: meaningsOf(word), topLang: 'tr', bottom: german(word), bottomLang: 'de' }
-      : { top: german(word), topLang: 'de', bottom: meaningsOf(word), bottomLang: 'tr' };
+      ? { top: meaningsOf(word), topLang: meaning, bottom: german(word), bottomLang: language }
+      : { top: german(word), topLang: language, bottom: meaningsOf(word), bottomLang: meaning };
 
   return (
     <>
@@ -102,7 +105,7 @@ export function WordList({ words, groupId, selection, view }: { words: readonly 
           }
           if (view?.hidden) {
             const revealed = view.revealed.has(word.id);
-            const label = turkishFirst ? t.dictionary.revealGerman(meaningsOf(word)) : t.dictionary.revealMeaning(wordLabel(word));
+            const label = turkishFirst ? t.lang[language].revealWord(meaningsOf(word)) : t.dictionary.revealMeaning(wordLabel(word));
             // The link covers the row, so the whole row still opens the word. The reveal button sits above it,
             // so a press there only uncovers the answer and never opens the word as well.
             return (

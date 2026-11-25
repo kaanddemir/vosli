@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 
 export type Route = 'home' | 'dictionary' | 'word' | 'wordNew' | 'wordEdit' | 'collections' | 'group' | 'practice' | 'review' | 'import' | 'settings';
 
@@ -64,11 +64,13 @@ export const hrefForWord = (wordId: string, groupId?: string): string =>
 export const hrefForWordEdit = (wordId: string, groupId?: string): string => `${hrefForWord(wordId, groupId)}/edit`;
 
 export function usePlace(): Place {
-  const [place, setPlace] = useState(() => placeFromHash(location.hash));
+  const [hash, setHash] = useState(() => location.hash);
   useEffect(() => {
-    const onChange = () => setPlace(placeFromHash(location.hash));
+    const onChange = () => setHash(location.hash);
     addEventListener('hashchange', onChange);
+    // The address may have changed between the first render and now, with no listener yet to hear it.
+    onChange();
     return () => removeEventListener('hashchange', onChange);
   }, []);
-  return place;
+  return useMemo(() => placeFromHash(hash), [hash]);
 }

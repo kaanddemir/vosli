@@ -1,3 +1,4 @@
+import type { LearningLanguage } from '../core/learningLanguage';
 import type { CardDirection } from '../core/practice/cards';
 import type { PracticeSettings } from '../core/practice/session';
 
@@ -8,6 +9,12 @@ const REVIEW_FLAGGED_KEY = 'vosli.review-include-flagged';
 const STUDY_KEY = 'vosli.practice-study';
 const CARD_SESSION_KEY = 'vosli.card-session';
 const TEST_SESSION_KEY = 'vosli.test-session';
+
+/**
+ * Every saved round, session and choice belongs to one learning language, so a German test can never resume in the
+ * English workspace or the other way round. German keeps the names it always had, so nothing saved before is lost.
+ */
+const keyFor = (key: string, language: LearningLanguage) => (language === 'de' ? key : `${key}.${language}`);
 
 /** A private window can refuse storage. Practice must work the same, only without remembering. */
 function read(storage: () => Storage, key: string): unknown {
@@ -29,16 +36,16 @@ function write(storage: () => Storage, key: string, value: unknown): void {
 }
 
 /** The last choices on this device. Kept out of the database, so backups stay about learning data. */
-export const readSavedSettings = (): unknown => read(() => localStorage, SETTINGS_KEY);
-export const saveSettings = (settings: PracticeSettings): void => write(() => localStorage, SETTINGS_KEY, settings);
+export const readSavedSettings = (language: LearningLanguage): unknown => read(() => localStorage, keyFor(SETTINGS_KEY, language));
+export const saveSettings = (language: LearningLanguage, settings: PracticeSettings): void => write(() => localStorage, keyFor(SETTINGS_KEY, language), settings);
 
 /** The open round, so a reload or a step away from the screen does not lose the learner's place. */
-export const readSavedSession = (): unknown => read(() => sessionStorage, SESSION_KEY);
-export const saveSession = (session: unknown): void => write(() => sessionStorage, SESSION_KEY, session);
+export const readSavedSession = (language: LearningLanguage): unknown => read(() => sessionStorage, keyFor(SESSION_KEY, language));
+export const saveSession = (language: LearningLanguage, session: unknown): void => write(() => sessionStorage, keyFor(SESSION_KEY, language), session);
 
 /** The open Smart Review session. Only the place in the list: every schedule is already on its card. */
-export const readSavedReview = (): unknown => read(() => sessionStorage, REVIEW_SESSION_KEY);
-export const saveReviewSession = (session: unknown): void => write(() => sessionStorage, REVIEW_SESSION_KEY, session);
+export const readSavedReview = (language: LearningLanguage): unknown => read(() => sessionStorage, keyFor(REVIEW_SESSION_KEY, language));
+export const saveReviewSession = (language: LearningLanguage, session: unknown): void => write(() => sessionStorage, keyFor(REVIEW_SESSION_KEY, language), session);
 
 export const readReviewIncludeFlagged = (): boolean => read(() => localStorage, REVIEW_FLAGGED_KEY) === true;
 export const saveReviewIncludeFlagged = (include: boolean): void => write(() => localStorage, REVIEW_FLAGGED_KEY, include);
@@ -51,20 +58,29 @@ export interface StudyChoice {
 }
 export const DEFAULT_STUDY: StudyChoice = { study: 'typed', direction: 'de_tr' };
 
-export function parseStudyChoice(value: unknown): StudyChoice {
+const STUDIES: readonly StudyMode[] = ['typed', 'listen', 'cards', 'test'];
+/**
+ * The ways each learning language can be studied. Both have recordings of their own, so both can be studied by ear;
+ * a language added without recordings would leave listen out here, and never resume in it.
+ */
+const STUDIES_OF: Readonly<Record<LearningLanguage, readonly StudyMode[]>> = { de: STUDIES, en: STUDIES };
+export const studiesFor = (language: LearningLanguage): readonly StudyMode[] => STUDIES_OF[language];
+
+export function parseStudyChoice(value: unknown, language: LearningLanguage = 'de'): StudyChoice {
   if (typeof value !== 'object' || value === null) return DEFAULT_STUDY;
   const { study, direction } = value as Record<string, unknown>;
-  return { study: study === 'cards' || study === 'listen' || study === 'test' ? study : 'typed', direction: direction === 'tr_de' ? 'tr_de' : 'de_tr' };
+  const known = studiesFor(language).find((option) => option === study);
+  return { study: known ?? 'typed', direction: direction === 'tr_de' ? 'tr_de' : 'de_tr' };
 }
 
 /** Kept apart from the typed settings, so a saved typed round reads exactly as before. */
-export const readStudyChoice = (): StudyChoice => parseStudyChoice(read(() => localStorage, STUDY_KEY));
-export const saveStudyChoice = (choice: StudyChoice): void => write(() => localStorage, STUDY_KEY, choice);
+export const readStudyChoice = (language: LearningLanguage): StudyChoice => parseStudyChoice(read(() => localStorage, keyFor(STUDY_KEY, language)), language);
+export const saveStudyChoice = (language: LearningLanguage, choice: StudyChoice): void => write(() => localStorage, keyFor(STUDY_KEY, language), choice);
 
 /** A card session lasts through a reload, like a typed round, and ends with the tab. */
-export const readSavedCards = (): unknown => read(() => sessionStorage, CARD_SESSION_KEY);
-export const saveCards = (session: unknown): void => write(() => sessionStorage, CARD_SESSION_KEY, session);
+export const readSavedCards = (language: LearningLanguage): unknown => read(() => sessionStorage, keyFor(CARD_SESSION_KEY, language));
+export const saveCards = (language: LearningLanguage, session: unknown): void => write(() => sessionStorage, keyFor(CARD_SESSION_KEY, language), session);
 
 /** An open test, its questions and answers so far, kept through a reload in this tab only. Never in the database. */
-export const readSavedTest = (): unknown => read(() => sessionStorage, TEST_SESSION_KEY);
-export const saveTest = (session: unknown): void => write(() => sessionStorage, TEST_SESSION_KEY, session);
+export const readSavedTest = (language: LearningLanguage): unknown => read(() => sessionStorage, keyFor(TEST_SESSION_KEY, language));
+export const saveTest = (language: LearningLanguage, session: unknown): void => write(() => sessionStorage, keyFor(TEST_SESSION_KEY, language), session);

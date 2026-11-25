@@ -1,23 +1,26 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { loadArticleColors, saveArticleColors } from '../../articleColors';
-import { exportBackupText, parseBackup, restoreBackup, type BackupError, type BackupFile } from '../../data/backup';
-import { getLastBackupAt } from '../../data/repository';
-import { resetAllData, saveResetNotice } from '../../data/reset';
-import type { TableName } from '../../data/schema';
-import { formatCount, formatDateTime } from '../../i18n/format';
+import { LEARNING_LANGUAGES, type LearningLanguage } from '../../core/learningLanguage';
+import { exportBackupText, parseBackup, restoreBackup, type BackupContents, type BackupError, type BackupFile } from '../../data/backup';
+import { countLibrary, getLastBackupAt, type LanguageCounts } from '../../data/repository';
+import { afterDataReplaced, resetAllData, saveResetNotice } from '../../data/reset';
+import { formatCount, formatDateTime, formatFileStamp } from '../../i18n/format';
 import { currentLocale, LOCALE_NAMES, LOCALE_STORAGE_KEY, LOCALES, DOCUMENT_LANG, saveLocale, savedLocale } from '../../i18n/locale';
 import { t } from '../../i18n/strings';
 import { loadThemePreference, saveThemePreference, type ThemePreference } from '../../theme';
 import { List, Row } from '../components/List';
 import { ConfirmDialog } from '../components/Modal';
+import { WorkspaceSwitcher } from '../components/WorkspaceSwitcher';
 import { Screen } from '../components/Screen';
 import { useDb } from '../dbContext';
 import { hrefFor } from '../router';
+import { useLearningLanguage } from '../workspace';
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark'];
 
 function downloadText(text: string, now: number): void {
-  const stamp = new Date(now).toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  // Local time, as the computer's clock shows it: the backup itself stores the moment in UTC (exportedAt).
+  const stamp = formatFileStamp(now);
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
@@ -34,11 +37,18 @@ function describeErrors(errors: readonly BackupError[]): string {
 
 interface Pending {
   backup: BackupFile;
-  counts: Record<TableName, number>;
+  contents: BackupContents;
+  /** What the device holds now, read when the backup was chosen. A restore replaces it whatever it is. */
+  current: LanguageCounts;
 }
+
+/** Languages whose words would all be gone: some now, none in the backup. */
+const emptiedBy = ({ contents, current }: Pending): LearningLanguage[] => LEARNING_LANGUAGES.filter((language) => current.words[language] > 0 && contents.words[language] === 0);
 
 export function SettingsScreen() {
   const db = useDb();
+  // Article colors are about der, die and das, so only a German workspace offers them. The choice is kept either way.
+  const german = useLearningLanguage() === 'de';
   const [theme, setTheme] = useState(loadThemePreference);
   const [articleColors, setArticleColors] = useState(loadArticleColors);
   const locale = currentLocale();
@@ -93,7 +103,13 @@ export function SettingsScreen() {
     const parsed = parseBackup(await file.text());
     if (parsed.ok) {
       setStatus(null);
-      setPending({ backup: parsed.backup, counts: parsed.counts });
+      try {
+        setPending({ backup: parsed.backup, contents: parsed.contents, current: await countLibrary(db) });
+      } catch (error) {
+        // Without what is on the device now there is nothing honest to compare, so nothing is offered.
+        console.warn('Could not count current data', error);
+        setStatus({ text: t.restore.failed, error: true });
+      }
     } else {
       console.warn('Backup rejected', parsed.errors);
       setStatus({ text: `${t.restore.rejected} ${describeErrors(parsed.errors)}`, error: true });
@@ -108,14 +124,19 @@ export function SettingsScreen() {
     try {
       await download();
       await restoreBackup(db, pending.backup);
-      setLastBackup(await getLastBackupAt(db));
-      setStatus({ text: t.restore.done, error: false });
     } catch {
       setStatus({ text: t.restore.failed, error: true });
+      restoreInProgress.current = false;
+      setRestoring(false);
+      setPending(null);
+      return;
     }
-    restoreInProgress.current = false;
-    setRestoring(false);
-    setPending(null);
+    // Every screen, saved session and other tab was built on the data just replaced, so all of them start over,
+    // as after a reset. The dialog stays busy until the reload; Home then says the backup was restored.
+    afterDataReplaced();
+    saveResetNotice('restored');
+    history.replaceState(null, '', hrefFor('home'));
+    location.reload();
   };
 
   const onConfirmReset = async () => {
@@ -166,6 +187,7 @@ export function SettingsScreen() {
             </fieldset>
           </div>
         </li>
+        <WorkspaceSwitcher />
       </List>
 
       <List label={t.settings.appearance}>
@@ -191,29 +213,31 @@ export function SettingsScreen() {
             </fieldset>
           </div>
         </li>
-        <li class="list-item">
-          <label class="row switch-row">
-            <span class="row-text">
-              <span class="row-title">{t.settings.articleColors}</span>
-              {/* A live sample, so the choice shows what it does before leaving Settings. */}
-              <span class="row-detail" lang="de" aria-hidden="true">
-                <span class="article-der">der</span>{' · '}<span class="article-die">die</span>{' · '}<span class="article-das">das</span>
+        {german && (
+          <li class="list-item">
+            <label class="row switch-row">
+              <span class="row-text">
+                <span class="row-title">{t.settings.articleColors}</span>
+                {/* A live sample, so the choice shows what it does before leaving Settings. */}
+                <span class="row-detail" lang="de" aria-hidden="true">
+                  <span class="article-der">der</span>{' · '}<span class="article-die">die</span>{' · '}<span class="article-das">das</span>
+                </span>
               </span>
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              class="switch"
-              checked={articleColors}
-              data-testid="article-colors"
-              onChange={(event) => {
-                const on = event.currentTarget.checked;
-                setArticleColors(on);
-                saveArticleColors(on);
-              }}
-            />
-          </label>
-        </li>
+              <input
+                type="checkbox"
+                role="switch"
+                class="switch"
+                checked={articleColors}
+                data-testid="article-colors"
+                onChange={(event) => {
+                  const on = event.currentTarget.checked;
+                  setArticleColors(on);
+                  saveArticleColors(on);
+                }}
+              />
+            </label>
+          </li>
+        )}
       </List>
 
       <List
@@ -230,11 +254,14 @@ export function SettingsScreen() {
         <Row action icon="trash" title={t.settings.reset} onClick={() => setResetDialog(true)} />
       </List>
 
+      {/* The same two rows in both workspaces. Both come from the same German Wiktionary dump: for German, the
+          dictionary that checks words and the recording each one plays; for English, which has no dictionary, only
+          the recording list. The recordings themselves are on Wikimedia Commons, under their own licenses. */}
       <List label={t.settings.sources}>
         <li class="list-item">
           <div class="row source-credit">
             <span class="row-text">
-              <span class="row-title">{t.settings.dictionaryData}</span>
+              <span class="row-title">{german ? t.settings.dictionaryData : t.settings.recordingList}</span>
               <span class="row-detail">
                 <a href="https://de.wiktionary.org/" target="_blank" rel="noopener noreferrer">{t.settings.dictionarySource}</a>
                 {' · '}
@@ -261,6 +288,7 @@ export function SettingsScreen() {
       <dialog
         ref={dialog}
         aria-labelledby="restore-title"
+        aria-describedby="restore-replaces"
         onCancel={(event) => restoring && event.preventDefault()}
         onClose={() => {
           // The close event arrives later. If the app closed the dialog, another file may
@@ -279,16 +307,42 @@ export function SettingsScreen() {
             <dl class="summary">
               <dt class="muted">{t.restore.from}</dt>
               <dd>{formatDateTime(pending.backup.exportedAt)}</dd>
-              <dt class="muted">{t.restore.words}</dt>
-              <dd>{formatCount(pending.counts.words)}</dd>
-              <dt class="muted">{t.restore.cards}</dt>
-              <dd>{formatCount(pending.counts.cards)}</dd>
-              <dt class="muted">{t.restore.logs}</dt>
-              <dd>{formatCount(pending.counts.reviewLogs)}</dd>
-              <dt class="muted">{t.restore.groups}</dt>
-              <dd>{formatCount(pending.counts.groups)}</dd>
             </dl>
-            <p class="dialog-warning">{t.restore.warning}</p>
+            <div class="restore-compare-box">
+            {/* Explicit roles, so the table stays a table to assistive technology when a narrow screen stacks it. */}
+            <table class="restore-compare" role="table" data-testid="restore-compare">
+              <caption class="visually-hidden">{t.restore.compare}</caption>
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">{t.restore.data}</th>
+                  <th scope="col" role="columnheader">{t.restore.current}</th>
+                  <th scope="col" role="columnheader">{t.restore.backup}</th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
+                {(
+                  [
+                    [t.restore.germanWords, pending.current.words.de, pending.contents.words.de],
+                    [t.restore.englishWords, pending.current.words.en, pending.contents.words.en],
+                    [t.restore.groups, pending.current.groups, pending.contents.groups],
+                    [t.restore.logs, pending.current.reviewLogs, pending.contents.reviewLogs],
+                  ] as const
+                ).map(([label, now, after]) => (
+                  <tr key={label} role="row">
+                    <th scope="row" role="rowheader">{label}</th>
+                    <td role="cell" data-label={t.restore.current}>{formatCount(now)}</td>
+                    <td role="cell" data-label={t.restore.backup}>{formatCount(after)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+            <p class="dialog-warning" id="restore-replaces">{t.restore.replaces}</p>
+            <p class="dialog-warning" data-testid="restore-continue">{t.lang[pending.contents.learningLanguage].continueIn}</p>
+            {emptiedBy(pending).map((language) => (
+              <p key={language} class="dialog-warning status-error" data-testid="restore-removed">{t.restore.removed(pending.current.words[language], language)}</p>
+            ))}
+            <p class="dialog-warning muted">{t.restore.safetyCopy}</p>
             <div class="btn-row">
               <button type="button" class="btn" disabled={restoring} onClick={() => setPending(null)}>{t.common.cancel}</button>
               <button type="button" class="btn btn-primary" disabled={restoring} onClick={onConfirmRestore}>{t.restore.confirm}</button>

@@ -3,34 +3,34 @@
  * Builds the offline dictionary from the German Wiktionary, as extracted by Wiktextract/Kaikki.
  * Input is never committed: https://kaikki.org/dewiktionary/raw-wiktextract-data.jsonl.gz
  *
- *   node scripts/build-dictionary.mjs <raw.jsonl.gz> public/dictionary
+ *   node scripts/build-dictionary.mjs <raw.jsonl.gz> public
  *
- * After a new dump, update its date in public/dictionary/LICENSE.txt and in both READMEs.
+ * After a new dump, update its date in public/dictionary/de/LICENSE.txt, public/pronunciation/de/LICENSE.txt
+ * and both READMEs.
  *
- * Output is sorted text files, read by src/core/dictionary.ts with a binary search:
- *   lemmas.txt         word TAB tags        every entry in its dictionary form
- *   forms.txt          form TAB lemma|^lemma  inflected forms; ^ marks a nominative plural
- *   audio-credits.txt  the authors and licenses the pronunciation tags in lemmas.txt point to
+ * Output is sorted text files under the given public folder, read by src/core/dictionary.ts with a binary search:
+ *   dictionary/de/lemmas.txt        word TAB tags          every entry in its dictionary form
+ *   dictionary/de/forms.txt         form TAB lemma|^lemma  inflected forms; ^ marks a nominative plural
+ *   pronunciation/de/credits.txt    the authors and licenses the pronunciation tags in lemmas.txt point to
  * Tags are explained in src/core/dictionary.ts and scripts/dictionary-audio.mjs. Sorting is by UTF-16 code unit, as in JavaScript.
  *
  * Pronunciation recordings are used only once Wikimedia Commons has confirmed them, as recorded in
- * scripts/data/commons-audio.tsv. This script never goes online: `npm run audio:sync -- <raw.jsonl.gz>`
+ * scripts/data/commons-audio-de.tsv. This script never goes online: `npm run audio:sync -- <raw.jsonl.gz>`
  * checks new recordings first.
  */
 import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { createGunzip } from 'node:zlib';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { audioEntry, audioTags, chooseAudio, clean, creditsText, creditTables, FORM_TITLES, isClean, parseCache, POS } from './dictionary-audio.mjs';
+import { join } from 'node:path';
+import { audioEntry, audioTags, chooseAudio, clean, commonsCachePath, creditsText, creditTables, FORM_TITLES, isClean, parseCache, POS } from './dictionary-audio.mjs';
 
 const [source, target] = process.argv.slice(2);
-if (!source || !target) throw new Error('Usage: build-dictionary.mjs <raw.jsonl.gz> <output folder>');
+if (!source || !target) throw new Error('Usage: build-dictionary.mjs <raw.jsonl.gz> <public folder>');
 
 const GENDER = { masculine: 'm', feminine: 'f', neuter: 'n' };
 /** A sense with one of these is not what a learner meets. A gender only they use is marked rare. */
 const RARE = new Set(['archaic', 'obsolete', 'dated', 'derogatory', 'regional', 'dialectal', 'historical', 'rare', 'poetic', 'vulgar']);
-const CACHE = join(dirname(fileURLToPath(import.meta.url)), 'data', 'commons-audio.tsv');
+const CACHE = commonsCachePath('de');
 if (!existsSync(CACHE)) throw new Error(`No Commons checks at ${CACHE}. Run npm run audio:sync -- <raw.jsonl.gz> first.`);
 const commons = parseCache(readFileSync(CACHE, 'utf8'));
 
@@ -184,10 +184,13 @@ for (const [form, links] of forms) {
 }
 formLines.sort(byCodeUnit);
 
-mkdirSync(target, { recursive: true });
-writeFileSync(join(target, 'lemmas.txt'), `${lemmaLines.join('\n')}\n`);
-writeFileSync(join(target, 'forms.txt'), `${formLines.join('\n')}\n`);
-writeFileSync(join(target, 'audio-credits.txt'), creditsText(credits));
+const dictionaryDir = join(target, 'dictionary', 'de');
+const pronunciationDir = join(target, 'pronunciation', 'de');
+mkdirSync(dictionaryDir, { recursive: true });
+mkdirSync(pronunciationDir, { recursive: true });
+writeFileSync(join(dictionaryDir, 'lemmas.txt'), `${lemmaLines.join('\n')}\n`);
+writeFileSync(join(dictionaryDir, 'forms.txt'), `${formLines.join('\n')}\n`);
+writeFileSync(join(pronunciationDir, 'credits.txt'), creditsText(credits));
 console.log(JSON.stringify({ ...stats, lemmas: lemmaLines.length, forms: formLines.length, audio: { words: audioStats.words, ambiguous: audioStats.ambiguous, authors: credits.authors.length, licenses: credits.licenses.length } }));
 // Not an error: these wait for a Commons check, and until then they have no recording rather than an unchecked one.
 if (audioStats.pendingWords) console.warn(`${audioStats.pendingWords} words have recordings Commons has not confirmed yet (${audioStats.pendingFiles.size} files). They stay silent until npm run audio:sync -- <raw.jsonl.gz> checks them.`);

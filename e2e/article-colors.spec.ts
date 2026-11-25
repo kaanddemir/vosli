@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 type Article = 'der' | 'die' | 'das';
@@ -21,7 +22,7 @@ async function seed(page: Page) {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const tx = request.result.transaction('words', 'readwrite');
-          for (const item of records) tx.objectStore('words').put(item);
+          for (const item of records) tx.objectStore('words').put(Object.assign({ language: 'de' }, item));
           tx.oncomplete = () => {
             request.result.close();
             resolve();

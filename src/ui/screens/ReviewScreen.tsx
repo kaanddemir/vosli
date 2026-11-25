@@ -19,6 +19,7 @@ import { useDb } from '../dbContext';
 import { readReviewIncludeFlagged, readSavedReview, saveReviewIncludeFlagged, saveReviewSession } from '../practiceStorage';
 import { hrefFor } from '../router';
 import { useLoad } from '../useLoad';
+import { useLearningLanguage } from '../workspace';
 
 
 const goHome = () => {
@@ -37,6 +38,7 @@ interface Shown {
  */
 export function ReviewScreen() {
   const db = useDb();
+  const language = useLearningLanguage();
   const [session, setSessionState] = useState<ReviewSession | null>(null);
   const [shown, setShown] = useState<Shown | null>(null);
   const [includeFlagged, setIncludeFlagged] = useState(readReviewIncludeFlagged);
@@ -50,8 +52,8 @@ export function ReviewScreen() {
   const setSession = useCallback((next: ReviewSession | null) => {
     sessionRef.current = next;
     setSessionState(next);
-    saveReviewSession(next);
-  }, []);
+    saveReviewSession(language, next);
+  }, [language]);
 
   const show = useCallback((next: Shown | null) => {
     shownRef.current = next;
@@ -60,11 +62,12 @@ export function ReviewScreen() {
 
   const readData = useCallback(async () => {
     // Waits for the dictionary, because a disputed article must not be asked as fact. It gives up by itself if it cannot load.
-    const latest = await loadReviewData(db, await loadValidator());
+    // The dictionary is German: another language neither waits for it nor loads it.
+    const latest = await loadReviewData(db, language === 'de' ? await loadValidator() : null, language);
     dataRef.current = latest;
     setData(latest);
     return latest;
-  }, [db]);
+  }, [db, language]);
 
   /**
    * Finds the next question that can still honestly be asked, checking each card against the database
@@ -116,7 +119,7 @@ export function ReviewScreen() {
 
   const { state, reload } = useLoad(async () => {
     const latest = await readData();
-    const restored = reviveReviewSession(readSavedReview());
+    const restored = reviveReviewSession(readSavedReview(language));
     if (restored) await settle(restored);
     // Warnings are the one thing to decide before starting. With none open, the question comes straight away.
     else if (flaggedWaiting(latest, Date.now()).length === 0) await begin(includeFlagged, latest);
@@ -300,6 +303,7 @@ export function ReviewScreen() {
  * itself while the learner is reading. A background tab's timer can run late, so coming back checks too.
  */
 function Finished({ session, data, onContinue, onClose }: { session: ReviewSession; data: ReviewData; onContinue: () => void; onClose: () => void }) {
+  const language = useLearningLanguage();
   const [now, setNow] = useState(() => Date.now());
   const waiting = waitingCards(data, session.includeFlagged, now);
   useEffect(() => {
@@ -316,9 +320,9 @@ function Finished({ session, data, onContinue, onClose }: { session: ReviewSessi
   useEffect(
     () => () => {
       // Continuing has already saved the next session, which must stay.
-      if (over && (readSavedReview() as { id?: unknown } | null)?.id === session.id) saveReviewSession(null);
+      if (over && (readSavedReview(language) as { id?: unknown } | null)?.id === session.id) saveReviewSession(language, null);
     },
-    [session.id, over],
+    [session.id, over, language],
   );
   const plan = planFrom(data, session.includeFlagged, now);
   const more = plan.due.length + plan.fresh.length;

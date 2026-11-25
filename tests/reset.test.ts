@@ -1,7 +1,9 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { openDatabase, type AppDatabase } from '../src/data/db';
-import { resetAllData } from '../src/data/reset';
+import { readOnboarding } from '../src/data/learningMeta';
+import { afterDataReplaced, resetAllData, saveResetNotice, takeResetNotice } from '../src/data/reset';
+import { SCHEMA_VERSION } from '../src/data/schema';
 import { uniqueDbName } from './support/fixtures';
 import { seedLibrary } from './support/seed';
 
@@ -75,5 +77,53 @@ describe('resetting all data', () => {
     session.setItem('vosli.locale', 'de');
     await resetAllData(db, ['vosli.locale']);
     expect(session.entries()).toEqual({});
+  });
+});
+
+describe('a fresh start and the learning language', () => {
+  test('a reset removes both workspaces, the learning language and the first-start record, keeping the interface language, so the welcome returns', async () => {
+    const name = db.name;
+    await db.meta.bulkPut([
+      { key: 'learningLanguage', value: 'en' },
+      { key: 'onboarding', value: { via: 'legacy', at: 1 } },
+    ]);
+    local.setItem('vosli.locale', 'de');
+    await resetAllData(db, ['vosli.locale']);
+    expect(await db.meta.toArray()).toEqual([{ key: 'schemaVersion', value: SCHEMA_VERSION }]);
+    expect(await db.words.count()).toBe(0);
+    expect(local.getItem('vosli.locale')).toBe('de');
+    db.close();
+    db = await openDatabase({ name });
+    expect(await readOnboarding(db)).toBeNull();
+  });
+});
+
+describe('after a restored backup', () => {
+  test('clears every saved session in this tab, keeps settings, and tells the other tabs', () => {
+    const sent: unknown[] = [];
+    class Channel {
+      constructor(readonly name: string) {}
+      postMessage(message: unknown) {
+        sent.push([this.name, message]);
+      }
+      close() {}
+    }
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'BroadcastChannel');
+    Object.defineProperty(globalThis, 'BroadcastChannel', { value: Channel, configurable: true, writable: true });
+    try {
+      for (const key of ['vosli.practice-session', 'vosli.card-session', 'vosli.test-session']) session.setItem(key, '{}');
+      local.setItem('vosli.locale', 'tr');
+      afterDataReplaced();
+      expect(session.entries()).toEqual({});
+      expect(local.entries()).toMatchObject({ 'vosli.locale': 'tr', 'vosli.theme': 'dark', 'other-app.key': 'keep' });
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toEqual(['vosli.reset', expect.any(String)]);
+      saveResetNotice('restored');
+      expect(takeResetNotice()).toBe('restored');
+      expect(takeResetNotice()).toBeNull();
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'BroadcastChannel', original);
+      else Reflect.deleteProperty(globalThis, 'BroadcastChannel');
+    }
   });
 });

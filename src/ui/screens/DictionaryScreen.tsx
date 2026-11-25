@@ -14,13 +14,15 @@ import { useDb } from '../dbContext';
 import { loadDictionaryView, saveDictionaryView, type DictionaryView } from '../dictionaryView';
 import { hrefFor, hrefForNewWord } from '../router';
 import { useLoad } from '../useLoad';
+import { useLearningLanguage } from '../workspace';
 
 type Filter = 'all' | 'favorites';
 const FILTERS: readonly Filter[] = ['all', 'favorites'];
 
 export function DictionaryScreen() {
   const db = useDb();
-  const { state, reload } = useLoad(() => listActiveWords(db), [db]);
+  const language = useLearningLanguage();
+  const { state, reload } = useLoad(() => listActiveWords(db, language), [db, language]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const input = useRef<HTMLInputElement>(null);
@@ -97,8 +99,8 @@ export function DictionaryScreen() {
             type="button"
             class="btn btn-small btn-square btn-toggle"
             aria-pressed={view.direction === 'tr_de'}
-            aria-label={t.dictionary.direction}
-            title={t.dictionary.direction}
+            aria-label={t.lang[language].meaningFirst}
+            title={t.lang[language].meaningFirst}
             data-testid="dictionary-direction"
             onClick={() => changeView({ direction: view.direction === 'tr_de' ? 'de_tr' : 'tr_de' })}
           >
@@ -145,7 +147,7 @@ export function DictionaryScreen() {
           class="search-input"
           type="search"
           value={query}
-          placeholder={t.dictionary.search}
+          placeholder={t.lang[language].search}
           enterkeyhint="search"
           autocomplete="off"
           autocapitalize="off"

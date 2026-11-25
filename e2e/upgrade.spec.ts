@@ -1,7 +1,8 @@
 import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const DIST = join(process.cwd(), 'dist');
@@ -50,7 +51,7 @@ const store = (page: Page) =>
         request.onsuccess = () => {
           const db = request.result;
           const tx = db.transaction(Object.keys(data), 'readwrite');
-          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(row);
+          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(['words', 'groups', 'sources'].includes(name) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             db.close();
             resolve();
@@ -122,7 +123,7 @@ test('a new version waits for the learner, then keeps every record and stays off
 
     expect(await everyTable(page)).toEqual(before);
     expect(await page.evaluate(() => localStorage.getItem('vosli.theme'))).toBe('dark');
-    const cached = await page.evaluate(async () => Boolean(await caches.match('dictionary/lemmas.txt', { ignoreSearch: true })) || (await Promise.all((await caches.keys()).map(async (key) => (await (await caches.open(key)).keys()).some((entry) => entry.url.includes('dictionary/lemmas.txt'))))).some(Boolean));
+    const cached = await page.evaluate(async () => Boolean(await caches.match('dictionary/de/lemmas.txt', { ignoreSearch: true })) || (await Promise.all((await caches.keys()).map(async (key) => (await (await caches.open(key)).keys()).some((entry) => entry.url.includes('dictionary/de/lemmas.txt'))))).some(Boolean));
     expect(cached).toBe(true);
 
     await context.setOffline(true);

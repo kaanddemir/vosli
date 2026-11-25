@@ -1,0 +1,167 @@
+L	0	CC BY-SA 3.0	https://creativecommons.org/licenses/by-sa/3.0/
+L	1	CC BY-SA 4.0	https://creativecommons.org/licenses/by-sa/4.0/
+L	2	CC0	https://creativecommons.org/publicdomain/zero/1.0/
+L	3	Public domain	
+L	4	CC BY 3.0 us	https://creativecommons.org/licenses/by/3.0/us/
+L	5	CC BY 3.0	https://creativecommons.org/licenses/by/3.0/
+L	6	CC BY 2.5	https://creativecommons.org/licenses/by/2.5/
+L	7	FAL	
+L	8	CC BY 3.0 ee	https://creativecommons.org/licenses/by/3.0/ee/
+L	9	CC BY 4.0	https://creativecommons.org/licenses/by/4.0/
+L	10	CC BY-SA 2.5 pl	https://creativecommons.org/licenses/by-sa/2.5/pl/
+A	0	Dvortygirl
+A	1	Speaker: Vealhurl Recorder: Vealhurl
+A	2	Neskaya
+A	3	Speaker: Wodencafe Recorder: Wodencafe
+A	4	Speaker: Vininn126 Recorder: Vininn126
+A	5	Sylvanmoon
+A	6	EncycloPetey
+A	7	Paul2520
+A	8	TreeMama
+A	9	Steve Shives
+A	10	BirdHopper
+A	11	Muke
+A	12	DroEsperanto
+A	13	Association Shtooka, Judith Franck
+A	14	Celestianpower
+A	15	TheDaveRoss
+A	16	Dvortybot
+A	17	Persent101
+A	18	Mx. Granger
+A	19	Speaker: I learned some phrases Recorder: I learned some phrases
+A	20	recorded by Dvortygirl
+A	21	The New Mikemoral ♪♫
+A	22	Mike moral ♪♫
+A	23	TaxRebate
+A	24	Tomhannen
+A	25	தகவலுழவன்
+A	26	Gbeebani
+A	27	Mikemoral
+A	28	Speaker: Arlo Barnes Recorder: Arlo Barnes
+A	29	Whomping Walrus
+A	30	0x0077BE
+A	31	Doughaque
+A	32	LegionMammal978
+A	33	Romanophile
+A	34	Adam470
+A	35	Jcwf
+A	36	Jelkner
+A	37	Koavf
+A	38	Mahagaja
+A	39	Mountainmage
+A	40	Andrew Marsden
+A	41	Baymiwuk
+A	42	Blurpeace
+A	43	Dangherous~commonswiki
+A	44	Neoglitch
+A	45	SneverdleSnavis
+A	46	Speaker: Flame, not lame Recorder: Flame, not lame
+A	47	The Voice of Hassocks
+A	48	User:Xonique
+A	49	Anonymous101
+A	50	Connel MacKenzie
+A	51	DAVilla
+A	52	Fête
+A	53	Gabriel Sjöberg
+A	54	I learned some phrases .
+A	55	Speaker: Flame, not lame Recorder: Flame
+A	56	Speaker: Naomi Persephone Amethyst Recorder: NaomiAmethyst
+A	57	The New Mikemoral ♪♫ 05:01, 18 November 2009 (UTC)
+A	58	Tom Morris
+A	59	ArtyUK
+A	60	Chris Melville
+A	61	D3VIL
+A	62	Evenstarx
+A	63	FreeMediaKid!
+A	64	Jmglov
+A	65	K schadd
+A	66	Leftmostcat
+A	67	Pariah24
+A	68	PyroGamer
+A	69	Ruakh
+A	70	Ruan123
+A	71	Spacecat2
+A	72	Speaker: Back ache Recorder: Back ache
+A	73	Speaker: Grendelkhan Recorder: Grendelkhan
+A	74	Speaker: Mélange a trois Recorder: Mélange a trois
+A	75	Speaker: Neøn Recorder: Neøn
+A	76	Speaker: VCcortex Recorder: VCcortex
+A	77	Whoop whoop pull up
+A	78	Xnux
+A	79	Yerich
+A	80	user:Dvortygirl
+A	81	A.C. Norman
+A	82	ATMarsden
+A	83	Ajfweb
+A	84	Alex Dunkel ( Maky )
+A	85	Andrevan
+A	86	Ash Phillips
+A	87	Baryonic Being~commonswiki
+A	88	Benjamander~commonswiki
+A	89	Blcumike
+A	90	Bosola~commonswiki Jimmy Breck-McKye
+A	91	Brett
+A	92	Caesura
+A	93	Cannona
+A	94	Davumaya
+A	95	Dclaguna
+A	96	Dcoetzee
+A	97	Dean14~commonswiki
+A	98	Derbeth
+A	99	Diverine
+A	100	Dominic
+A	101	Drjezza .
+A	102	Dsm.wiki
+A	103	Dvortygirl , revised by EncycloPetey to remove static
+A	104	Epolk
+A	105	FlyingJayX
+A	106	Gam3
+A	107	Gibraltar Rocks
+A	108	Haplology
+A	109	Harris Morgan
+A	110	Holek ( talk · contribs )
+A	111	Irønie .
+A	112	Jonathan Hearn
+A	113	Joselito
+A	114	MattJ
+A	115	McZusatz
+A	116	Mmann1988
+A	117	Muke Tever
+A	118	Nesnad
+A	119	Nova Frye
+A	120	OR AlexMC
+A	121	Pendethan
+A	122	Pschemp
+A	123	Renamed user KdYpUvMgT
+A	124	Rubikfreak~commonswiki
+A	125	SalomeCzapiewski
+A	126	Schneelocke
+A	127	Skysong263
+A	128	Speaker: Persent101 Recorder: Persent101
+A	129	Speaker: Pink Bee Recorder: Pink Bee
+A	130	Speaker: Simplificationalizer Recorder: Simplificationalizer
+A	131	Speaker: StalJosA Recorder: StalJosA
+A	132	Speaker: The Editor's Apprentice Recorder: The Editor's Apprentice
+A	133	Speaker: TurtleMedicine Recorder: TurtleMedicine
+A	134	Speaker: Usmaan Recorder: Middle river exports
+A	135	Speaker: عُثمان Recorder: Middle river exports
+A	136	Switchercat
+A	137	Tharthan
+A	138	The New Mikemoral
+A	139	Travailen
+A	140	Troll Control
+A	141	Twocs
+A	142	Unjourparfait
+A	143	Well, girl, look at you!
+A	144	Whitecane17
+A	145	Xonique
+A	146	Yuri Ribeiro Sucupira
+A	147	ZooFari
+A	148	mikemoral
+A	149	recorded by TheDaveRoss
+A	150	stalker of Amanda T and Amanda found out Dvortygirl
+A	151	theleekycauldron
+A	152	unjourparfait
+A	153	yuumei
+A	154	Æ&Œ
+A	155	த*உழவன்

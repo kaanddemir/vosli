@@ -5,6 +5,7 @@ import { t } from '../../i18n/strings';
 import { Icon } from './Icon';
 import { PracticeView } from './PracticeView';
 import { GermanWord } from './WordList';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 const KEYS = ['A', 'B', 'C', 'D'] as const;
 
@@ -31,6 +32,7 @@ interface TestStepProps {
  * was right, with the right option marked. Nothing names the right option before that.
  */
 export function TestStep({ question, stepKey, at, total, answered, last, onPick, onBlank, onNext, onClose }: TestStepProps) {
+  const language = useLearningLanguage();
   const [choice, setChoice] = useState<{ key: string; option: number } | null>(null);
   const selected = choice?.key === stepKey ? choice.option : null;
   const first = useRef<HTMLInputElement>(null);
@@ -64,8 +66,8 @@ export function TestStep({ question, stepKey, at, total, answered, last, onPick,
     if (shown) onNext(at);
   };
 
-  const cue = t.practice.cue[question.kind];
-  const optionLang = question.kind === 'de_tr' ? 'tr' : 'de';
+  const cue = question.kind === 'article' ? t.practice.cue.article : t.lang[language].cue[question.kind];
+  const optionLang = question.kind === 'de_tr' ? meaningLang(language) : language;
   const right = question.options[question.correct]!;
   const verdict = answered === null ? null : answered === 'blank' ? { kind: 'revealed', title: t.practice.test.blanked } : answered === question.correct ? { kind: 'correct', title: t.practice.correct } : { kind: 'wrong', title: t.practice.wrong };
   const spoken = verdict
@@ -121,7 +123,7 @@ export function TestStep({ question, stepKey, at, total, answered, last, onPick,
       total={total}
       cue={cue}
       question={question.prompt}
-      questionLang={question.kind === 'tr_de' ? 'tr' : 'de'}
+      questionLang={question.kind === 'tr_de' ? meaningLang(language) : language}
       {...(question.detail ? { detail: question.detail } : {})}
       answerArea={options}
       announcement={spoken}

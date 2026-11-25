@@ -17,7 +17,7 @@ export default defineConfig({
       manifest: {
         name: 'Vosli',
         short_name: 'Vosli',
-        description: 'Learn German vocabulary with Vosli: add your own words, practice them and review them at the right time.',
+        description: 'Learn German or English vocabulary with Vosli: add your own words, practice them and review them at the right time.',
         lang: 'en',
         id: './',
         start_url: '.',

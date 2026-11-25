@@ -15,12 +15,14 @@ import { GermanWord, wordLabel } from '../components/WordList';
 import { useDb } from '../dbContext';
 import { hrefFor, hrefForGroup, hrefForWordEdit } from '../router';
 import { useLoad } from '../useLoad';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 function ListsDialog({ word, groups, onClose, onSaved }: { word: Word; groups: readonly Group[]; onClose: () => void; onSaved: () => void }) {
   const db = useDb();
+  const language = useLearningLanguage();
   const customIds = groups.filter((group) => group.kind === 'custom').map((group) => group.id);
   const [selected, setSelected] = useState(new Set(customIds));
-  const { state, reload } = useLoad(() => listCustomGroups(db), [db]);
+  const { state, reload } = useLoad(() => listCustomGroups(db, language), [db, language]);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<GroupNameProblem | null>(null);
   const [failed, setFailed] = useState(false);
@@ -28,7 +30,7 @@ function ListsDialog({ word, groups, onClose, onSaved }: { word: Word; groups: r
 
   const createList = async () => {
     try {
-      const group = await createCustomGroup(db, name, Date.now());
+      const group = await createCustomGroup(db, name, Date.now(), language);
       setName('');
       setNameError(null);
       await reload();
@@ -87,17 +89,18 @@ function ListsDialog({ word, groups, onClose, onSaved }: { word: Word; groups: r
 
 export function WordScreen({ wordId, groupId }: { wordId: string; groupId?: string | undefined }) {
   const db = useDb();
+  const language = useLearningLanguage();
   const [dialog, setDialog] = useState<'delete' | 'lists' | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const back = groupId ? { href: hrefForGroup(groupId), label: t.nav.collections } : { href: hrefFor('dictionary'), label: t.nav.dictionary };
 
   const { state, reload } = useLoad(async () => {
-    const word = await getActiveWord(db, wordId);
+    const word = await getActiveWord(db, wordId, language);
     if (!word) return null;
     const [groups, origins] = await Promise.all([listGroupsOfWord(db, wordId), listOriginsOfWord(db, wordId)]);
     return { word, groups, origins };
-  }, [db, wordId]);
+  }, [db, wordId, language]);
 
   if (state.status === 'loading') return <Screen title={null} back={back} />;
   if (state.status === 'error') return <Screen title={t.nav.dictionary} back={back}><LoadError onRetry={() => void reload()} /></Screen>;
@@ -142,16 +145,16 @@ export function WordScreen({ wordId, groupId }: { wordId: string; groupId?: stri
   );
 
   return (
-    <Screen title={<GermanWord word={word} quiet={false} />} titleLang="de" eyebrow={t.dictionary.pos[word.pos] || undefined} back={back} actions={actions}>
+    <Screen title={<GermanWord word={word} quiet={false} />} titleLang={language} eyebrow={t.dictionary.pos[word.pos] || undefined} back={back} actions={actions}>
       {failed && dialog === null && <p class="status-error" role="alert">{t.common.saveFailed}</p>}
       <List label={t.dictionary.meanings}>
         {word.meanings.map((meaning, index) => (
-          <Row key={index} lang="tr" title={meaning.text} detail={meaning.note ?? undefined} />
+          <Row key={index} lang={meaningLang(language)} title={meaning.text} detail={meaning.note ?? undefined} />
         ))}
       </List>
       {word.plural && (
         <List>
-          <Row title={t.dictionary.plural} value={<span lang="de">{word.plural}</span>} />
+          <Row title={t.dictionary.plural} value={<span lang={language}>{word.plural}</span>} />
         </List>
       )}
       <List label={t.nav.collections}>

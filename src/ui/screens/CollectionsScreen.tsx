@@ -18,6 +18,7 @@ import { WordList } from '../components/WordList';
 import { useDb } from '../dbContext';
 import { hrefFor, hrefForGroup, hrefForNewWord } from '../router';
 import { useLoad } from '../useLoad';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 const KINDS: readonly GroupKind[] = ['pdf', 'lesson', 'custom'];
 
@@ -84,7 +85,8 @@ function NameDialog({ title, label, initial, takenMessage = t.collections.nameEr
 
 export function CollectionsScreen() {
   const db = useDb();
-  const { state, reload } = useLoad(() => listGroupSummaries(db), [db]);
+  const language = useLearningLanguage();
+  const { state, reload } = useLoad(() => listGroupSummaries(db, language), [db, language]);
   const [creating, setCreating] = useState(false);
   const groups = state.status === 'ready' ? state.data : null;
   const [selected, setSelected] = useState<ReadonlySet<string> | null>(null);
@@ -189,7 +191,7 @@ export function CollectionsScreen() {
           initial=""
           onClose={() => setCreating(false)}
           onSubmit={async (name) => {
-            const group = await createCustomGroup(db, name, Date.now());
+            const group = await createCustomGroup(db, name, Date.now(), language);
             location.hash = hrefForGroup(group.id);
           }}
         />
@@ -201,11 +203,12 @@ export function CollectionsScreen() {
 /** Chooses words to add to a list. Words already in it are not offered. */
 function WordPicker({ group, onClose, onAdded }: { group: Group; onClose: () => void; onAdded: () => void }) {
   const db = useDb();
+  const language = useLearningLanguage();
   const { state, reload } = useLoad(async () => {
-    const [words, inGroup] = await Promise.all([listActiveWords(db), listGroupWordIds(db, group.id)]);
+    const [words, inGroup] = await Promise.all([listActiveWords(db, language), listGroupWordIds(db, group.id)]);
     const present = new Set(inGroup);
     return words.filter((word) => !present.has(word.id));
-  }, [db, group.id]);
+  }, [db, group.id, language]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [shown, setShown] = useState(100);
@@ -249,7 +252,7 @@ function WordPicker({ group, onClose, onAdded }: { group: Group; onClose: () => 
               class="search-input"
               type="search"
               value={query}
-              placeholder={t.dictionary.search}
+              placeholder={t.lang[language].search}
               enterkeyhint="search"
               autocomplete="off"
               autocapitalize="off"
@@ -269,8 +272,8 @@ function WordPicker({ group, onClose, onAdded }: { group: Group; onClose: () => 
                   <label class="check-row">
                     <input type="checkbox" checked={selected.has(word.id)} onChange={(event) => toggle(word, event.currentTarget.checked)} />
                     <span class="row-text">
-                      <span class="row-title" lang="de"><GermanWord word={word} /></span>
-                      <span class="row-detail" lang="tr">{meaningsOf(word)}</span>
+                      <span class="row-title" lang={language}><GermanWord word={word} /></span>
+                      <span class="row-detail" lang={meaningLang(language)}>{meaningsOf(word)}</span>
                     </span>
                   </label>
                 </li>
@@ -303,7 +306,8 @@ type GroupDialog = 'add' | 'rename' | 'delete' | null;
  */
 export function GroupScreen({ groupId }: { groupId: string }) {
   const db = useDb();
-  const { state, reload } = useLoad(() => getGroupWithWords(db, groupId), [db, groupId]);
+  const language = useLearningLanguage();
+  const { state, reload } = useLoad(() => getGroupWithWords(db, groupId, language), [db, groupId, language]);
   const [dialog, setDialog] = useState<GroupDialog>(null);
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null);
   const [removed, setRemoved] = useState<{ members: GroupMember[]; label: string } | null>(null);

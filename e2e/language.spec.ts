@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { de } from '../src/i18n/de';
 import { en } from '../src/i18n/en';
 import { LOCALE_NAMES, type Locale } from '../src/i18n/locale';
@@ -21,7 +22,7 @@ const LOCALE_KEY = 'vosli.locale';
 const DAY = 86_400_000;
 const PAST = 1_700_000_000_000;
 
-const word = (id: string, lemma: string, article: string | null, meanings: string[], extra: Record<string, unknown> = {}) => ({ id, identityKey: `${lemma}|${article ?? ''}`, lemma, article, pos: article ? 'noun' : 'other', plural: null, meanings: meanings.map((text) => ({ text, note: null })), senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null, ...extra });
+const word = (id: string, lemma: string, article: string | null, meanings: string[], extra: Record<string, unknown> = {}) => ({ id, language: 'de', identityKey: `${lemma}|${article ?? ''}`, lemma, article, pos: article ? 'noun' : 'other', plural: null, meanings: meanings.map((text) => ({ text, note: null })), senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null, ...extra });
 const fsrs = (dueAt: number) => ({ stability: 5, difficulty: 5, dueAt, lastReviewAt: dueAt - 5 * DAY, state: 2, scheduleStatus: 'review', reps: 4, lapses: 0, scheduledDays: 5, learningStep: 0 });
 const card = (wordId: string, track: string, due: number) => ({ wordId, track, due, fsrs: fsrs(due), schedulerVersion: 'ts-fsrs@6.0.0/FSRS-6/v1' });
 
@@ -82,7 +83,7 @@ async function write(page: Page, tables: Record<string, unknown[]>) {
         request.onsuccess = () => {
           const db = request.result;
           const tx = db.transaction(Object.keys(data), 'readwrite');
-          for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(row);
+          for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(['words', 'groups', 'sources'].includes(table) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             db.close();
             resolve();
@@ -135,7 +136,8 @@ async function seeded(page: Page, tables: Record<string, unknown[]> = LIBRARY) {
 const inLocale = (page: Page, locale: Locale) => page.addInitScript(([key, value]) => localStorage.setItem(key!, value!), [LOCALE_KEY, locale]);
 
 /** Each language is named in itself, so the same name finds it in every interface. */
-const languageRadio = (page: Page, name: string) => page.getByRole('radio', { name, exact: true });
+/** The interface language radios in Settings. The learning-language row below has radios of its own, such as English. */
+const languageRadio = (page: Page, name: string) => page.locator('fieldset:has(input[name="language"])').getByRole('radio', { name, exact: true });
 
 /**
  * Interface text from another language: letters only another interface language has, or a label of a language
@@ -171,7 +173,8 @@ async function foreignLeft(page: Page, locale: Locale): Promise<string[]> {
   );
 }
 
-const pick = (page: Page, name: string) => page.locator('.segmented label').filter({ hasText: new RegExp(`^${name}$`) }).click();
+/** A segmented choice by its text. The learning-language row also says English or Deutsch, so it is left out. */
+const pick = (page: Page, name: string) => page.locator('.segmented label:not([data-testid="workspace-switcher"] label)').filter({ hasText: new RegExp(`^${name}$`) }).click();
 
 test.describe('choosing the interface language', () => {
   test('English is the default for a learner who never chose', { tag: '@smoke' }, async ({ page }) => {
@@ -182,7 +185,8 @@ test.describe('choosing the interface language', () => {
     await expect(page.getByRole('navigation', { name: en.mainNav }).getByRole('link', { name: en.nav.home })).toBeVisible();
     expect(await page.evaluate((key) => localStorage.getItem(key), LOCALE_KEY)).toBeNull();
     await open(page, '#/settings');
-    await expect(page.getByRole('radio')).toHaveCount(3 + 3);
+    // Interface language, learning language, theme.
+    await expect(page.getByRole('main').getByRole('radio')).toHaveCount(3 + 2 + 3);
     await expect(languageRadio(page, 'English')).toBeChecked();
     await expect(languageRadio(page, 'Türkçe')).not.toBeChecked();
     await expect(languageRadio(page, 'Deutsch')).not.toBeChecked();
@@ -243,7 +247,7 @@ test.describe('choosing the interface language', () => {
     test.skip(browserName === 'webkit' || isMobile, 'Arrow keys move between radios on desktop Chromium');
     await open(page, '#/settings');
     const radios = { tr: languageRadio(page, 'Türkçe'), en: languageRadio(page, 'English'), de: languageRadio(page, 'Deutsch') };
-    for (const locale of ['tr', 'en', 'de'] as const) await expect(page.locator('label', { has: radios[locale] }).locator('span')).toHaveAttribute('lang', HTML_LANG[locale]);
+    for (const locale of ['tr', 'en', 'de'] as const) await expect(page.locator('fieldset:has(input[name="language"]) label', { has: page.getByRole('radio', { name: LOCALE_NAMES[locale], exact: true }) }).locator('span')).toHaveAttribute('lang', HTML_LANG[locale]);
     await radios.en.focus();
     // Right to German, then around to Turkish, as radio groups wrap, and back to English.
     for (const locale of ['de', 'tr', 'en'] as const) {
@@ -379,8 +383,11 @@ test.describe('learning data stays as it is', () => {
       await write(page, { words: [word(`extra-${file}`, `Extra${file}`, null, ['fazla'])] });
       await page.locator('input[type=file]').setInputFiles({ name: files[file].name, mimeType: 'application/json', buffer: Buffer.from(files[file].text) });
       await page.getByRole('dialog', { name: strings.restore.title }).getByRole('button', { name: strings.restore.confirm }).click();
+      // A restore starts the app over on Home, with the notice there; the next file is chosen in Settings again.
       await expect(page.getByRole('status').filter({ hasText: strings.restore.done })).toBeVisible();
+      expect(new URL(page.url()).hash).toBe('#/');
       expect(byId((await dumpAll(page)).words!)).toEqual(byId(WORDS));
+      await open(page, '#/settings');
     }
   });
 });
@@ -398,7 +405,7 @@ test.describe('Reset all data keeps the interface language', () => {
       await expect(dialog).toContainText(strings.settings.resetBody);
       await dialog.getByRole('button', { name: strings.settings.resetConfirm }).click();
 
-      await expect(page.locator('.today-support')).toHaveText(strings.home.emptySupport);
+      await expect(page.locator('.today-support')).toHaveText(strings.home.workspace(0));
       await expect(page.getByRole('status').filter({ hasText: strings.settings.resetDone })).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('lang', HTML_LANG[locale]);
       await expect(page).toHaveTitle(strings.documentTitle);

@@ -145,8 +145,9 @@ describe('Free Practice isolation', () => {
 });
 
 describe('schema safety', () => {
-  const v2: Migration = {
-    version: 2,
+  // Versions after the app's own, so these tests keep describing the next upgrade whatever the current one is.
+  const next: Migration = {
+    version: SCHEMA_VERSION + 1,
     stores: { notes: '&id' },
     upgrade: (tx) =>
       tx
@@ -157,7 +158,7 @@ describe('schema safety', () => {
         }) as unknown as Promise<void>,
   };
   const failing: Migration = {
-    version: 3,
+    version: SCHEMA_VERSION + 2,
     stores: { extra: '&id' },
     upgrade: async (tx) => {
       await tx
@@ -175,19 +176,19 @@ describe('schema safety', () => {
     const db1 = await openDatabase({ name });
     await db1.words.add(makeWord('a', 'Fuß', 'der', 'ayak'));
     db1.close();
-    const db2 = await openDatabase({ name, migrations: [...MIGRATIONS, v2] });
+    const db2 = await openDatabase({ name, migrations: [...MIGRATIONS, next] });
     expect(await db2.words.get('a')).toMatchObject({ lemma: 'Fuß', migrated: true });
-    expect((await db2.meta.get('schemaVersion'))?.value).toBe(2);
+    expect((await db2.meta.get('schemaVersion'))?.value).toBe(SCHEMA_VERSION + 1);
     db2.close();
   });
 
   it('rolls a failed migration back and reports it', async () => {
     const name = uniqueDbName();
-    const db1 = await openDatabase({ name, migrations: [...MIGRATIONS, v2] });
+    const db1 = await openDatabase({ name, migrations: [...MIGRATIONS, next] });
     await db1.words.add(makeWord('a', 'Fuß', 'der', 'ayak'));
     db1.close();
-    await expect(openDatabase({ name, migrations: [...MIGRATIONS, v2, failing] })).rejects.toBeInstanceOf(MigrationFailedError);
-    const db2 = await openDatabase({ name, migrations: [...MIGRATIONS, v2] });
+    await expect(openDatabase({ name, migrations: [...MIGRATIONS, next, failing] })).rejects.toBeInstanceOf(MigrationFailedError);
+    const db2 = await openDatabase({ name, migrations: [...MIGRATIONS, next] });
     const word = await db2.words.get('a');
     expect(word?.lemma).toBe('Fuß');
     expect(word).not.toHaveProperty('damaged');
@@ -196,18 +197,18 @@ describe('schema safety', () => {
 
   it('refuses a database from a newer app version and leaves it unchanged', async () => {
     const name = uniqueDbName();
-    const newer = await openDatabase({ name, migrations: [...MIGRATIONS, v2] });
+    const newer = await openDatabase({ name, migrations: [...MIGRATIONS, next] });
     await newer.words.add(makeWord('a', 'Fuß', 'der', 'ayak'));
     newer.close();
 
     const error = await openDatabase({ name }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(NewerSchemaError);
-    expect(error).toMatchObject({ storedVersion: 2, appVersion: 1 });
+    expect(error).toMatchObject({ storedVersion: SCHEMA_VERSION + 1, appVersion: SCHEMA_VERSION });
 
-    const again = await openDatabase({ name, migrations: [...MIGRATIONS, v2] });
-    expect(again.verno).toBe(2);
+    const again = await openDatabase({ name, migrations: [...MIGRATIONS, next] });
+    expect(again.verno).toBe(SCHEMA_VERSION + 1);
     expect(await again.words.count()).toBe(1);
-    expect((await again.meta.get('schemaVersion'))?.value).toBe(2);
+    expect((await again.meta.get('schemaVersion'))?.value).toBe(SCHEMA_VERSION + 1);
     again.close();
   });
 
@@ -215,7 +216,7 @@ describe('schema safety', () => {
     const name = uniqueDbName();
     let closed = false;
     const first = await openDatabase({ name, onClosedByUpgrade: () => (closed = true) });
-    const second = await openDatabase({ name, migrations: [...MIGRATIONS, v2] });
+    const second = await openDatabase({ name, migrations: [...MIGRATIONS, next] });
     expect(closed).toBe(true);
     expect(first.isOpen()).toBe(false);
     second.close();
@@ -245,9 +246,9 @@ describe('reading the library for the interface', () => {
     const db = await openDatabase({ name: uniqueDbName() });
     await seedLibrary(db);
     await db.words.update('w-spinat', { deletedAt: T0 });
-    expect((await listActiveWords(db)).map((w) => w.id)).toEqual(['w-apfel', 'w-fuss', 'w-morgen', 'w-morgen-noun']);
-    expect(await getActiveWord(db, 'w-spinat')).toBeNull();
-    expect((await getActiveWord(db, 'w-apfel'))?.lemma).toBe('Apfel');
+    expect((await listActiveWords(db, 'de')).map((w) => w.id)).toEqual(['w-apfel', 'w-fuss', 'w-morgen', 'w-morgen-noun']);
+    expect(await getActiveWord(db, 'w-spinat', 'de')).toBeNull();
+    expect((await getActiveWord(db, 'w-apfel', 'de'))?.lemma).toBe('Apfel');
     db.close();
   });
 
@@ -256,9 +257,9 @@ describe('reading the library for the interface', () => {
     await seedLibrary(db);
     await db.groupMembers.add({ groupId: 'g-custom', wordId: 'w-spinat', addedAt: T0, importRowId: null });
     await db.words.update('w-spinat', { deletedAt: T0 });
-    expect((await listGroupSummaries(db)).map((s) => [s.group.id, s.wordCount])).toEqual([['g-pdf', 1], ['g-custom', 1]]);
-    expect((await getGroupWithWords(db, 'g-custom'))?.words.map((w) => w.id)).toEqual(['w-apfel']);
-    expect(await getGroupWithWords(db, 'missing')).toBeNull();
+    expect((await listGroupSummaries(db, 'de')).map((s) => [s.group.id, s.wordCount])).toEqual([['g-pdf', 1], ['g-custom', 1]]);
+    expect((await getGroupWithWords(db, 'g-custom', 'de'))?.words.map((w) => w.id)).toEqual(['w-apfel']);
+    expect(await getGroupWithWords(db, 'missing', 'de')).toBeNull();
     expect((await listGroupsOfWord(db, 'w-apfel')).map((g) => g.id)).toEqual(['g-pdf', 'g-custom']);
     db.close();
   });

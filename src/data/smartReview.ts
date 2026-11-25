@@ -8,7 +8,7 @@ import { readDismissals } from './dismissals';
 import type { AppDatabase } from './db';
 import { flagsFor, issuesOfWord } from './practice';
 import { listActiveWords } from './repository';
-import type { AnswerResult, Card, ScheduledLog, Track, Word } from './types';
+import type { AnswerResult, Card, LearningLanguage, ScheduledLog, Track, Word } from './types';
 
 /** Everything Smart Review chooses from, read at one moment. */
 export interface ReviewData {
@@ -21,9 +21,14 @@ export interface ReviewData {
   checked: boolean;
 }
 
-export async function loadReviewData(db: AppDatabase, validate: Validate | null): Promise<ReviewData> {
-  const [words, cards, dismissed] = await Promise.all([listActiveWords(db), db.cards.toArray(), readDismissals(db)]);
-  return { words, cards, validate, dismissed, ...flagsFor(words, validate, dismissed) };
+/** One learning language's words and only their cards, so counts and sessions never reach into another. */
+export async function loadReviewData(db: AppDatabase, validate: Validate | null, language: LearningLanguage): Promise<ReviewData> {
+  const [words, allCards, dismissed] = await Promise.all([listActiveWords(db, language), db.cards.toArray(), readDismissals(db)]);
+  const own = new Set(words.map((word) => word.id));
+  const cards = allCards.filter((card) => own.has(card.wordId));
+  // The dictionary is German: another language's words are never checked against it.
+  const checker = language === 'de' ? validate : null;
+  return { words, cards, validate: checker, dismissed, ...flagsFor(words, checker, dismissed, language) };
 }
 
 /** The open warnings on a word as it stands now. Without the dictionary at hand, what was last found. */

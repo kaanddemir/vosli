@@ -10,26 +10,29 @@ English · [Türkçe](README.tr.md)
 
 ## What Is Vosli?
 
-Vosli is a vocabulary learning app. You add words with your own meanings, or import them from a file, then study them with practice and spaced repetition. It runs in the browser, with no server, account or paid service.
+Vosli is a vocabulary learning app. Add words with your own meanings or import them from a file, then study them with practice and spaced repetition. It runs in the browser, with no server, account or paid service.
 
-For now you can learn German; learning English vocabulary is planned. The interface is in English, Turkish or German. English is the default, and you can change it in Settings at any time.
+Two separate choices, both in Settings:
+
+- **Learning language:** German or English. Each is its own workspace with its own words, collections and progress.
+- **Interface language:** English (default), Turkish or German. It changes only the app's text, never your words or progress.
 
 ## What Can It Do?
 
 - Adds, edits, searches and favorites words, and organizes them into collections.
 - Imports pasted text, CSV and text-based PDF files, with a preview first.
-- Offers Free Practice four ways: typing, listening, cards, and a multiple-choice test with options drawn only from the learner's own words. None of them change the review schedule.
+- Offers Free Practice by typing, listening, cards, or a multiple-choice test built from your own words. It never changes the review schedule.
 - Schedules reviews in Smart Review with FSRS-6.
-- Checks German spelling and articles against an offline dictionary.
-- Plays real human pronunciation recordings.
-- Backs up everything to one JSON file and works offline as an installable PWA.
+- For German: checks spelling and articles against an offline dictionary and practices articles (der, die, das). English words are not checked.
+- Plays real human pronunciation recordings: German, and American or British English.
+- Backs up both languages to one JSON file (older German-only backups still restore) and works offline as an installable PWA.
 
 ## How Does It Work?
 
-1. The learner enters words or imports them from a file.
-2. Imported rows are reviewed before saving; the dictionary only warns and suggests.
+1. You enter words or import them from a file.
+2. Imported rows are reviewed before saving; for German, the dictionary only warns and suggests.
 3. Words are studied in Free Practice or Smart Review.
-4. Smart Review schedules German-to-meaning, meaning-to-German and article skills separately for each word.
+4. Smart Review schedules word-to-meaning and meaning-to-word separately for each word, and German articles as a skill of their own.
 5. Data stays on the device, in IndexedDB.
 
 ## Technologies
@@ -72,7 +75,9 @@ vosli/
 │   ├── audio/           # pronunciation recordings and playback
 │   ├── ui/              # screens and components
 │   └── styles/          # design tokens and styles
-├── public/dictionary/   # offline dictionary
+├── public/
+│   ├── dictionary/de/   # German dictionary (spelling and article checks)
+│   └── pronunciation/   # pronunciation lists and credits, per language (de/, en/)
 ├── scripts/             # dictionary and pronunciation data tools
 ├── tests/               # unit tests
 └── e2e/                 # browser tests
@@ -80,15 +85,15 @@ vosli/
 
 ## Data Sources
 
-The offline dictionary is built from the German Wiktionary dump of 1 November 2026, via [Kaikki.org](https://kaikki.org/dewiktionary/rawdata.html).
+- **Dictionary and pronunciation lists:** built from the German Wiktionary dump of 1 November 2026, via [Kaikki.org](https://kaikki.org/dewiktionary/rawdata.html).
+- **Recordings:** [Wikimedia Commons](https://commons.wikimedia.org/) files linked from German Wiktionary's German and English entries. English recordings are used only if Commons files them as American or British English.
+- **Privacy:** recordings are not bundled or stored. Each one loads from Commons when you tap its speaker, so pronunciation needs an internet connection and Wikimedia can see which word is played.
 
-Pronunciation recordings are [Wikimedia Commons](https://commons.wikimedia.org/) files linked from Wiktionary entries. They are not bundled or stored; each one loads from Commons when its speaker is tapped. Pronunciation therefore needs an internet connection, and Wikimedia can see which word is played.
-
-How to update the dictionary and pronunciation data is described at the top of [scripts/build-dictionary.mjs](scripts/build-dictionary.mjs) and [scripts/sync-commons-audio.mjs](scripts/sync-commons-audio.mjs).
+Update steps are at the top of [scripts/build-dictionary.mjs](scripts/build-dictionary.mjs), [scripts/sync-commons-audio.mjs](scripts/sync-commons-audio.mjs) (`--language en` for English) and [scripts/build-english-audio.mjs](scripts/build-english-audio.mjs).
 
 ## License
 
-The dictionary data is licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); see [public/dictionary/LICENSE.txt](public/dictionary/LICENSE.txt). Pronunciation recordings carry their own licenses, shown on each word's page.
+The dictionary and pronunciation list data are licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); see [public/dictionary/de/LICENSE.txt](public/dictionary/de/LICENSE.txt), [public/pronunciation/de/LICENSE.txt](public/pronunciation/de/LICENSE.txt) and [public/pronunciation/en/LICENSE.txt](public/pronunciation/en/LICENSE.txt). Pronunciation recordings carry their own licenses, shown on each word's page.
 
 <div align="center">
   <p>Built by <a href="https://heykaan.dev">heykaan.dev</a>.</p>

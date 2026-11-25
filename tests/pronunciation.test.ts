@@ -125,7 +125,7 @@ describe('looking up a word in the app', () => {
 
   it('finds recordings by lemma, and none for words without one', () => {
     const index = createAudioIndex(lemmas);
-    expect(index.sourceFor(word('Apfel', 'noun', 'der'))).toMatchObject({ title: 'De-Apfel.ogg', author: 1, license: 1, key: 'De-Apfel.ogg', page: 'https://commons.wikimedia.org/wiki/File:De-Apfel.ogg' });
+    expect(index.sourceFor(word('Apfel', 'noun', 'der'))).toMatchObject({ title: 'De-Apfel.ogg', author: 1, license: 1, language: 'de', key: 'de:De-Apfel.ogg', page: 'https://commons.wikimedia.org/wiki/File:De-Apfel.ogg' });
     expect(index.sourceFor(word('Hochzeit', 'noun', 'die'))).toBeNull();
     expect(index.sourceFor(word('Quatschwort', 'noun', 'das'))).toBeNull();
     // Another part of speech of a word marked ambiguous gets nothing, even though one key has a recording.
@@ -171,7 +171,7 @@ class FakeAudio implements AudioLike {
   }
 }
 
-const source = (title: string) => ({ title, author: 0, license: 0, key: title, ...commonsUrls(title) });
+const source = (title: string) => ({ title, author: 0, license: 0, language: 'de' as const, key: title, ...commonsUrls(title) });
 
 describe('choosing words that can be asked by ear', () => {
   it('reads the word a recording title says, and trusts no other shape', () => {

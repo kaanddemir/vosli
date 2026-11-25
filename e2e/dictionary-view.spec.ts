@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const WORDS = [
@@ -38,7 +39,7 @@ test.beforeEach(async ({ page }) => {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const tx = request.result.transaction('words', 'readwrite');
-          for (const item of records) tx.objectStore('words').put(item);
+          for (const item of records) tx.objectStore('words').put(Object.assign({ language: 'de' }, item));
           tx.oncomplete = () => {
             request.result.close();
             resolve();
@@ -54,14 +55,14 @@ test.beforeEach(async ({ page }) => {
 
 const list = (page: Page) => page.locator('main .list').last();
 const row = (page: Page, text: string) => list(page).locator('.list-item').filter({ hasText: text });
-const direction = (page: Page) => page.getByRole('button', { name: t.dictionary.direction });
+const direction = (page: Page) => page.getByRole('button', { name: t.lang.de.meaningFirst });
 const hide = (page: Page) => page.getByRole('button', { name: t.dictionary.hideAnswers });
 const reveal = (page: Page, label: string) => page.getByRole('button', { name: label });
 
 test('starts German first with every answer shown, and the toggles sit before Seç', async ({ page }) => {
   await expect(direction(page)).toHaveAttribute('aria-pressed', 'false');
   await expect(hide(page)).toHaveAttribute('aria-pressed', 'false');
-  await expect(direction(page)).toHaveAttribute('title', t.dictionary.direction);
+  await expect(direction(page)).toHaveAttribute('title', t.lang.de.meaningFirst);
   await expect(row(page, 'Apfel').locator('.row-title')).toHaveText('der Apfel');
   await expect(row(page, 'Apfel').locator('.row-title')).toHaveAttribute('lang', 'de');
   await expect(row(page, 'Apfel').locator('.row-detail')).toHaveText('elma');
@@ -151,7 +152,7 @@ test('covered German never shows its article color, and the revealed one keeps i
   await direction(page).click();
   await hide(page).click();
   await expect(list(page).locator('.article-der, .article-die, .article-das')).toHaveCount(0);
-  await reveal(page, t.dictionary.revealGerman('kapı')).click();
+  await reveal(page, t.lang.de.revealWord('kapı')).click();
   const mark = row(page, 'kapı').locator('.article-die');
   await expect(mark).toHaveText('die');
   const color = await mark.evaluate((element) => getComputedStyle(element).color);
@@ -199,7 +200,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.reload();
     await direction(page).click();
     await hide(page).click();
-    await reveal(page, t.dictionary.revealGerman('kapı')).click();
+    await reveal(page, t.lang.de.revealWord('kapı')).click();
     const results = await new AxeBuilder({ page }).include('main').analyze();
     expect(results.violations).toEqual([]);
   });

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const SCREENS = [
@@ -41,6 +42,36 @@ for (const { hash, title, support, primary } of SCREENS) {
     });
   }
 }
+
+test('the letters over the book belong to the learning language, whatever the interface language', async ({ page }) => {
+  const letters = () => page.locator('.empty-fox-letter').allTextContents();
+  await open(page, '#/dictionary', t.dictionary.emptyTitle);
+  expect(await letters()).toEqual(['ä', 'ß']);
+  // An English workspace with a German interface: the letters follow what is learned.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        localStorage.setItem('vosli.locale', 'de');
+        const request = indexedDB.open('vosli');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const tx = request.result.transaction('meta', 'readwrite');
+          tx.objectStore('meta').put({ key: 'learningLanguage', value: 'en' });
+          tx.oncomplete = () => {
+            request.result.close();
+            resolve();
+          };
+        };
+      }),
+  );
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  await expect(page.locator('.empty-fox')).toHaveAttribute('aria-hidden', 'true');
+  await expect.poll(letters).toEqual(['A', 'Z']);
+  const [left, right] = await page.locator('.empty-fox-letter').evaluateAll((items) => items.map((item) => [item.getAttribute('x'), item.getAttribute('y'), item.getAttribute('transform')]));
+  expect(left).toEqual(['34', '52', 'rotate(-10 34 52)']);
+  expect(right).toEqual(['172', '44', 'rotate(9 172 44)']);
+});
 
 test('other empty messages stay plain, so the fox marks only a real first visit', async ({ page }) => {
   await page.goto('./#/collections/none');
@@ -95,7 +126,7 @@ test.describe('no favorites yet', () => {
           const open = indexedDB.open('vosli');
           open.onsuccess = () => {
             const tx = open.result.transaction('words', 'readwrite');
-            tx.objectStore('words').put({ id: 'apfel', identityKey: 'Apfel|der', lemma: 'Apfel', article: 'der', pos: 'noun', plural: null, meanings: [{ text: 'elma', note: null }], senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null });
+            tx.objectStore('words').put({ id: 'apfel', language: 'de', identityKey: 'Apfel|der', lemma: 'Apfel', article: 'der', pos: 'noun', plural: null, meanings: [{ text: 'elma', note: null }], senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null });
             tx.oncomplete = () => {
               open.result.close();
               resolve();

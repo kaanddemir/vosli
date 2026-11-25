@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const nav = (page: Page) => page.getByRole('navigation', { name: t.mainNav });
@@ -184,7 +185,7 @@ test.describe('stability', () => {
           const open = indexedDB.open('vosli');
           open.onsuccess = () => {
             const tx = open.result.transaction('words', 'readwrite');
-            for (const word of words) tx.objectStore('words').put(word);
+            for (const word of words) tx.objectStore('words').put(Object.assign({ language: 'de' }, word));
             tx.oncomplete = () => {
               open.result.close();
               resolve();

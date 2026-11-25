@@ -9,8 +9,10 @@ import type { Word } from '../../data/types';
 import { t } from '../../i18n/strings';
 import { player } from '../../audio/pronunciation';
 import { PracticeView, type FeedbackLine, type FeedbackView, type ListenPrompt } from './PracticeView';
-import { preparePronunciation, usePlaybackStatus, usePronunciation, useAudioIndex } from './SpeakerButton';
+import { usePlaybackStatus, usePreparedPronunciation, usePronunciation, useAudioIndex } from './SpeakerButton';
 import { wordLabel } from './WordList';
+import { meaningLang, useLearningLanguage } from '../workspace';
+import type { LearningLanguage } from '../../core/learningLanguage';
 
 const ARTICLE_CHOICES = ['der', 'die', 'das'] as const;
 /** A quick second press of Enter is a double press, not someone who has read the feedback. */
@@ -20,8 +22,8 @@ const isCoarse = () => matchMedia('(pointer: coarse)').matches;
 
 const bareOrFull = (word: Word, doubtful: boolean) => (doubtful ? word.lemma : wordLabel(word));
 const meaningList = (word: Word) => word.meanings.map((meaning) => meaning.text).join(', ');
-/** The saved word the answer turned out to be, in German, then what it means. */
-const otherWord = (label: string, meanings: readonly string[]): FeedbackLine => ({ label: { text: label, lang: 'de' }, text: meanings.join(', '), lang: 'tr' });
+/** The saved word the answer turned out to be, in its language, then what it means. */
+const otherWord = (label: string, meanings: readonly string[], language: LearningLanguage): FeedbackLine => ({ label: { text: label, lang: language }, text: meanings.join(', '), lang: meaningLang(language) });
 
 function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues: readonly Issue[]): FeedbackView {
   const doubt = doubtFrom(issues);
@@ -29,10 +31,11 @@ function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues
   const lines: FeedbackLine[] = [];
   const stored = wordLabel(word);
   const shown = bareOrFull(word, doubt.article);
-  const german = (label: string, text: string): FeedbackLine => ({ label: { text: label }, text, lang: 'de' });
-  const meanings = (label: string, text: string): FeedbackLine => ({ label: { text: label }, text, lang: 'tr' });
+  const meaningTag = meaningLang(word.language);
+  const german = (label: string, text: string): FeedbackLine => ({ label: { text: label }, text, lang: word.language });
+  const meanings = (label: string, text: string): FeedbackLine => ({ label: { text: label }, text, lang: meaningTag });
   /** The answer as a word, so its article can take its color. A doubtful article is left out, as in the text. */
-  const answerWord = (full: boolean): FeedbackLine => ({ text: full ? stored : shown, lang: 'de', word: full || !doubt.article ? word : { article: null, lemma: word.lemma } });
+  const answerWord = (full: boolean): FeedbackLine => ({ text: full ? stored : shown, lang: word.language, word: full || !doubt.article ? word : { article: null, lemma: word.lemma } });
   // Heard only from feedback, after the answer. A doubted article is left out of its label, as it is from the text.
   const speak = doubt.article ? { lemma: word.lemma, article: null, pos: word.pos } : word;
   const otherLabel = evaluation.other ? `${evaluation.other.article ? `${evaluation.other.article} ` : ''}${evaluation.other.lemma}` : '';
@@ -51,7 +54,7 @@ function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues
     }
     if (typed === '') return { kind: 'revealed', title: t.practice.revealed, answer: answerWord(false), lines: [meaning], ...caution };
     const reason = evaluation.result in t.practice.reasons ? t.practice.reasons[evaluation.result as keyof typeof t.practice.reasons] : t.practice.wrong;
-    if (evaluation.other) lines.push(otherWord(otherLabel, evaluation.other.meanings));
+    if (evaluation.other) lines.push(otherWord(otherLabel, evaluation.other.meanings, word.language));
     if (hinted) lines.push({ text: t.practice.hintUsed });
     return { kind: 'wrong', title: reason, answer: answerWord(false), lines: [meaning, ...lines], ...caution };
   }
@@ -68,12 +71,12 @@ function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues
   }
 
   // Nothing typed means the learner asked to see it. That counts as not recalled, but it is not a mistake.
-  if (typed === '') return { kind: 'revealed', title: t.practice.revealed, answer: track === 'de_tr' ? { text: meaningList(word), lang: 'tr' } : answerWord(track === 'article'), lines, ...caution, speak };
+  if (typed === '') return { kind: 'revealed', title: t.practice.revealed, answer: track === 'de_tr' ? { text: meaningList(word), lang: meaningTag } : answerWord(track === 'article'), lines, ...caution, speak };
 
   const reason = evaluation.result in t.practice.reasons ? t.practice.reasons[evaluation.result as keyof typeof t.practice.reasons] : t.practice.wrong;
-  if (evaluation.other) lines.push(otherWord(otherLabel, evaluation.other.meanings));
+  if (evaluation.other) lines.push(otherWord(otherLabel, evaluation.other.meanings, word.language));
   if (hinted) lines.push({ text: t.practice.hintUsed });
-  return { kind: 'wrong', title: reason, answer: track === 'de_tr' ? { text: meaningList(word), lang: 'tr' } : answerWord(track === 'article'), lines, ...caution, speak };
+  return { kind: 'wrong', title: reason, answer: track === 'de_tr' ? { text: meaningList(word), lang: meaningTag } : answerWord(track === 'article'), lines, ...caution, speak };
 }
 
 /**
@@ -140,6 +143,7 @@ interface QuestionStepProps {
  * focus and a phone keeps its keyboard.
  */
 export function QuestionStep({ word, track, listen, issues, stepKey, answered, hints, done, total, retries, tag = null, lastStep, saveMessage = null, onSubmit, onNext, onHint, onClose }: QuestionStepProps) {
+  const language = useLearningLanguage();
   const [draft, setDraft] = useState({ key: stepKey, text: '' });
   const input = useRef<HTMLInputElement>(null);
   const answeredAt = useRef(0);
@@ -149,7 +153,7 @@ export function QuestionStep({ word, track, listen, issues, stepKey, answered, h
   useVisibleHeight();
 
   // Ready before the first answer, so the speaker appears with the feedback rather than a moment later.
-  useEffect(preparePronunciation, []);
+  usePreparedPronunciation();
 
   // A recording still playing belongs to the question just left. It stops as the next one appears.
   useEffect(() => () => player().stop(), [stepKey]);
@@ -261,7 +265,8 @@ export function QuestionStep({ word, track, listen, issues, stepKey, answered, h
   };
   // Asked by ear, the question has no text at all: only the instruction, which says whether a capital is due.
   const question = listening ? '' : track === 'tr_de' ? meaningList(word) : track === 'article' ? word.lemma : bareOrFull(word, doubt.article);
-  const cue = listening ? (word.article || word.pos === 'noun' ? t.practice.listenCue.noun : t.practice.listenCue.word) : track === 'tr_de' ? (word.article && !doubt.article ? t.practice.cue.tr_de_noun : t.practice.cue.tr_de) : t.practice.cue[track];
+  const named = t.lang[language].cue;
+  const cue = listening ? (word.article || word.pos === 'noun' ? t.practice.listenCue.noun : t.practice.listenCue.word) : track === 'tr_de' ? (word.article && !doubt.article ? named.tr_de_noun : named.tr_de) : track === 'de_tr' ? named.de_tr : t.practice.cue[track];
   const empty = typed.trim() === '';
   const say = feedback ? [feedback.title, feedback.answer ? `${t.practice.answerWas}: ${feedback.answer.text}` : '', ...(feedback.lines ?? []).map((line) => (line.label ? `${line.label.text}: ${line.text}` : line.text)), feedback.caution ?? '', saveMessage ?? ''].filter(Boolean).join('. ') : hintSpoken ?? (listening ? cue : `${cue}: ${question}`);
 
@@ -273,17 +278,17 @@ export function QuestionStep({ word, track, listen, issues, stepKey, answered, h
       cue={cue}
       tag={tag}
       question={question}
-      questionLang={track === 'tr_de' ? 'tr' : 'de'}
+      questionLang={track === 'tr_de' ? meaningLang(language) : language}
       listen={listenPrompt}
       {...(track === 'article' ? { detail: meaningList(word) } : {})}
       answer={answered ? answered.typed : typed}
-      answerLang={track === 'de_tr' ? 'tr' : 'de'}
+      answerLang={track === 'de_tr' ? meaningLang(language) : language}
       feedback={feedback}
       hint={hint}
       hintSpoken={hintSpoken}
       hintMore={hintMore}
       hintAvailable={stages.length > 0}
-      showLetters={track === 'tr_de' || listening}
+      showLetters={language === 'de' && (track === 'tr_de' || listening)}
       {...(track === 'article' ? { choices: ARTICLE_CHOICES } : {})}
       announcement={say}
       actionLabel={answered ? (lastStep ? t.practice.seeSummary : t.practice.next) : t.practice.check}

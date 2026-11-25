@@ -8,6 +8,7 @@ import { Icon } from './Icon';
 import { List, Row } from './List';
 import { Screen } from './Screen';
 import { meaningsOf, wordLabel } from './WordList';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 interface PracticeSummaryProps {
   summary: RoundSummary;
@@ -22,6 +23,7 @@ const ORDER: Readonly<Record<QuestionKind, number>> = { tr_de: 0, de_tr: 1, arti
 
 /** Counts only: an open-ended practice has no percentage of anything to report. */
 export function PracticeSummary({ summary, wordOf, title = t.practice.summaryTitle, onClose, children }: PracticeSummaryProps) {
+  const language = useLearningLanguage();
   const close = (
     <button type="button" class="icon-btn" aria-label={t.common.close} title={t.common.close} onClick={onClose}>
       <Icon name="close" />
@@ -51,7 +53,7 @@ export function PracticeSummary({ summary, wordOf, title = t.practice.summaryTit
           <List label={t.practice.toReview}>
             {review.map((item) => {
               const word = wordOf(item.wordId);
-              return word ? <Row key={`${item.wordId}|${item.track}`} lang="de" title={wordLabel(word)} detail={<span lang="tr">{meaningsOf(word)}</span>} value={item.last === 'clean' ? <><Icon name="check" /><span class="visually-hidden">{t.practice.recovered}</span></> : undefined} /> : null;
+              return word ? <Row key={`${item.wordId}|${item.track}`} lang={language} title={wordLabel(word)} detail={<span lang={meaningLang(language)}>{meaningsOf(word)}</span>} value={item.last === 'clean' ? <><Icon name="check" /><span class="visually-hidden">{t.practice.recovered}</span></> : undefined} /> : null;
             })}
           </List>
         )}

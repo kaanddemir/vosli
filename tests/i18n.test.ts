@@ -8,6 +8,8 @@ import { formatCount, formatDate, formatDateTime, formatDay, formatPercent } fro
 import { applyLocale, currentLocale, DEFAULT_LOCALE, interfaceLang, LOCALE_NAMES, loadLocale, LOCALES, savedLocale } from '../src/i18n/locale';
 import { t, type Strings } from '../src/i18n/strings';
 import { tr } from '../src/i18n/tr';
+import { rowsFromLines } from '../src/core/tabular';
+import { draftsFor, blankDraft } from '../src/core/review';
 
 afterEach(() => applyLocale(DEFAULT_LOCALE));
 
@@ -36,7 +38,7 @@ const NAMES = ['appName', 'practice.firstTry', 'dictionary.pos.other', 'settings
 const SAME: Record<'en_tr' | 'de_tr' | 'de_en', Set<string>> = {
   en_tr: new Set([...NAMES, 'collections.kind.pdf', 'practice.studies.test']),
   // The paste example is the learner's own kind of text: German words with the Turkish meanings they study.
-  de_tr: new Set([...NAMES, 'collections.kind.pdf', 'practice.studies.test', 'import.pastePlaceholder', 'collections.kind.custom', 'wordForm.article', 'practice.modes.article', 'import.roles.article', 'import.articleField']),
+  de_tr: new Set([...NAMES, 'collections.kind.pdf', 'practice.studies.test', 'lang.de.pastePlaceholder', 'collections.kind.custom', 'wordForm.article', 'practice.modes.article', 'import.roles.article', 'import.articleField']),
   de_en: new Set([...NAMES, 'collections.kinds.pdf', 'collections.kind.pdf', 'practice.studies.test', 'dictionary.plural', 'dictionary.pos.verb', 'dictionary.pos.adverb', 'wordForm.plural', 'import.roles.plural', 'settings.themes.system']),
 };
 
@@ -149,8 +151,14 @@ describe('counts', () => {
     expect(de.common.words(1284)).toBe('1.284 Wörter');
     expect(de.home.freshStatus(1)).toBe('1 neue Frage');
     expect(de.home.freshStatus(2)).toBe('2 neue Fragen');
-    expect(de.home.wordCount(1)).toBe('In deinem Wörterbuch ist 1 Wort.');
-    expect(de.home.wordCount(5000)).toBe('In deinem Wörterbuch sind 5.000 Wörter.');
+    expect(de.home.workspace(1)).toBe('1 Wort');
+    expect(de.home.workspace(5000)).toBe('5.000 Wörter');
+    // Home's word count names no learning language: the city and the bunting show the workspace.
+    expect([en, tr, de].map((strings) => [0, 1, 193].map((n) => strings.home.workspace(n)))).toEqual([
+      ['No words yet', '1 word', '193 words'],
+      ['Henüz kelime yok', '1 kelime', '193 kelime'],
+      ['Noch keine Wörter', '1 Wort', '193 Wörter'],
+    ]);
     expect(de.home.dueStatus(1)).toBe('1 Wiederholung bereit');
     expect(de.review.ready(10)).toBe('10 Fragen bereit');
     expect(de.import.commit(1)).toBe('1 Zeile speichern');
@@ -294,6 +302,30 @@ test('learning logic, storage and audio never depend on the interface language',
   for (const area of ['core', 'data', 'audio', 'pdf']) {
     for (const file of files(join(root, area))) expect(readFileSync(file, 'utf8'), file).not.toMatch(/from '[^']*i18n\//u);
   }
+});
+
+describe('the paste example', () => {
+  test('shows words of each learning language, as the import reads them, in every interface language', () => {
+    for (const strings of [en, tr, de]) {
+      const german = rowsFromLines(strings.lang.de.pastePlaceholder);
+      expect(german.map((row) => [row.article, row.german])).toEqual([['der', 'Apfel'], ['', 'essen'], ['die', 'Bank']]);
+      const english = draftsFor('en', rowsFromLines(strings.lang.en.pastePlaceholder).map((row) => blankDraft(String(row.rowIndex), row.rowIndex, row)));
+      expect(english.map((row) => [row.article, row.german])).toEqual([['', 'apple'], ['', 'give up'], ['', 'bank']]);
+      expect(english.every((row) => row.turkish !== '')).toBe(true);
+    }
+  });
+});
+
+describe('the browser title', () => {
+  test('names Vosli and no learning language, since either may be open, in every interface language', () => {
+    for (const strings of [en, tr, de]) {
+      expect(strings.documentTitle).toMatch(/^Vosli — /u);
+      expect(strings.documentTitle).not.toMatch(/German|English|Almanca|İngilizce|Deutsch|Englisch/u);
+    }
+    expect(en.documentTitle).toBe('Vosli — Learn and Practice Vocabulary');
+    expect(tr.documentTitle).toBe('Vosli — Kelime Öğren ve Pratik Yap');
+    expect(de.documentTitle).toBe('Vosli — Vokabeln lernen und üben');
+  });
 });
 
 describe('static metadata and social previews', () => {

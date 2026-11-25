@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const SCREENS = [
@@ -279,7 +280,7 @@ async function putWord(page: Page, id: string, lemma: string) {
         open.onsuccess = () => {
           const db = open.result;
           const tx = db.transaction('words', 'readwrite');
-          tx.objectStore('words').put({ id, identityKey: `${lemma}|`, lemma, article: null, pos: 'other', plural: null, meanings: [{ text: 'çeviri', note: null }], senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null });
+          tx.objectStore('words').put({ id, language: 'de', identityKey: `${lemma}|`, lemma, article: null, pos: 'other', plural: null, meanings: [{ text: 'çeviri', note: null }], senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null });
           tx.oncomplete = () => {
             db.close();
             resolve();
@@ -349,6 +350,37 @@ test.describe('backup and restore through the interface', () => {
     await dialog.getByRole('button', { name: t.common.cancel }).click();
     await expect(dialog).toBeHidden();
     expect(await readWords(page)).toEqual(['Fuß', 'Später']);
+  });
+
+  test.describe('in Istanbul', () => {
+    test.use({ timezoneId: 'Europe/Istanbul' });
+    // 21:30 UTC on 25 November 2026 is 00:30 on 26 November on an Istanbul clock.
+    const MADE = Date.UTC(2026, 10, 25, 21, 30);
+    const LOCAL = /^Nov 26, 2026, 12:30\sAM$/u;
+
+    test('a backup is named, listed and offered for restore by the local time it was made', async ({ page }) => {
+      await page.clock.setFixedTime(MADE);
+      await open(page, '#/settings');
+      await putWord(page, 'a', 'Fuß');
+      const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: t.settings.download }).click()]);
+      expect(download.suggestedFilename()).toBe(t.settings.backupFileName('2026-11-26-00-30'));
+      await expect(page.getByTestId('last-backup')).toHaveText(LOCAL);
+      const chunks: Buffer[] = [];
+      for await (const chunk of await download.createReadStream()) chunks.push(chunk as Buffer);
+      const text = Buffer.concat(chunks).toString('utf8');
+      // Stored as the moment itself, the same in every zone.
+      expect(JSON.parse(text).exportedAt).toBe(MADE);
+
+      // Restored two days later: the dialog and Settings name when the backup was made, not when it is restored.
+      await page.clock.setFixedTime(MADE + 2 * 24 * 60 * 60 * 1000);
+      await page.locator('input[type=file]').setInputFiles({ name: 'yedek.json', mimeType: 'application/json', buffer: Buffer.from(text) });
+      const dialog = page.getByRole('dialog', { name: t.restore.title });
+      await expect(dialog.locator('dd').first()).toHaveText(LOCAL);
+      await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: t.restore.confirm }).click()]);
+      await expect(page.getByRole('status').filter({ hasText: t.restore.done })).toBeVisible();
+      await page.goto('./#/settings');
+      await expect(page.getByTestId('last-backup')).toHaveText(LOCAL);
+    });
   });
 
   test('rejects an invalid file and keeps data', async ({ page }) => {

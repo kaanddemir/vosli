@@ -7,7 +7,9 @@ import { createCustomGroup, GROUP_NAME_MAX, GroupNameError } from './groups';
 import type { Group, ImportRow, Source, Word } from './types';
 import { addDismissals } from './dismissals';
 import { isDismissalKey } from '../core/issues';
-import { insertWord, knownEntryOf, withMeanings } from './words';
+import { assertSameLanguage } from './groups';
+import { activeWordsOf, insertWord, knownEntryOf, LanguageMismatchError, withMeanings } from './words';
+import type { LearningLanguage } from './types';
 
 /** Raised when the review needs an answer, such as after the library changed in another tab. Nothing was written. */
 export class ImportNotReadyError extends Error {
@@ -17,6 +19,8 @@ export class ImportNotReadyError extends Error {
 export const TEXT_PIPELINE_VERSION = 1;
 
 export interface ImportSource {
+  /** The workspace the rows are imported into, chosen before the import began. It is never read from the file. */
+  language: LearningLanguage;
   /** Empty for pasted text. */
   fileName: string;
   fileHash: string;
@@ -64,9 +68,9 @@ function plan(row: ReviewedRow): { create: true } | { create: false; ref: string
 const nameKey = (name: string) => normalizeText(name).toLocaleLowerCase('tr');
 const rowKey = (row: Pick<ImportRow, 'page' | 'rowIndex'>) => `${row.page}:${row.rowIndex}`;
 
-async function addPdfGroup(db: AppDatabase, name: string, sourceId: string, now: number): Promise<Group> {
+async function addPdfGroup(db: AppDatabase, name: string, source: Source, now: number): Promise<Group> {
   const last = await db.groups.orderBy('order').last();
-  const group: Group = { id: newId(), kind: 'pdf', name, order: (last?.order ?? -1) + 1, sourceId, createdAt: now };
+  const group: Group = { id: newId(), language: source.language, kind: 'pdf', name, order: (last?.order ?? -1) + 1, sourceId: source.id, createdAt: now };
   await db.groups.add(group);
   return group;
 }
@@ -78,10 +82,10 @@ async function pdfGroupFor(db: AppDatabase, source: Source, name: string, now: n
   const clean = normalizeText(name);
   if (!clean) throw new GroupNameError('empty');
   if (clean.length > GROUP_NAME_MAX) throw new GroupNameError('too_long');
-  const taken = new Set((await db.groups.where('kind').equals('pdf').toArray()).map((group) => nameKey(group.name)));
+  const taken = new Set((await db.groups.where('kind').equals('pdf').filter((group) => group.language === source.language).toArray()).map((group) => nameKey(group.name)));
   let unique = clean;
   for (let n = 2; taken.has(nameKey(unique)); n++) unique = `${clean} (${n})`;
-  return addPdfGroup(db, unique, source.id, now);
+  return addPdfGroup(db, unique, source, now);
 }
 
 /**
@@ -91,14 +95,17 @@ async function pdfGroupFor(db: AppDatabase, source: Source, name: string, now: n
  */
 export async function commitImport(db: AppDatabase, input: { source: ImportSource; drafts: readonly ImportDraft[]; target: ImportTarget; collections?: SourceCollections | undefined }, now: number): Promise<ImportSummary> {
   return db.transaction('rw', [db.words, db.cards, db.reviewLogs, db.groups, db.groupMembers, db.sources, db.importRows, db.meta], async () => {
-    const active = await db.words.filter((word) => word.deletedAt === null).toArray();
+    const { language } = input.source;
+    // Only words of the import's own language: the same spelling in another language is another word.
+    const active = await activeWordsOf(db, language);
     const reviewed = reviewRows(input.drafts, active.map(knownEntryOf));
     if (reviewed.some((row) => needsAttention(row.status))) throw new ImportNotReadyError();
 
-    let source: Source | undefined = await db.sources.where('fileHash').equals(input.source.fileHash).first();
+    // A file imported into another language before is a different source here, so its rows link nothing of this one.
+    let source: Source | undefined = await db.sources.where('[language+fileHash]').equals([language, input.source.fileHash]).first();
     const isRepeat = source !== undefined;
     if (!source) {
-      source = { id: newId(), fileName: input.source.fileName, fileHash: input.source.fileHash, importedAt: now, pipelineVersion: input.source.pipelineVersion };
+      source = { id: newId(), language, fileName: input.source.fileName, fileHash: input.source.fileHash, importedAt: now, pipelineVersion: input.source.pipelineVersion };
       await db.sources.add(source);
     }
     const sourceId = source.id;
@@ -110,10 +117,11 @@ export async function commitImport(db: AppDatabase, input: { source: ImportSourc
     const wordsOfSource = new Set(prior.map((row) => row.wordId));
 
     let group: Group | null = null;
-    if (input.target.kind === 'new_group') group = await createCustomGroup(db, input.target.name, now);
+    if (input.target.kind === 'new_group') group = await createCustomGroup(db, input.target.name, now, language);
     if (input.target.kind === 'group') {
       group = (await db.groups.get(input.target.id)) ?? null;
       if (group?.kind !== 'custom') throw new ImportNotReadyError();
+      if (group.language !== language) throw new LanguageMismatchError(`Collection ${group.id} is not ${language}`);
     }
 
     const collections = input.collections;
@@ -126,6 +134,7 @@ export async function commitImport(db: AppDatabase, input: { source: ImportSourc
     const summary: ImportSummary = { rows: reviewed.length, created: 0, existing: 0, repeats: 0, excluded: 0, invalid: 0, linked: 0, meaningsAdded: 0, group, pdfGroup, sourceReused: isRepeat };
 
     const join = async (target: Group, wordId: string, importRowId: string | null): Promise<boolean> => {
+      assertSameLanguage(target, words.get(wordId)!);
       if (await db.groupMembers.get([target.id, wordId])) return false;
       await db.groupMembers.add({ groupId: target.id, wordId, addedAt: now, importRowId });
       return true;
@@ -147,13 +156,14 @@ export async function commitImport(db: AppDatabase, input: { source: ImportSourc
       let word: Word;
       if (action.create) {
         const draft: WordDraft = { lemma: row.lemma, article: row.article, meanings: row.meanings, plural: normalizeText(row.draft.plural) || null };
-        word = await insertWord(db, draft, now);
+        word = await insertWord(db, draft, now, language);
         words.set(word.id, word);
         made.set(rowRef(row.draft.id), word);
         summary.created++;
       } else {
         const existing = made.get(action.ref) ?? words.get(action.ref);
         if (!existing) throw new ImportNotReadyError();
+        if (existing.language !== language) throw new LanguageMismatchError(`Word ${existing.id} is not ${language}`);
         const merged = withMeanings(existing, row.meanings, now);
         const plural = row.draft.linked ? '' : normalizeText(row.draft.plural);
         const updated = plural && !merged.plural ? { ...merged, plural, updatedAt: now } : merged;

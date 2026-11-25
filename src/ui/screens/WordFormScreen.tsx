@@ -22,6 +22,7 @@ import { meaningsOf, wordLabel } from '../components/WordList';
 import { useDb } from '../dbContext';
 import { hrefFor, hrefForGroup, hrefForWord } from '../router';
 import { useLoad } from '../useLoad';
+import { meaningLang, useBusy, useLearningLanguage } from '../workspace';
 
 const LETTERS = ['ä', 'ö', 'ü', 'ß'] as const;
 type ArticleChoice = Article | 'none';
@@ -51,13 +52,15 @@ interface WordFormProps {
 /** Waits for a pause in typing, because a half-typed word is not a mistake. */
 const CHECK_DELAY_MS = 350;
 
-function useWordCheck(german: string, article: string, turkish: string) {
+/** The German dictionary's advice. Another learning language has no dictionary here, so nothing is checked. */
+function useWordCheck(german: string, article: string, turkish: string, enabled: boolean) {
   const db = useDb();
   const [validate, setValidate] = useState<Validate | null>(null);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [validation, setValidation] = useState<Validation>(UNCHECKED);
 
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
     void Promise.all([loadValidator(), readDismissals(db)]).then(([validator, stored]) => {
       if (!live) return;
@@ -67,7 +70,7 @@ function useWordCheck(german: string, article: string, turkish: string) {
     return () => {
       live = false;
     };
-  }, [db]);
+  }, [db, enabled]);
 
   useEffect(() => {
     if (!validate) return;
@@ -87,6 +90,9 @@ function useWordCheck(german: string, article: string, turkish: string) {
 const placeForWord = (id: string, groupId?: string) => location.replace(hrefForWord(id, groupId));
 
 function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFor, onSave }: WordFormProps) {
+  const language = useLearningLanguage();
+  // Articles, their letters and the dictionary are German. A word of another language is only its text.
+  const german = language === 'de';
   const [values, setValues] = useState(initial);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialGroups));
   const [errors, setErrors] = useState<readonly DraftError[]>([]);
@@ -97,7 +103,10 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
   const turkishInput = useRef<HTMLInputElement>(null);
   const conflictPanel = useRef<HTMLDivElement>(null);
 
-  const check = useWordCheck(values.german, values.article === 'none' ? '' : values.article, values.turkish);
+  const check = useWordCheck(values.german, values.article === 'none' ? '' : values.article, values.turkish, german);
+  // Typed but not saved: the workspace stays until it is saved or left.
+  const dirty = values.german !== initial.german || values.article !== initial.article || values.turkish !== initial.turkish || values.plural !== initial.plural;
+  useBusy(dirty && !saving);
   const typed = values.german.trim() !== '';
   const checkNote = typed && check.issues.length === 0 && check.validation.status !== 'verified' && check.validation.status !== 'unchecked' && check.validation.status !== 'mismatch' ? validationText(check.validation) : '';
 
@@ -111,7 +120,7 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
 
   /** der Apfel typed into the word field is the article and the word. */
   const adoptArticle = (current: FormValues): FormValues => {
-    if (current.article !== 'none') return current;
+    if (!german || current.article !== 'none') return current;
     const split = splitArticle(current.german);
     return split.article ? { ...current, german: split.lemma, article: split.article } : current;
   };
@@ -165,21 +174,23 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
         void submit(null);
       }}
     >
-      <fieldset class="form-field">
-        <legend class="form-label">{t.wordForm.article}</legend>
-        <div class="segmented segmented-full">
-          {ARTICLE_CHOICES.map((choice) => (
-            <label key={choice}>
-              <input type="radio" name="article" value={choice} checked={values.article === choice} onChange={() => change({ article: choice })} />
-              <span lang={choice === 'none' ? undefined : 'de'}>{choice === 'none' ? t.wordForm.noArticle : choice}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {german && (
+        <fieldset class="form-field">
+          <legend class="form-label">{t.wordForm.article}</legend>
+          <div class="segmented segmented-full">
+            {ARTICLE_CHOICES.map((choice) => (
+              <label key={choice}>
+                <input type="radio" name="article" value={choice} checked={values.article === choice} onChange={() => change({ article: choice })} />
+                <span lang={choice === 'none' ? undefined : 'de'}>{choice === 'none' ? t.wordForm.noArticle : choice}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       <div class="form-field">
         <div class="field-head">
-          <label class="form-label" for="word-german">{t.wordForm.german}</label>
+          <label class="form-label" for="word-german">{t.lang[language].word}</label>
           {typed && check.issues.length > 0 && (
             <PopoverButton id="word-check" icon="warning" attention label={t.validation.label(values.german.trim())}>
               <IssueList
@@ -208,7 +219,7 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
           id="word-german"
           class="field"
           type="text"
-          lang="de"
+          lang={language}
           value={values.german}
           maxLength={140}
           autocomplete="off"
@@ -220,23 +231,25 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
           onInput={(event) => change({ german: event.currentTarget.value })}
           onBlur={() => setValues(adoptArticle)}
         />
-        {germanError && <p id="word-german-error" class="form-error">{t.wordForm.errors[germanError]}</p>}
+        {germanError && <p id="word-german-error" class="form-error">{germanError === 'german_missing' ? t.lang[language].wordMissing : t.wordForm.errors[germanError]}</p>}
         {checkNote && <p class="form-hint" data-testid="word-check-note">{checkNote}</p>}
-        <div class="letters" role="group" aria-label={t.wordForm.letters}>
-          {LETTERS.map((letter) => (
-            <button key={letter} type="button" class="letter" lang="de" aria-label={t.wordForm.insert(letter)} onPointerDown={(event) => event.preventDefault()} onClick={() => insertLetter(letter)}>{letter}</button>
-          ))}
-        </div>
+        {german && (
+          <div class="letters" role="group" aria-label={t.wordForm.letters}>
+            {LETTERS.map((letter) => (
+              <button key={letter} type="button" class="letter" lang="de" aria-label={t.wordForm.insert(letter)} onPointerDown={(event) => event.preventDefault()} onClick={() => insertLetter(letter)}>{letter}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div class="form-field">
-        <label class="form-label" for="word-turkish">{t.wordForm.turkish}</label>
+        <label class="form-label" for="word-turkish">{t.lang[language].meaning}</label>
         <input
           ref={turkishInput}
           id="word-turkish"
           class="field"
           type="text"
-          lang="tr"
+          lang={meaningLang(language)}
           value={values.turkish}
           maxLength={320}
           autocomplete="off"
@@ -244,14 +257,14 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
           aria-describedby={turkishError ? 'word-turkish-error word-turkish-hint' : 'word-turkish-hint'}
           onInput={(event) => change({ turkish: event.currentTarget.value })}
         />
-        {turkishError && <p id="word-turkish-error" class="form-error">{t.wordForm.errors.turkish_missing}</p>}
+        {turkishError && <p id="word-turkish-error" class="form-error">{t.lang[language].meaningMissing}</p>}
         <p id="word-turkish-hint" class="form-hint">{t.wordForm.turkishHint}</p>
       </div>
 
       {values.article !== 'none' && (
         <div class="form-field">
           <label class="form-label" for="word-plural">{t.wordForm.plural}</label>
-          <input id="word-plural" class="field" type="text" lang="de" value={values.plural} maxLength={120} autocomplete="off" autocapitalize="off" autocorrect={AUTOCORRECT_OFF} spellcheck={false} onInput={(event) => change({ plural: event.currentTarget.value })} />
+          <input id="word-plural" class="field" type="text" lang={language} value={values.plural} maxLength={120} autocomplete="off" autocapitalize="off" autocorrect={AUTOCORRECT_OFF} spellcheck={false} onInput={(event) => change({ plural: event.currentTarget.value })} />
         </div>
       )}
 
@@ -281,11 +294,13 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
 }
 
 function ConflictBody({ conflict, hasLists, saving, onChoose }: { conflict: Conflict | { duplicate: Word }; hasLists: boolean; saving: boolean; onChoose: (choice: string) => void }) {
+  const language = useLearningLanguage();
+  const meaning = meaningLang(language);
   if ('duplicate' in conflict) {
     return (
       <>
         <p class="conflict-title">{t.wordForm.exists}</p>
-        <a class="conflict-word" lang="de" href={hrefForWord(conflict.duplicate.id)}>{wordLabel(conflict.duplicate)}</a>
+        <a class="conflict-word" lang={language} href={hrefForWord(conflict.duplicate.id)}>{wordLabel(conflict.duplicate)}</a>
       </>
     );
   }
@@ -295,7 +310,7 @@ function ConflictBody({ conflict, hasLists, saving, onChoose }: { conflict: Conf
       <>
         <p class="conflict-title">{newMeanings.length ? t.wordForm.existsNewMeaning(newMeanings.join(', ')) : t.wordForm.exists}</p>
         <a class="conflict-word" href={hrefForWord(entry.ref)}>
-          <span lang="de">{wordLabel(entry)}</span> <span class="muted" lang="tr">{entry.meanings.join(', ')}</span>
+          <span lang={language}>{wordLabel(entry)}</span> <span class="muted" lang={meaning}>{entry.meanings.join(', ')}</span>
         </a>
         {newMeanings.length > 0 && <button type="button" class="btn btn-small" disabled={saving} onClick={() => onChoose(entry.ref)}>{t.wordForm.addMeaning}</button>}
         {newMeanings.length === 0 && hasLists && <button type="button" class="btn btn-small" disabled={saving} onClick={() => onChoose(entry.ref)}>{t.wordForm.addToLists}</button>}
@@ -309,7 +324,7 @@ function ConflictBody({ conflict, hasLists, saving, onChoose }: { conflict: Conf
         {conflict.candidates.map((entry) => (
           <li key={entry.ref} class="conflict-item">
             <a class="conflict-word" href={hrefForWord(entry.ref)}>
-              <span lang="de">{wordLabel(entry)}</span> <span class="muted" lang="tr">{entry.meanings.join(', ')}</span>
+              <span lang={language}>{wordLabel(entry)}</span> <span class="muted" lang={meaning}>{entry.meanings.join(', ')}</span>
             </a>
             <button type="button" class="btn btn-small" disabled={saving} onClick={() => onChoose(entry.ref)}>{t.wordForm.join}</button>
           </li>
@@ -328,7 +343,8 @@ const BLANK: FormValues = { german: '', article: 'none', turkish: '', plural: ''
  */
 export function WordNewScreen({ groupId }: { groupId?: string | undefined } = {}) {
   const db = useDb();
-  const { state, reload } = useLoad(() => listCustomGroups(db), [db]);
+  const language = useLearningLanguage();
+  const { state, reload } = useLoad(() => listCustomGroups(db, language), [db, language]);
   const list = groupId && state.status === 'ready' ? state.data.find((group) => group.id === groupId) : undefined;
   const back = list ? { href: hrefForGroup(list.id), label: t.nav.collections } : { href: hrefFor('dictionary'), label: t.nav.dictionary };
 
@@ -343,7 +359,7 @@ export function WordNewScreen({ groupId }: { groupId?: string | undefined } = {}
           initialGroups={list ? [list.id] : []}
           cancelHref={back.href}
           onSave={async (draft, groupIds, choice) => {
-            const outcome = await addWord(db, draft, choice, groupIds, Date.now());
+            const outcome = await addWord(db, draft, choice, groupIds, Date.now(), language);
             if (outcome.kind === 'conflict') return outcome.found;
             if (list) location.replace(hrefForGroup(list.id));
             else placeForWord(outcome.word.id);
@@ -356,10 +372,11 @@ export function WordNewScreen({ groupId }: { groupId?: string | undefined } = {}
 
 export function WordEditScreen({ wordId, groupId }: { wordId: string; groupId?: string | undefined }) {
   const db = useDb();
+  const language = useLearningLanguage();
   const { state, reload } = useLoad(async () => {
-    const [word, cards] = await Promise.all([getActiveWord(db, wordId), db.cards.where('[wordId+track]').between([wordId, Dexie.minKey], [wordId, Dexie.maxKey]).toArray()]);
+    const [word, cards] = await Promise.all([getActiveWord(db, wordId, language), db.cards.where('[wordId+track]').between([wordId, Dexie.minKey], [wordId, Dexie.maxKey]).toArray()]);
     return word && { word, tracks: new Set(cards.filter((card) => phaseOf(card.fsrs) !== 'new').map((card) => card.track)) };
-  }, [db, wordId]);
+  }, [db, wordId, language]);
   const cancelHref = hrefForWord(wordId, groupId);
   const back = { href: cancelHref, label: t.dictionary.notFound };
 
@@ -376,7 +393,7 @@ export function WordEditScreen({ wordId, groupId }: { wordId: string; groupId?: 
         noteFor={(draft) => {
           // Half-typed fields are not an edit yet.
           if (!draft.lemma.trim() || draft.meanings.length === 0) return null;
-          const lost = affectedTracks(word, { ...draft, meanings: draft.meanings.map((text) => ({ text })) }).filter((track) => tracks.has(track)).length;
+          const lost = affectedTracks(word, { ...draft, language: word.language, meanings: draft.meanings.map((text) => ({ text })) }).filter((track) => tracks.has(track)).length;
           return lost > 0 ? t.wordForm.resetNote(lost) : null;
         }}
         onSave={async (draft) => {

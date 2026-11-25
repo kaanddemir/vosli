@@ -1,20 +1,22 @@
 // Runs the data layer against the browser's real IndexedDB. Served by the dev server only.
 import { applyGrade, createFsrsState } from '../src/core/scheduling/fsrs';
 import { createBackup, exportBackupText, parseBackup, restoreBackup } from '../src/data/backup';
-import { MigrationFailedError, NewerSchemaError, openDatabase } from '../src/data/db';
+import { AppDatabase, MigrationFailedError, NewerSchemaError, openDatabase } from '../src/data/db';
+import { readLearningLanguage, readOnboarding } from '../src/data/learningMeta';
 import { blankDraft } from '../src/core/review';
 import { deleteGroups } from '../src/data/groups';
 import { commitImport } from '../src/data/importCommit';
 import { listActiveWords, recordPracticeAttempt } from '../src/data/repository';
 import { addWord, deleteWord, updateWord } from '../src/data/words';
-import { MIGRATIONS, type Migration } from '../src/data/schema';
+import { MIGRATIONS, OWNED_TABLES, SCHEMA_VERSION, TABLE_NAMES, type Migration } from '../src/data/schema';
 import { saveReview } from '../src/data/smartReview';
 import { makeCard, makeFsrs, makeWord, T0 } from '../tests/support/fixtures';
 import { seedLibrary } from '../tests/support/seed';
 
 const name = (label: string) => `harness-${label}-${crypto.randomUUID()}`;
 const DAY = 86_400_000;
-const v2: Migration = { version: 2, stores: { notes: '&id' } };
+/** The version after the app's own, so these keep describing the next upgrade whatever the current one is. */
+const next: Migration = { version: SCHEMA_VERSION + 1, stores: { notes: '&id' } };
 
 const tests: Record<string, () => Promise<unknown>> = {
   async atomicAnswer() {
@@ -111,13 +113,37 @@ const tests: Record<string, () => Promise<unknown>> = {
     target.close();
     return { rejected, ids };
   },
+  /** A database exactly as the v1 app left it, upgraded by the browser's own IndexedDB rather than a test double. */
+  async legacyUpgradeKeepsEverything() {
+    const n = name('legacy');
+    const old = new AppDatabase(n, MIGRATIONS.filter((migration) => migration.version === 1));
+    await old.open();
+    await seedLibrary(old);
+    for (const table of OWNED_TABLES) {
+      await old.table(table).toCollection().modify((record: Record<string, unknown>) => {
+        delete record.language;
+      });
+    }
+    const before = Object.fromEntries(await Promise.all(TABLE_NAMES.filter((table) => table !== 'meta').map(async (table) => [table, await old.table(table).toArray()] as const)));
+    old.close();
+    const db = await openDatabase({ name: n });
+    let unchanged = true;
+    for (const [table, rows] of Object.entries(before)) {
+      const owned = (OWNED_TABLES as readonly string[]).includes(table);
+      const expected = JSON.stringify(rows.map((row: Record<string, unknown>) => (owned ? { ...row, language: 'de' } : row)));
+      if (JSON.stringify(await db.table(table).toArray()) !== expected) unchanged = false;
+    }
+    const result = { unchanged, verno: db.verno, language: await readLearningLanguage(db), via: (await readOnboarding(db))?.via, words: await db.words.where('[language+identityKey]').between(['de', ''], ['de', '\uffff']).count() };
+    db.close();
+    return result;
+  },
   async newerSchemaRefused() {
     const n = name('newer');
-    const newer = await openDatabase({ name: n, migrations: [...MIGRATIONS, v2] });
+    const newer = await openDatabase({ name: n, migrations: [...MIGRATIONS, next] });
     await newer.words.add(makeWord('a', 'Fuß', 'der', 'ayak'));
     newer.close();
     const error = await openDatabase({ name: n }).catch((e: unknown) => e);
-    const again = await openDatabase({ name: n, migrations: [...MIGRATIONS, v2] });
+    const again = await openDatabase({ name: n, migrations: [...MIGRATIONS, next] });
     const result = { refused: error instanceof NewerSchemaError, words: await again.words.count(), verno: again.verno };
     again.close();
     return result;
@@ -128,7 +154,7 @@ const tests: Record<string, () => Promise<unknown>> = {
     await db.words.add(makeWord('a', 'Fuß', 'der', 'ayak'));
     db.close();
     const bad: Migration = {
-      version: 2,
+      version: SCHEMA_VERSION + 1,
       stores: { notes: '&id' },
       upgrade: async (tx) => {
         await tx.table('words').toCollection().modify((w: Record<string, unknown>) => {
@@ -148,7 +174,7 @@ const tests: Record<string, () => Promise<unknown>> = {
     const n = name('tabs');
     let notified = false;
     const first = await openDatabase({ name: n, onClosedByUpgrade: () => (notified = true) });
-    const second = await openDatabase({ name: n, migrations: [...MIGRATIONS, v2] });
+    const second = await openDatabase({ name: n, migrations: [...MIGRATIONS, next] });
     const result = { notified, firstOpen: first.isOpen(), secondVersion: second.verno };
     second.close();
     return result;
@@ -163,7 +189,7 @@ const tests: Record<string, () => Promise<unknown>> = {
     };
     db.importRows.hook('creating', failing);
     const drafts = [blankDraft('1', 0, { german: 'Birne', article: 'die', turkish: 'armut' }), blankDraft('2', 1, { german: 'Apfel', article: 'der', turkish: 'elma, alma' })];
-    const rejected = await commitImport(db, { source: { fileName: 'a.csv', fileHash: 'h', pipelineVersion: 1 }, drafts, target: { kind: 'new_group', name: 'Yeni' } }, T0).then(() => false, () => true);
+    const rejected = await commitImport(db, { source: { language: 'de', fileName: 'a.csv', fileHash: 'h', pipelineVersion: 1 }, drafts, target: { kind: 'new_group', name: 'Yeni' } }, T0).then(() => false, () => true);
     db.importRows.hook('creating').unsubscribe(failing);
     const same = before === JSON.stringify(await createBackup(db, T0));
     db.close();
@@ -179,7 +205,7 @@ const tests: Record<string, () => Promise<unknown>> = {
     const others = (await db.words.count()) - 1;
     await deleteWord(db, 'w-apfel');
     const gone = (await db.words.get('w-apfel')) === undefined && (await db.reviewLogs.where('wordId').equals('w-apfel').count()) === 0 && (await db.groupMembers.where('wordId').equals('w-apfel').count()) === 0;
-    const outcome = await addWord(db, { lemma: 'Apfelbaum', article: 'der', meanings: ['elma ağacı'], plural: null }, null, [], T0);
+    const outcome = await addWord(db, { lemma: 'Apfelbaum', article: 'der', meanings: ['elma ağacı'], plural: null }, null, [], T0, 'de');
     const fresh = outcome.kind === 'saved' && outcome.word.id !== 'w-apfel' && (await db.reviewLogs.where('wordId').equals(outcome.word.id).count()) === 0;
     const kept = (await db.words.count()) === others + 1 && (await db.sources.count()) === 1 && (await db.groups.count()) === 2;
     db.close();
@@ -202,13 +228,13 @@ const tests: Record<string, () => Promise<unknown>> = {
   async groupDeleteProtectsData() {
     const db = await openDatabase({ name: name('groups') });
     await seedLibrary(db);
-    const words = (await listActiveWords(db)).length;
+    const words = (await listActiveWords(db, 'de')).length;
     const cards = await db.cards.count();
     const logs = await db.reviewLogs.count();
     await deleteGroups(db, ['g-custom']);
     const sourceMember = (await db.groupMembers.get(['g-pdf', 'w-apfel']))?.importRowId;
     await deleteGroups(db, ['g-pdf']);
-    const result = { sourceGone: (await db.groups.get('g-pdf')) === undefined, kept: (await listActiveWords(db)).length === words && (await db.cards.count()) === cards && (await db.reviewLogs.count()) === logs, sourceMember };
+    const result = { sourceGone: (await db.groups.get('g-pdf')) === undefined, kept: (await listActiveWords(db, 'de')).length === words && (await db.cards.count()) === cards && (await db.reviewLogs.count()) === logs, sourceMember };
     db.close();
     return result;
   },

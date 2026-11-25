@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { formatCount } from '../src/i18n/format';
 import { t } from '../src/i18n/strings';
 
@@ -86,8 +87,8 @@ test.describe('loading', () => {
       }).observe(document, { childList: true, subtree: true });
     });
     await open(page);
-    await expect(page.getByText(t.home.emptySupport)).toBeVisible();
-    expect(await page.evaluate(() => (window as unknown as { seen: string[] }).seen)).toEqual([t.home.emptySupport]);
+    await expect(page.getByText(t.home.workspace(0))).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { seen: string[] }).seen)).toEqual([t.home.workspace(0)]);
   });
 });
 
@@ -228,7 +229,7 @@ async function seedLibrary(page: Page) {
         request.onsuccess = () => {
           const db = request.result;
           const tx = db.transaction(Object.keys(data), 'readwrite');
-          for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(row);
+          for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(['words', 'groups', 'sources'].includes(table) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             db.close();
             resolve();
@@ -348,7 +349,7 @@ test.describe('home', () => {
           request.onsuccess = () => {
             const db = request.result;
             const tx = db.transaction(Object.keys(data), 'readwrite');
-            for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(row);
+            for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(['words', 'groups', 'sources'].includes(table) ? Object.assign({ language: 'de' }, row) : row);
             tx.oncomplete = () => {
               db.close();
               resolve();
@@ -365,7 +366,7 @@ test.describe('home', () => {
   test('with no words: Import is the one action available, and the empty dictionary is named', async ({ page }) => {
     await open(page);
     await expect(heading(page)).toHaveText(t.home.title);
-    await expect(main(page)).toContainText(t.home.emptySupport);
+    await expect(main(page)).toContainText(t.home.workspace(0));
     await expect(main(page).locator('.btn-primary')).toHaveText(t.nav.import);
     await expect(main(page).locator('.btn-primary')).toHaveCount(1);
     for (const name of [t.home.smartReview, t.home.freePractice]) {
@@ -382,7 +383,7 @@ test.describe('home', () => {
     await seedHome(page, dueWords(1284));
     await open(page);
     await expect(heading(page)).toHaveText(t.home.title);
-    await expect(main(page)).toContainText(t.home.wordCount(1284));
+    await expect(main(page)).toContainText(t.home.workspace(1284));
     await expect(page.locator('.today-status')).toContainText(t.home.dueStatus(1284));
     await expect(main(page).locator('.btn-primary')).toHaveText(t.home.smartReview);
     await expect(main(page).getByRole('link', { name: t.home.freePractice })).toBeVisible();
@@ -394,7 +395,7 @@ test.describe('home', () => {
     await seedHome(page, { words: LIBRARY.words.slice(0, 1), cards: allScheduled(LIBRARY.words[0]!.id), meta: [{ key: 'lastBackupAt', value: Date.now() }] });
     await open(page);
     await expect(heading(page)).toHaveText(t.home.title);
-    await expect(main(page)).toContainText(t.home.wordCount(1));
+    await expect(main(page)).toContainText(t.home.workspace(1));
     await expect(page.locator('.today-status')).toHaveText(t.home.doneStatus);
     await expect(main(page).locator('.btn-primary')).toHaveText(t.home.smartReview);
     await expect(page.getByText(t.home.backupDue)).toHaveCount(0);
@@ -411,7 +412,7 @@ test.describe('home', () => {
       groupMembers: memberships,
     });
     await open(page);
-    await expect(main(page)).toContainText(t.home.wordCount(2));
+    await expect(main(page)).toContainText(t.home.workspace(2));
   });
 
   test('the secondary actions stay side by side on the narrowest phone', async ({ page }) => {

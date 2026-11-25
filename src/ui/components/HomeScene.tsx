@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
+import type { LearningLanguage } from '../../core/learningLanguage';
+import { useLearningLanguage } from '../workspace';
 import { FoxArt, FoxButton, useFox } from './FoxMascot';
 
 /** An original Berlin roofline, drawn only from tokens so it follows the theme. Paths are static and hand-tuned around the center house. */
@@ -7,14 +9,37 @@ const FAR = 'M0 240V150V118H70V96H160V128H220V104H330V88H410V122H480V110H580V92H
 const WINDOWS = 'M-53 172h9v14h-9zM-28 172h9v14h-9zM-53 199h9v14h-9zM-28 199h9v14h-9zM10 146h9v14h-9zM32 146h9v14h-9zM55 146h9v14h-9zM10 173h9v14h-9zM32 173h9v14h-9zM55 173h9v14h-9zM10 200h9v14h-9zM32 200h9v14h-9zM55 200h9v14h-9zM96 160h9v14h-9zM123 160h9v14h-9zM96 187h9v14h-9zM165 136h9v14h-9zM188 136h9v14h-9zM212 136h9v14h-9zM165 163h9v14h-9zM188 163h9v14h-9zM212 163h9v14h-9zM165 190h9v14h-9zM188 190h9v14h-9zM212 190h9v14h-9zM255 176h9v14h-9zM282 176h9v14h-9zM255 203h9v14h-9zM282 203h9v14h-9zM326 148h9v14h-9zM350 148h9v14h-9zM375 148h9v14h-9zM326 175h9v14h-9zM350 175h9v14h-9zM375 175h9v14h-9zM326 202h9v14h-9zM350 202h9v14h-9zM375 202h9v14h-9zM415 168h9v14h-9zM440 168h9v14h-9zM415 195h9v14h-9zM440 195h9v14h-9zM480 140h9v14h-9zM506 140h9v14h-9zM480 167h9v14h-9zM506 167h9v14h-9zM531 167h9v14h-9zM480 194h9v14h-9zM506 194h9v14h-9zM531 194h9v14h-9zM573 174h9v14h-9zM600 174h9v14h-9zM573 201h9v14h-9zM600 201h9v14h-9zM646 154h9v14h-9zM675 154h9v14h-9zM646 181h9v14h-9zM675 181h9v14h-9zM646 208h9v14h-9zM675 208h9v14h-9zM717 162h9v14h-9zM740 162h9v14h-9zM762 162h9v14h-9zM784 162h9v14h-9zM807 162h9v14h-9zM829 162h9v14h-9zM851 162h9v14h-9zM874 162h9v14h-9zM717 189h9v14h-9zM740 189h9v14h-9zM762 189h9v14h-9zM784 189h9v14h-9zM829 189h9v14h-9zM851 189h9v14h-9zM874 189h9v14h-9zM910 150h9v14h-9zM934 150h9v14h-9zM957 150h9v14h-9zM910 177h9v14h-9zM934 177h9v14h-9zM957 177h9v14h-9zM910 204h9v14h-9zM934 204h9v14h-9zM957 204h9v14h-9zM998 180h9v14h-9zM1025 180h9v14h-9zM998 207h9v14h-9zM1025 207h9v14h-9zM1069 138h9v14h-9zM1096 138h9v14h-9zM1122 138h9v14h-9zM1069 165h9v14h-9zM1096 165h9v14h-9zM1122 165h9v14h-9zM1069 192h9v14h-9zM1096 192h9v14h-9zM1122 192h9v14h-9zM1164 170h9v14h-9zM1189 170h9v14h-9zM1164 197h9v14h-9zM1230 154h9v14h-9zM1256 154h9v14h-9zM1281 154h9v14h-9zM1230 181h9v14h-9zM1256 181h9v14h-9zM1281 181h9v14h-9zM1230 208h9v14h-9zM1256 208h9v14h-9zM1281 208h9v14h-9zM1323 132h9v14h-9zM1350 132h9v14h-9zM1323 159h9v14h-9zM1350 159h9v14h-9zM1323 186h9v14h-9zM1350 186h9v14h-9zM1391 172h9v14h-9zM1416 172h9v14h-9zM1440 172h9v14h-9zM1391 199h9v14h-9zM1416 199h9v14h-9zM1440 199h9v14h-9zM1483 146h9v14h-9zM1512 146h9v14h-9zM1483 173h9v14h-9zM1512 173h9v14h-9zM1483 200h9v14h-9zM1512 200h9v14h-9zM1554 162h9v14h-9zM1601 162h9v14h-9zM1554 189h9v14h-9zM1578 189h9v14h-9zM1601 189h9v14h-9zM1638 138h9v14h-9zM1661 138h9v14h-9zM1638 165h9v14h-9zM1661 165h9v14h-9zM1638 192h9v14h-9zM1661 192h9v14h-9z';
 const LIT = 'M123 187h9v14h-9zM531 140h9v14h-9zM807 189h9v14h-9zM1189 197h9v14h-9zM1578 162h9v14h-9z';
 
+/**
+ * The English workspace's London: the same houses and windows with chimney stacks for gables, and Tower Bridge, the
+ * Elizabeth Tower and the Shard behind them. The center roof the fox rises behind is the same as Berlin's.
+ */
+const LONDON_NEAR = 'M-68 240V160H-4V122H6V108H8V103H10V108H14V103H16V108H18V122H54V108H56V103H58V108H62V103H64V108H66V122H78V148L114 114L150 148V124L159 104H227L236 124V164L273 130L310 164V128H320V112H322V107H324V112H328V107H330V112H332V128H370V112H372V107H374V112H378V107H380V112H382V128H400V156H464V128L473 108H547L556 128V162L591 128L626 162V134H642V118H644V113H646V118H650V113H652V118H654V134H678V118H680V113H682V118H686V113H688V118H690V134H704V150L720 149H880L896 150V138L938 104L980 138V168H1052V120H1064V104H1066V99H1068V104H1072V99H1074V104H1076V120H1122V104H1124V99H1126V104H1130V99H1132V104H1134V120H1148V158L1157 138H1205L1214 158V142L1260 108L1306 142V120L1315 100H1367L1376 120V146H1390V130H1392V125H1394V130H1398V125H1400V130H1402V146H1438V130H1440V125H1442V130H1446V125H1448V130H1450V146H1464V134L1502 100L1540 134V150H1624V126L1654 92L1684 126V240Z';
+const LONDON_FAR = 'M0 240V150V118H70V96H160V128H220V104H330V88H410V122H480V110H580V92H670V126H730V106H850V94H930V116H1030V100H1090V124H1180V90H1250V112H1360V120H1440V98H1500V110H1600V240ZM380 240V42L382 34L384 42H388L391 26L394 42H398L400 34L402 42V240ZM500 240V42L502 34L504 42H508L511 26L514 42H518L520 34L522 42V240ZM402 63V58H500V63ZM402 71V67H500V71ZM402 128V122H500V128ZM330 120L380 64V69L334 120ZM522 64L572 120H568L522 69ZM971 240V72H968V40L969.5 34L971 40V36L977 24L982 14L985 0L988 14L993 24L999 36V40L1000.5 34L1002 40V72H999V240ZM1318 240L1336 22L1338 12L1340 22L1360 240Z';
+
+interface City {
+  far: string;
+  near: string;
+}
+
+const CITY: Record<LearningLanguage, City> = { de: { far: FAR, near: NEAR }, en: { far: LONDON_FAR, near: LONDON_NEAR } };
+
 interface Art {
   viewBox: string;
   string: string;
   flags: string[];
 }
 
-const NARROW: Art = { viewBox: '0 0 320 76', string: 'M0 0Q160 104 320 0', flags: ['M124.7 49.6L139.6 51.3L131.0 69.4ZM236.4 40.3L250.6 35.4L246.8 56.8Z', 'M41.9 23.7L55.5 29.9L44.4 45.8ZM152.5 52.0L167.5 52.0L160.0 71.0ZM264.5 29.9L278.1 23.7L275.6 45.8Z', 'M69.4 35.4L83.6 40.3L73.2 56.8ZM180.4 51.3L195.3 49.6L189.0 69.4Z', 'M97.0 44.1L111.7 47.4L102.0 64.7ZM208.3 47.4L223.0 44.1L218.0 64.7Z'] };
-const FLAG_CLASSES = ['flag-black', 'flag-red', 'flag-gold', 'flag-cream'];
+/** The phone drawing's nine flags, left to right. */
+const NARROW_FLAGS = ['M41.9 23.7L55.5 29.9L44.4 45.8Z', 'M69.4 35.4L83.6 40.3L73.2 56.8Z', 'M97.0 44.1L111.7 47.4L102.0 64.7Z', 'M124.7 49.6L139.6 51.3L131.0 69.4Z', 'M152.5 52.0L167.5 52.0L160.0 71.0Z', 'M180.4 51.3L195.3 49.6L189.0 69.4Z', 'M208.3 47.4L223.0 44.1L218.0 64.7Z', 'M236.4 40.3L250.6 35.4L246.8 56.8Z', 'M264.5 29.9L278.1 23.7L275.6 45.8Z'];
+
+/** Black, red and gold with cream between the repeats for German; navy, red and off-white, as in the Union Jack, for English. */
+const FLAG_CLASSES: Record<LearningLanguage, string[]> = { de: ['flag-black', 'flag-red', 'flag-gold', 'flag-cream'], en: ['flag-navy', 'flag-crimson', 'flag-white'] };
+
+function narrowArt(colors: number): Art {
+  const flags = Array<string>(colors).fill('');
+  NARROW_FLAGS.forEach((flag, i) => (flags[(i + 1) % colors] += flag));
+  return { viewBox: '0 0 320 76', string: 'M0 0Q160 104 320 0', flags };
+}
 
 /**
  * The wide garland is drawn for the measured width rather than scaled, so a wider window gets more flags
@@ -23,11 +48,11 @@ const FLAG_CLASSES = ['flag-black', 'flag-red', 'flag-gold', 'flag-cream'];
 const FLAG = { width: 22, height: 30, spacing: 40 };
 const MAX_SAG = 72;
 
-function wideArt(width: number): Art {
+function wideArt(width: number, colors: number): Art {
   const scale = Math.min(1, Math.max(0.55, width / 1000));
   const sag = Math.min(MAX_SAG, width * 0.06);
   const count = Math.round(width / (FLAG.spacing * scale));
-  const flags = ['', '', '', ''];
+  const flags = Array<string>(colors).fill('');
   for (let i = 0; i < count; i++) {
     const t = (i + 0.75) / (count + 0.5);
     const x = t * width;
@@ -37,16 +62,16 @@ function wideArt(width: number): Art {
     const [ux, uy] = [1 / length, slope / length];
     const half = (FLAG.width * scale) / 2;
     const drop = FLAG.height * scale;
-    flags[i % 4] += `M${(x - ux * half).toFixed(1)} ${(y - uy * half).toFixed(1)}L${(x + ux * half).toFixed(1)} ${(y + uy * half).toFixed(1)}L${(x - uy * drop * 0.55).toFixed(1)} ${(y + drop).toFixed(1)}Z`;
+    flags[i % colors] += `M${(x - ux * half).toFixed(1)} ${(y - uy * half).toFixed(1)}L${(x + ux * half).toFixed(1)} ${(y + uy * half).toFixed(1)}L${(x - uy * drop * 0.55).toFixed(1)} ${(y + drop).toFixed(1)}Z`;
   }
   return { viewBox: `0 0 ${width} ${Math.ceil(sag + FLAG.height * scale + 2)}`, string: `M0 0Q${width / 2} ${2 * sag} ${width} 0`, flags };
 }
 
-/** Black, red and gold, with cream between the repeats. Phones get a fixed drawing with fewer, larger flags. */
-const Garland = ({ art, name }: { art: Art; name: string }) => (
+/** Phones get a fixed drawing with fewer, larger flags. */
+const Garland = ({ art, name, classes }: { art: Art; name: string; classes: string[] }) => (
   <svg class={`today-garland today-garland-${name}`} viewBox={art.viewBox}>
     <path class="flag-string" d={art.string} />
-    {art.flags.map((d, i) => <path key={i} class={FLAG_CLASSES[i]} d={d} />)}
+    {art.flags.map((d, i) => <path key={i} class={classes[i]} d={d} />)}
   </svg>
 );
 
@@ -56,15 +81,15 @@ const SETTLE_MS = 120;
  * The fox rises behind the rooftops like the sun, on the same axis as the actions above it. The drawing is
  * decorative, so only the button over it is exposed. It is its own component so petting never redraws the garland.
  */
-function Rooftops() {
+function Rooftops({ city }: { city: City }) {
   const fox = useFox();
   return (
     <div class="today-scene">
       {/* One drawing, so the fox stays behind its ridge at any size. Slice crops the sides on narrow windows. */}
       <svg class="today-scene-art" viewBox="0 0 1600 240" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-        <path class="scene-far" d={FAR} />
+        <path class="scene-far" d={city.far} />
         <FoxArt {...fox.art} />
-        <path class="scene-near" d={NEAR} />
+        <path class="scene-near" d={city.near} />
         <path class="scene-window" d={WINDOWS} />
         <path class="scene-lit" d={LIT} />
       </svg>
@@ -73,7 +98,10 @@ function Rooftops() {
   );
 }
 
+/** Home is drawn anew for each workspace, so the city and its colors come with the first paint. */
 export function HomeScene() {
+  const language = useLearningLanguage();
+  const classes = FLAG_CLASSES[language];
   const bunting = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -98,10 +126,10 @@ export function HomeScene() {
   return (
     <>
       <div class="today-bunting" aria-hidden="true" ref={bunting}>
-        <Garland art={NARROW} name="narrow" />
-        {width > 0 && <Garland key={width} art={wideArt(width)} name="wide" />}
+        <Garland art={narrowArt(classes.length)} name="narrow" classes={classes} />
+        {width > 0 && <Garland key={width} art={wideArt(width, classes.length)} name="wide" classes={classes} />}
       </div>
-      <Rooftops />
+      <Rooftops city={CITY[language]} />
     </>
   );
 }

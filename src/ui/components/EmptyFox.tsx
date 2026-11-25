@@ -1,13 +1,20 @@
+import type { LearningLanguage } from '../../core/learningLanguage';
+import { useLearningLanguage } from '../workspace';
+
+/** The two letters floating over the book: ones only the learning language has, or, for English, its first and last. */
+const BOOK_LETTERS: Record<LearningLanguage, [string, string]> = { de: ['ä', 'ß'], en: ['A', 'Z'] };
+
 /** Vosli beside what the screen will hold: words in a book, collections in a box, favorites in its paws. Decorative, and drawn only from tokens so it follows the theme. */
 const Fox = () => <image href="./icons/vosli-mark.svg" x="62" y="12" width="96" height="96" />;
 
 export function EmptyFox({ scene }: { scene: 'book' | 'box' | 'heart' }) {
+  const [left, right] = BOOK_LETTERS[useLearningLanguage()];
   return (
     <svg class="empty-fox" viewBox="0 0 220 136" aria-hidden="true">
       {scene === 'book' && (
         <>
-          <text class="empty-fox-letter" x="34" y="52" transform="rotate(-10 34 52)">ä</text>
-          <text class="empty-fox-letter" x="172" y="44" transform="rotate(9 172 44)">ß</text>
+          <text class="empty-fox-letter" x="34" y="52" transform="rotate(-10 34 52)">{left}</text>
+          <text class="empty-fox-letter" x="172" y="44" transform="rotate(9 172 44)">{right}</text>
           <Fox />
           <path class="empty-fox-cover" d="M110 132c-22-11-56-11-86-3V88h172v41c-30-8-64-8-86 3z" />
           <path class="empty-fox-paper" d="M110 92C90 80 58 79 32 85v39c26-6 58-5 78 7zM110 92c20-12 52-13 78-7v39c-26-6-58-5-78 7z" />

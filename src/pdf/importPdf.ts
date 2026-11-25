@@ -1,11 +1,12 @@
 import { hashBytes, newId } from '../core/id';
 import { parseVocabularyPages, type PdfParseResult } from '../core/pdf/layout';
-import { blankDraft, reviewRows, tallyRows, type ImportDraft } from '../core/review';
+import { blankDraft, draftsFor, reviewRows, tallyRows, type ImportDraft } from '../core/review';
 import { MAX_IMPORT_ROWS } from '../core/tabular';
 import type { AppDatabase } from '../data/db';
 import { GROUP_NAME_MAX } from '../data/groups';
 import { linkEarlierRows, type ImportSource, type SourceCollections } from '../data/importCommit';
 import { listActiveWords } from '../data/repository';
+import type { LearningLanguage } from '../core/learningLanguage';
 import { knownEntryOf } from '../data/words';
 import { PdfCancelled, PdfReadError, readPdfText, MAX_PDF_BYTES, type PdfLibrary } from './readPdf';
 
@@ -67,7 +68,7 @@ interface PdfImportOptions {
  * PDF → text → rows → drafts ready for the review. It only reads the database, to recognize a file
  * seen before; everything is written later by the commit, after a person has confirmed.
  */
-export async function preparePdfImport(db: AppDatabase, lib: PdfLibrary, fileName: string, bytes: Uint8Array<ArrayBuffer>, options: PdfImportOptions = {}): Promise<PdfImport> {
+export async function preparePdfImport(db: AppDatabase, language: LearningLanguage, lib: PdfLibrary, fileName: string, bytes: Uint8Array<ArrayBuffer>, options: PdfImportOptions = {}): Promise<PdfImport> {
   if (bytes.length > MAX_PDF_BYTES) throw new PdfReadError('too_large');
   // First: PDF.js takes the buffer away to its worker.
   const fileHash = await hashBytes(bytes);
@@ -78,18 +79,19 @@ export async function preparePdfImport(db: AppDatabase, lib: PdfLibrary, fileNam
   if (parsed.rows.length === 0) throw new PdfReadError('no_table');
   if (parsed.rows.length > MAX_IMPORT_ROWS) throw new PdfReadError('too_many_rows');
 
-  const known = await db.sources.where('fileHash').equals(fileHash).first();
-  const sameName = known ? 0 : await db.sources.filter((source) => source.fileName === fileName).count();
+  // Only this language's sources: the same file imported into another language is not the one seen before here.
+  const known = await db.sources.where('[language+fileHash]').equals([language, fileHash]).first();
+  const sameName = known ? 0 : await db.sources.filter((source) => source.language === language && source.fileName === fileName).count();
 
-  const drafts = parsed.rows.map((row) => blankDraft(newId(), row.rowIndex, { page: row.page, german: row.german, article: row.article, turkish: row.turkish, plural: row.plural, flags: row.flags }));
+  const drafts = draftsFor(language, parsed.rows.map((row) => blankDraft(newId(), row.rowIndex, { page: row.page, german: row.german, article: row.article, turkish: row.turkish, plural: row.plural, flags: row.flags })));
 
   const prepared = known ? await linkEarlierRows(db, known.id, drafts) : drafts;
   const stillLinked = known ? await db.importRows.where('sourceId').equals(known.id).filter((row) => row.wordId !== null).count() : 0;
   const ownGroup = known ? await db.groups.where('kind').equals('pdf').filter((group) => group.sourceId === known.id).count() : 0;
-  const missingWords = known ? tallyRows(reviewRows(prepared, (await listActiveWords(db)).map(knownEntryOf))).create : 0;
+  const missingWords = known ? tallyRows(reviewRows(prepared, (await listActiveWords(db, language)).map(knownEntryOf))).create : 0;
 
   return {
-    source: { fileName, fileHash, pipelineVersion: PDF_PIPELINE_VERSION },
+    source: { language, fileName, fileHash, pipelineVersion: PDF_PIPELINE_VERSION },
     drafts: prepared,
     info: {
       pageCount: parsed.pages.length,

@@ -8,11 +8,16 @@ interface Formats {
   days: Intl.DateTimeFormat;
 }
 
-const cache = new Map<Locale, Formats>();
+const cache = new Map<string, Formats>();
 
-/** Made once per language, on first use, so an unused language costs nothing. */
+/**
+ * Made once per language, on first use, so an unused language costs nothing. Dates and times are always in the
+ * device's own time zone: timestamps are stored as UTC milliseconds and only the display is local. A formatter
+ * keeps the zone it was made in, so they are kept per zone too, and a device that changes zone shows the new one.
+ */
 function formatsFor(locale: Locale): Formats {
-  let formats = cache.get(locale);
+  const key = `${locale} ${new Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+  let formats = cache.get(key);
   if (!formats) {
     const tag = INTL_LOCALE[locale];
     formats = {
@@ -22,7 +27,7 @@ function formatsFor(locale: Locale): Formats {
       dateTimes: new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short' }),
       days: new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'long', weekday: 'long' }),
     };
-    cache.set(locale, formats);
+    cache.set(key, formats);
   }
   return formats;
 }
@@ -38,3 +43,10 @@ export const formatDateTime = (ms: number): string => formatsFor(currentLocale()
 export const formatDay = (ms: number): string => formatsFor(currentLocale()).days.format(ms);
 /** 0.75 becomes %75 in Turkish and 75% in English. */
 export const formatPercent = (ratio: number): string => formatsFor(currentLocale()).percents.format(ratio);
+
+const pad = (value: number) => String(value).padStart(2, '0');
+/** A file name's date and time, 2026-11-25-10-30, in the device's own time zone like every date the app shows. */
+export const formatFileStamp = (ms: number): string => {
+  const at = new Date(ms);
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}-${pad(at.getHours())}-${pad(at.getMinutes())}`;
+};

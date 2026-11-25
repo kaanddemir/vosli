@@ -1,3 +1,4 @@
+import type { LearningLanguage } from './learningLanguage';
 import { foldForSearch } from './search';
 import { normalizeText } from './identity';
 import { parseArticle, splitArticle } from './vocabulary';
@@ -88,12 +89,25 @@ export interface ColumnMapping {
   roles: ColumnRole[];
 }
 
-const HEADER_NAMES: Record<Exclude<ColumnRole, 'ignore'>, readonly string[]> = {
-  german: ['almanca', 'deutsch', 'german', 'kelime', 'wort', 'word', 'lemma'],
+/** What a column can be in each learning language. Articles and plurals are German; another language's word is only its text. */
+const ROLES_OF: Readonly<Record<LearningLanguage, readonly ColumnRole[]>> = {
+  de: ['german', 'article', 'turkish', 'plural', 'ignore'],
+  en: ['german', 'turkish', 'ignore'],
+};
+export const columnRolesFor = (language: LearningLanguage): readonly ColumnRole[] => ROLES_OF[language];
+
+/** Headers naming the word column: the language's own name, in the interface languages, and plain words for "word". */
+const WORD_HEADERS: Readonly<Record<LearningLanguage, readonly string[]>> = {
+  de: ['almanca', 'deutsch', 'german'],
+  en: ['ingilizce', 'englisch', 'english'],
+};
+
+const headerNames = (language: LearningLanguage): Record<Exclude<ColumnRole, 'ignore'>, readonly string[]> => ({
+  german: [...WORD_HEADERS[language], 'kelime', 'wort', 'word', 'lemma'],
   article: ['artikel', 'article'],
   turkish: ['turkce', 'turkisch', 'turkish', 'anlam', 'anlami', 'ceviri', 'meaning', 'translation', 'bedeutung'],
   plural: ['cogul', 'plural', 'mehrzahl'],
-};
+});
 
 const isArticleColumn = (rows: readonly string[][], column: number) => {
   const cells = rows.map((row) => row[column] ?? '');
@@ -101,21 +115,22 @@ const isArticleColumn = (rows: readonly string[][], column: number) => {
 };
 
 /** A guess the review can correct. confident is false only when a person must choose the columns. */
-export function guessColumns(rows: readonly string[][]): { mapping: ColumnMapping; confident: boolean } {
+export function guessColumns(rows: readonly string[][], language: LearningLanguage = 'de'): { mapping: ColumnMapping; confident: boolean } {
   const width = Math.max(0, ...rows.map((row) => row.length));
   const first = rows[0] ?? [];
   const roles: ColumnRole[] = Array.from({ length: width }, () => 'ignore');
+  const offered = ROLES_OF[language];
 
   first.forEach((cell, column) => {
     const name = foldForSearch(cell);
-    for (const [role, names] of Object.entries(HEADER_NAMES) as [Exclude<ColumnRole, 'ignore'>, readonly string[]][]) {
-      if (names.includes(name) && !roles.includes(role)) roles[column] = role;
+    for (const [role, names] of Object.entries(headerNames(language)) as [Exclude<ColumnRole, 'ignore'>, readonly string[]][]) {
+      if (offered.includes(role) && names.includes(name) && !roles.includes(role)) roles[column] = role;
     }
   });
   if (roles.includes('german') && roles.includes('turkish')) return { mapping: { hasHeader: true, roles }, confident: true };
 
   roles.fill('ignore');
-  const articleColumn = width >= 3 ? roles.findIndex((_, column) => isArticleColumn(rows, column)) : -1;
+  const articleColumn = width >= 3 && offered.includes('article') ? roles.findIndex((_, column) => isArticleColumn(rows, column)) : -1;
   if (articleColumn >= 0) roles[articleColumn] = 'article';
   const rest = roles.flatMap((role, column) => (role === 'ignore' ? [column] : []));
   if (rest[0] !== undefined) roles[rest[0]] = 'german';
@@ -193,11 +208,11 @@ type ParsedInput = { kind: 'lines'; rows: ParsedRow[] } | { kind: 'table'; table
  * Pasted text is lines unless it is plainly a table of three or more columns, because a comma in a
  * pasted line usually separates meanings. A file is a table whenever one delimiter fits.
  */
-export function parseImportText(text: string, origin: 'paste' | 'file'): ParsedInput {
+export function parseImportText(text: string, origin: 'paste' | 'file', language: LearningLanguage = 'de'): ParsedInput {
   const delimiter = detectDelimiter(text);
   if (delimiter && (origin === 'file' || delimiter === '\t' || (delimiter !== ',' && parseDelimited(text, delimiter)[0]!.length >= 3))) {
     const table = parseDelimited(text, delimiter);
-    return { kind: 'table', table, ...guessColumns(table) };
+    return { kind: 'table', table, ...guessColumns(table, language) };
   }
   return { kind: 'lines', rows: rowsFromLines(text) };
 }

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 import { anyCount, anyText, escapeRe, label } from './labels';
 
@@ -53,7 +54,7 @@ async function seed(page: Page, data: Record<string, unknown[]> = LIBRARY) {
         request.onsuccess = () => {
           const db = request.result;
           const tx = db.transaction(Object.keys(tables), 'readwrite');
-          for (const [table, rows] of Object.entries(tables)) for (const row of rows) tx.objectStore(table).put(row);
+          for (const [table, rows] of Object.entries(tables)) for (const row of rows) tx.objectStore(table).put(['words', 'groups', 'sources'].includes(table) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             db.close();
             resolve();
@@ -129,8 +130,8 @@ const overflowing = (page: Page) =>
   });
 
 const fillWord = async (page: Page, german: string, turkish: string) => {
-  await page.getByLabel(t.wordForm.german, { exact: true }).fill(german);
-  await page.getByLabel(t.wordForm.turkish, { exact: true }).fill(turkish);
+  await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill(german);
+  await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill(turkish);
 };
 const save = (scope: Page | Locator) => scope.getByRole('button', { name: t.common.save, exact: true }).click();
 
@@ -154,24 +155,24 @@ test.describe('manual vocabulary', () => {
     await open(page, '#/dictionary/new');
     await save(page);
     await expect(page.getByText(t.wordForm.errors.german_missing)).toBeVisible();
-    await expect(page.getByLabel(t.wordForm.german, { exact: true })).toBeFocused();
-    await expect(page.getByLabel(t.wordForm.german, { exact: true })).toHaveAttribute('aria-invalid', 'true');
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('Apfel');
+    await expect(page.getByRole('textbox', { name: t.lang.de.word, exact: true })).toBeFocused();
+    await expect(page.getByRole('textbox', { name: t.lang.de.word, exact: true })).toHaveAttribute('aria-invalid', 'true');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Apfel');
     await save(page);
     await expect(page.getByText(t.wordForm.errors.turkish_missing)).toBeVisible();
-    await expect(page.getByLabel(t.wordForm.turkish, { exact: true })).toBeFocused();
+    await expect(page.getByRole('textbox', { name: t.lang.de.meaning, exact: true })).toBeFocused();
     expect(await dump(page, 'words')).toEqual([]);
   });
 
   test('the article control and German letters work', async ({ page }) => {
     await open(page, '#/dictionary/new');
     await page.getByRole('radio', { name: 'die', exact: true }).check();
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('Gr');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Gr');
     await page.getByRole('button', { name: t.wordForm.insert('ö') }).click();
     await page.getByRole('button', { name: t.wordForm.insert('ß') }).click();
-    await expect(page.getByLabel(t.wordForm.german, { exact: true })).toHaveValue('Größ');
-    await page.getByLabel(t.wordForm.german, { exact: true }).pressSequentially('e');
-    await page.getByLabel(t.wordForm.turkish, { exact: true }).fill('boy');
+    await expect(page.getByRole('textbox', { name: t.lang.de.word, exact: true })).toHaveValue('Größ');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).pressSequentially('e');
+    await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('boy');
     await page.getByLabel(t.wordForm.plural).fill('die Größen');
     await save(page);
     await expect(heading(page)).toHaveText('die Größe');
@@ -230,8 +231,8 @@ test.describe('manual vocabulary', () => {
     const [cards, logs] = [await dump(page, 'cards'), await dump(page, 'reviewLogs')];
     await page.getByRole('link', { name: t.dictionary.edit }).click();
     await expect(heading(page)).toHaveText(t.wordForm.editTitle);
-    await expect(page.getByLabel(t.wordForm.turkish, { exact: true })).toHaveValue('elma');
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('Äpfelchen');
+    await expect(page.getByRole('textbox', { name: t.lang.de.meaning, exact: true })).toHaveValue('elma');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Äpfelchen');
     await page.getByRole('radio', { name: 'das', exact: true }).check();
     await save(page);
     await expect(heading(page)).toHaveText('das Äpfelchen');
@@ -242,7 +243,7 @@ test.describe('manual vocabulary', () => {
 
   test('editing cannot take the identity of another word', async ({ page }) => {
     await seeded(page, '#/dictionary/fuss/edit');
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('Apfel');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Apfel');
     await save(page);
     await expect(page.getByRole('alert')).toContainText(t.wordForm.exists);
     expect((await dump(page, 'words')).find((word) => word.id === 'fuss')?.lemma).toBe('Fuß');
@@ -604,7 +605,7 @@ test.describe('paste import', () => {
     await expect(commitButton(page)).toBeDisabled();
     await expect(page.getByText(t.import.waiting(1))).toBeVisible();
 
-    const turkish = rows(page).getByLabel(t.import.turkishField);
+    const turkish = rows(page).getByRole('textbox', { name: t.lang.de.meaning, exact: true });
     await turkish.pressSequentially('yemek yemek');
     // The row being fixed stays in place and the field keeps focus while the problem goes away.
     await expect(turkish).toBeFocused();
@@ -681,9 +682,9 @@ test.describe('paste import', () => {
     await rows(page).getByRole('button', { name: t.import.editRow('der Birne') }).click();
     await rows(page).getByLabel(t.import.articleField).selectOption('die');
     await expect(rows(page)).toContainText('die Birne');
-    await rows(page).getByLabel(t.import.germanField).fill('Apfel');
+    await rows(page).getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Apfel');
     await rows(page).getByLabel(t.import.articleField).selectOption('der');
-    await rows(page).getByLabel(t.import.turkishField).fill('elma');
+    await rows(page).getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('elma');
     await expect(rows(page)).toContainText(t.import.status.existing);
   });
 
@@ -736,7 +737,7 @@ test.describe('CSV import', () => {
     await page.getByLabel(t.import.column(1)).selectOption('ignore');
     await page.getByLabel(t.import.column(2)).selectOption('ignore');
     await expect(page.getByRole('button', { name: t.import.next })).toBeDisabled();
-    await expect(page.getByText(t.import.mapHint)).toBeVisible();
+    await expect(page.getByText(t.lang.de.mapHint)).toBeVisible();
     await page.getByLabel(t.import.column(2)).selectOption('german');
     await page.getByLabel(t.import.column(3)).selectOption('turkish');
     await page.getByRole('button', { name: t.import.next }).click();
@@ -773,7 +774,7 @@ test.describe('CSV import', () => {
 
     await toReview(page, 'der Apfel - elma\ndie Birne - armut');
     await rows(page).first().getByRole('button', { name: label(anyText(t.import.editRow)) }).click();
-    const german = rows(page).first().getByLabel(t.import.germanField);
+    const german = rows(page).first().getByRole('textbox', { name: t.lang.de.word, exact: true });
     await german.fill('Äpfel');
     await cancel.click();
     const dialog = page.getByRole('dialog', { name: t.import.discardTitle });
@@ -873,15 +874,15 @@ test.describe('keyboard and focus', () => {
     await expect(opener).toBeFocused();
 
     await page.goto('./#/dictionary/new');
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('die Birne');
-    await page.getByLabel(t.wordForm.turkish, { exact: true }).fill('armut');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('die Birne');
+    await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('armut');
     await page.keyboard.press('Enter');
     await expect(heading(page)).toHaveText('die Birne');
   });
 
   test('typing der Apfel selects the article when leaving the field', async ({ page }) => {
     await open(page, '#/dictionary/new');
-    const german = page.getByLabel(t.wordForm.german, { exact: true });
+    const german = page.getByRole('textbox', { name: t.lang.de.word, exact: true });
     await german.fill('der Apfel');
     await german.blur();
     await expect(page.getByRole('radio', { name: 'der', exact: true })).toBeChecked();
@@ -920,8 +921,8 @@ test.describe('layout and accessibility', () => {
     await page.getByRole('button', { name: t.collections.addWords }).click();
     await check('word picker');
     await open(page, '#/dictionary/new');
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('die See');
-    await page.getByLabel(t.wordForm.turkish, { exact: true }).fill('deniz');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('die See');
+    await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('deniz');
     await save(page);
     await check('word conflict');
     await open(page, '#/import');
@@ -988,13 +989,13 @@ test.describe('layout and accessibility', () => {
 
     // The article control is one row of choices, not a block stretched to fill its column.
     await open(page, '#/dictionary/new');
-    const articleBox = (await page.locator('.segmented-full').boundingBox())!;
+    const articleBox = (await page.locator('main .segmented-full').boundingBox())!;
     expect(articleBox.height).toBeLessThan(60);
     expect(articleBox.width).toBeGreaterThan(300);
 
     // A conflict panel lands fully above the tab bar.
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('die See');
-    await page.getByLabel(t.wordForm.turkish, { exact: true }).fill('deniz');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('die See');
+    await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('deniz');
     await save(page);
     await expect(page.getByRole('alert')).toBeFocused();
     await settled(page);

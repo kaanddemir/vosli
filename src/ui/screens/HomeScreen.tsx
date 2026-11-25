@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { loadValidator, peekValidator } from '../../dictionary/loadDictionary';
-import { getLastBackupAt, isBackupDue } from '../../data/repository';
+import { countLibrary, getLastBackupAt, isBackupDue } from '../../data/repository';
 import { takeResetNotice } from '../../data/reset';
 import { loadReviewData, overviewOf, type ReviewOverview } from '../../data/smartReview';
 import { formatDay } from '../../i18n/format';
@@ -10,6 +10,7 @@ import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { useDb } from '../dbContext';
 import { hrefFor } from '../router';
+import { useLearningLanguage } from '../workspace';
 
 interface Summary extends ReviewOverview {
   backupDue: boolean;
@@ -25,7 +26,7 @@ const DICTIONARY_PEEK_MS = 120;
 const DICTIONARY_PRELOAD_MS = 2000;
 
 /** The size of the Dictionary. It counts words themselves, so schedules and collections have no say in it. */
-const supportFor = (words: number): string => (words === 0 ? t.home.emptySupport : t.home.wordCount(words));
+
 
 /** A quiet note on what Smart Review holds. Empty while the counts are unknown or there is nothing true to say. */
 function statusFor({ due, fresh, flagged, studied, checking }: Summary): string | null {
@@ -39,6 +40,9 @@ function statusFor({ due, fresh, flagged, studied, checking }: Summary): string 
 
 export function HomeScreen() {
   const db = useDb();
+  const language = useLearningLanguage();
+  // The dictionary is German: another language's overview neither waits for it nor loads it.
+  const german = language === 'de';
   const [summary, setSummary] = useState<Summary | null>(null);
   const [now] = useState(() => Date.now());
   const [resetNotice] = useState(takeResetNotice);
@@ -47,30 +51,32 @@ export function HomeScreen() {
     let active = true;
     let preload = 0;
     void (async () => {
-      const lastBackupAt = await getLastBackupAt(db);
+      const [lastBackupAt, library] = await Promise.all([getLastBackupAt(db), countLibrary(db)]);
+      // A backup holds every language, so the reminder counts them all.
+      const allWords = library.words.de + library.words.en;
       const show = (overview: ReviewOverview, checking: boolean) => {
-        if (active) setSummary({ ...overview, checking, backupDue: isBackupDue(overview.words, lastBackupAt, now) });
+        if (active) setSummary({ ...overview, checking, backupDue: isBackupDue(allWords, lastBackupAt, now) });
       };
-      const stored = await loadReviewData(db, null);
+      const stored = await loadReviewData(db, null, language);
       // An empty library has nothing to check, and a stored result for exactly these words is as good as a new one.
       if (stored.words.length === 0 || stored.checked) {
         const overview = overviewOf(stored, now);
         show(overview, false);
         // So that opening a session does not have to wait for it. Parsing takes a moment, so not while the screen is settling.
-        if (overview.due + overview.fresh > 0) preload = window.setTimeout(() => void loadValidator(), DICTIONARY_PRELOAD_MS);
+        if (german && overview.due + overview.fresh > 0) preload = window.setTimeout(() => void loadValidator(), DICTIONARY_PRELOAD_MS);
         return;
       }
       const quick = await peekValidator(DICTIONARY_PEEK_MS);
       if (quick === undefined) show(overviewOf(stored, now), true);
       // Null means the dictionary could not load. A session then holds nothing back either, so the numbers still match it.
       const validate = quick === undefined ? await loadValidator() : quick;
-      if (active) show(overviewOf(await loadReviewData(db, validate), now), false);
+      if (active) show(overviewOf(await loadReviewData(db, validate, language), now), false);
     })();
     return () => {
       active = false;
       clearTimeout(preload);
     };
-  }, [db, now]);
+  }, [db, now, language, german]);
 
   const settings = (
     <a class="icon-btn only-compact" href={hrefFor('settings')} aria-label={t.nav.settings} title={t.nav.settings}>
@@ -86,7 +92,8 @@ export function HomeScreen() {
         <div class="today">
           <p class="eyebrow">{formatDay(now)}</p>
           <h1 class="today-title">{t.home.title}</h1>
-          <p class="today-support">{supportFor(summary.words)}</p>
+          {/* The open workspace's words; its city and bunting say which language it is. */}
+          <p class="today-support" data-testid="home-workspace">{t.home.workspace(summary.words)}</p>
           {summary.words === 0 ? (
             // Both need words. They are shown, but only Import can be pressed, so only it carries the accent.
             <div class="today-actions">
@@ -114,7 +121,7 @@ export function HomeScreen() {
           )}
           {resetNotice && (
             <p class={`today-notice ${resetNotice === 'partial' ? 'status-error' : 'status-ok'}`} role="status">
-              {resetNotice === 'partial' ? t.settings.resetPartial : t.settings.resetDone}
+              {resetNotice === 'partial' ? t.settings.resetPartial : resetNotice === 'restored' ? t.restore.done : t.settings.resetDone}
             </p>
           )}
           <HomeScene />

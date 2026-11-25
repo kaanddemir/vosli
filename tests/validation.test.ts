@@ -27,7 +27,7 @@ describe('sorted lines', () => {
   });
   it('the shipped files are really sorted, or binary search would silently miss words', () => {
     for (const name of ['lemmas', 'forms']) {
-      const keys = readFileSync(`public/dictionary/${name}.txt`, 'utf8').trimEnd().split('\n').map((line) => line.slice(0, line.indexOf('\t')));
+      const keys = readFileSync(`public/dictionary/de/${name}.txt`, 'utf8').trimEnd().split('\n').map((line) => line.slice(0, line.indexOf('\t')));
       for (let i = 1; i < keys.length; i += 1) if (!(keys[i - 1]! < keys[i]!)) throw new Error(`${name}: ${keys[i - 1]} before ${keys[i]}`);
       expect(keys.length).toBeGreaterThan(100_000);
     }

@@ -1,7 +1,10 @@
 import type { Article } from '../identity';
+import type { LearningLanguage } from '../learningLanguage';
 import { lemmasOf, meaningKeysOf, type Track } from '../practice/answers';
 
 export interface WordText {
+  /** Whose rules compare the text. Absent means German. */
+  language?: LearningLanguage | undefined;
   lemma: string;
   article: Article | null;
   meanings: readonly { text: string }[];
@@ -26,7 +29,9 @@ const shareAny = (a: Iterable<string>, b: Iterable<string>) => {
  * A meaning that was added, or removed while another remains, keeps every schedule.
  */
 export function affectedTracks(before: WordText, after: WordText): Track[] {
-  const german = !shareAny(lemmasOf(before), lemmasOf(after));
+  // An English answer is accepted whatever its capitals, so a change of capitals alone is no change here either.
+  const forms = (word: WordText) => (word.language === 'en' ? lemmasOf(word).map((form) => form.toLocaleLowerCase('en')) : lemmasOf(word));
+  const german = !shareAny(forms(before), forms(after));
   const turkish = !shareAny(meaningKeysOf(before), meaningKeysOf(after));
   const article = before.article !== after.article;
   const tracks = new Set<Track>();

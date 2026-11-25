@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 /**
  * Checks the dictionary's pronunciation recordings against Wikimedia Commons and records the result
- * in scripts/data/commons-audio.tsv, which build-dictionary.mjs reads offline. Nothing else runs this:
+ * in scripts/data/commons-audio-de.tsv, which build-dictionary.mjs reads offline. Nothing else runs this:
  * not the app build, not the dev server, not CI.
  *
- *   npm run audio:sync -- <raw.jsonl.gz> [--minutes N] [--refresh] [--contact <url or email>] [--recover-stale-lock]
+ *   npm run audio:sync -- <raw.jsonl.gz> [--language en] [--minutes N] [--refresh] [--contact <url or email>] [--recover-stale-lock]
  *
+ * --language en checks the English recordings instead (scripts/english-audio.mjs), into their own cache,
+ * scripts/data/commons-audio-en.tsv, and also reads each file's categories: Commons must file it as American
+ * or British English pronunciation. build-english-audio.mjs reads that cache offline.
  * Only recordings not checked yet are asked about, most used words first, 50 to a request, one request
  * at a time. Commons throttles anything faster: a full first run takes hours, later runs minutes.
  * Stopping (Ctrl+C, --minutes running out, or an error) keeps everything checked so far; run it again to go on.
@@ -15,18 +18,20 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { createGunzip } from 'node:zlib';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { LockError, syncCommons } from './commons-sync.mjs';
-import { audioEntry, clean, FORM_TITLES, isClean, POS } from './dictionary-audio.mjs';
+import { audioEntry, clean, commonsCachePath, FORM_TITLES, isClean, POS } from './dictionary-audio.mjs';
+import { chooseEnglishAudio, englishCategory, readEnglishRecordings } from './english-audio.mjs';
 
 const args = process.argv.slice(2);
 const option = (name) => {
   const at = args.indexOf(name);
   return at === -1 ? undefined : args[at + 1];
 };
-const source = args.find((arg, index) => !arg.startsWith('--') && !['--minutes', '--contact'].includes(args[index - 1]));
-if (!source) throw new Error('Usage: sync-commons-audio.mjs <raw.jsonl.gz> [--minutes N] [--refresh] [--contact <url or email>] [--recover-stale-lock]');
+const source = args.find((arg, index) => !arg.startsWith('--') && !['--minutes', '--contact', '--language'].includes(args[index - 1]));
+if (!source) throw new Error('Usage: sync-commons-audio.mjs <raw.jsonl.gz> [--language en] [--minutes N] [--refresh] [--contact <url or email>] [--recover-stale-lock]');
+const language = option('--language') ?? 'de';
+if (language !== 'de' && language !== 'en') throw new Error(`No recordings for --language ${language}: de or en.`);
+const english = language === 'en';
 const minutes = Number(option('--minutes') ?? Infinity);
 const contact = option('--contact');
 
@@ -60,8 +65,9 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
 try {
   const result = await syncCommons({
-    cachePath: join(dirname(fileURLToPath(import.meta.url)), 'data', 'commons-audio.tsv'),
-    recordings: readRecordings,
+    cachePath: commonsCachePath(english ? 'en' : 'de'),
+    recordings: english ? () => readEnglishRecordings(source) : readRecordings,
+    ...(english ? { categorize: englishCategory, choose: chooseEnglishAudio } : {}),
     refresh: args.includes('--refresh'),
     recoverStale: args.includes('--recover-stale-lock'),
     deadline: Date.now() + minutes * 60_000,

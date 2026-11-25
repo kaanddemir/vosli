@@ -2,7 +2,7 @@
  * The Commons check behind sync-commons-audio.mjs, apart from reading the dump, so it can be tested with
  * a stand-in for Commons and a temporary cache.
  *
- * Two promises it keeps for the cache in scripts/data/commons-audio.tsv:
+ * Two promises it keeps for the cache in scripts/data/commons-audio-<language>.tsv:
  * - Progress survives failure. Checks are written every few requests, and once more however the run ends,
  *   short of the process being killed outright. Each write goes to a temporary file that then replaces the
  *   cache in one rename, so the cache is never half written.
@@ -85,9 +85,9 @@ export function acquireLock(path, { recoverStale = false } = {}) {
 }
 
 /** Writes the whole cache to a temporary file, then puts it in place with one rename. */
-export function saveCache(path, cache) {
+export function saveCache(path, cache, options = {}) {
   const temporary = `${path}.${process.pid}.tmp`;
-  writeFileSync(temporary, cacheText(cache));
+  writeFileSync(temporary, cacheText(cache, options));
   renameSync(temporary, path);
 }
 
@@ -95,7 +95,8 @@ export function saveCache(path, cache) {
  * Checks recordings with Commons until none are left, time runs out or stopping is asked for.
  * recordings maps each word to its audioEntry results, or is a function that reads them, called only once
  * the lock is held, so a second run stops at once instead of reading the dump first. weight orders the
- * words, most used first.
+ * words, most used first. categorize, when given, also reads each file's Commons categories and keeps what
+ * it makes of them as the entry's kind; choose replaces chooseAudio for a language with rules of its own.
  */
 export async function syncCommons({
   cachePath,
@@ -113,6 +114,8 @@ export async function syncCommons({
   pauseMs = 1000,
   saveEvery = 20,
   now = Date.now,
+  categorize = null,
+  choose = chooseAudio,
 }) {
   mkdirSync(dirname(cachePath), { recursive: true });
   const lock = acquireLock(`${cachePath}.lock`, { recoverStale });
@@ -126,7 +129,7 @@ export async function syncCommons({
     let unsaved = 0;
     const checkpoint = () => {
       if (unsaved === 0) return;
-      saveCache(cachePath, cache);
+      saveCache(cachePath, cache, { categories: categorize !== null });
       unsaved = 0;
     };
     try {
@@ -151,7 +154,7 @@ export async function syncCommons({
       const seen = new Set();
       const lookup = (name) => (refresh && !rechecked.has(name) && cache.get(name) !== undefined ? undefined : cache.get(name));
       for (const word of words) {
-        for (const name of chooseAudio(recordings.get(word), lookup).pending) {
+        for (const name of choose(recordings.get(word), lookup).pending) {
           if (!seen.has(name)) {
             seen.add(name);
             names.push(name);
@@ -170,7 +173,7 @@ export async function syncCommons({
         maxlag: '5',
         prop: 'imageinfo',
         iiprop: 'user|extmetadata',
-        iiextmetadatafilter: 'LicenseShortName|Artist',
+        iiextmetadatafilter: categorize ? 'LicenseShortName|Artist|Categories' : 'LicenseShortName|Artist',
         titles: names.map((name) => `File:${name}`).join('|'),
       });
       for (let failures = 0; ; ) {
@@ -213,7 +216,11 @@ export async function syncCommons({
         const license = plainText(info?.extmetadata?.LicenseShortName?.value);
         // Missing, or without a license to follow: either way not a recording to use.
         if (page.missing !== undefined || page.invalid !== undefined || !info || !license) cache.set(name, false);
-        else cache.set(name, { title: page.title.replace(/^File:/u, ''), license, author: authorFrom(info.extmetadata?.Artist?.value, info.user) });
+        else {
+          const found = { title: page.title.replace(/^File:/u, ''), license, author: authorFrom(info.extmetadata?.Artist?.value, info.user) };
+          // Where the language matters, what Commons files the recording under is kept beside it.
+          cache.set(name, categorize ? { ...found, kind: categorize(info.extmetadata?.Categories?.value ?? '') } : found);
+        }
         changed();
       }
       // A name Commons did not mention at all is left unchecked, to be asked again next time.

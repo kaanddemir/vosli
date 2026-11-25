@@ -7,22 +7,23 @@ import { t } from '../../i18n/strings';
 import { Icon } from './Icon';
 import { List, Row } from './List';
 import { Screen } from './Screen';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 /** Enough to see what went wrong at a glance. The rest waits for a tap, so a long test stays readable. */
 const FIRST_MISSED = 10;
 
-const optionLang = (question: TestQuestion) => (question.kind === 'de_tr' ? 'tr' : 'de');
-
 function MissedRow({ question, pick }: { question: TestQuestion; pick: TestPick }) {
-  const lang = optionLang(question);
+  const language = useLearningLanguage();
+  const meaning = meaningLang(language);
+  const lang = question.kind === 'de_tr' ? meaning : language;
   const chosen = pick === 'blank' ? null : question.options[pick]!.text;
   return (
     <Row
-      lang={question.kind === 'tr_de' ? 'tr' : 'de'}
+      lang={question.kind === 'tr_de' ? meaning : language}
       title={question.prompt}
       detail={
         <span class="test-answers" data-testid="test-missed">
-          {question.detail && <span class="test-answer" lang="tr">{question.detail}</span>}
+          {question.detail && <span class="test-answer" lang={meaning}>{question.detail}</span>}
           <span class="test-answer">{t.practice.test.yourAnswer}: {chosen === null ? t.practice.test.blankAnswer : <span lang={lang}>{chosen}</span>}</span>
           <span class="test-answer">{t.practice.test.rightAnswer}: <strong lang={lang}>{question.options[question.correct]!.text}</strong></span>
         </span>

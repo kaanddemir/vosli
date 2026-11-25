@@ -5,25 +5,28 @@ const RETRY_MS = 1000;
 let loading: Promise<Validate> | null = null;
 const texts = new Map<string, Promise<string>>();
 
-async function readText(name: string): Promise<string> {
-  const response = await fetch(new URL(`dictionary/${name}`, document.baseURI), { signal: AbortSignal.timeout(TIMEOUT_MS) });
-  if (!response.ok) throw new Error(`${name}: ${response.status}`);
+async function readText(path: string): Promise<string> {
+  const response = await fetch(new URL(path, document.baseURI), { signal: AbortSignal.timeout(TIMEOUT_MS) });
+  if (!response.ok) throw new Error(`${path}: ${response.status}`);
   return response.text();
 }
 
 /**
- * One copy of a dictionary file for everything that reads it: word checks and pronunciation share
- * lemmas.txt. A failed read is forgotten, so the next caller tries again.
+ * One copy of a data file the app ships, by its path, for everything that reads it: word checks and German
+ * pronunciation share dictionary/de/lemmas.txt. A failed read is forgotten, so the next caller tries again.
  */
-export function dictionaryText(name: string): Promise<string> {
-  let text = texts.get(name);
+export function appText(path: string): Promise<string> {
+  let text = texts.get(path);
   if (!text) {
-    text = readText(name);
-    texts.set(name, text);
-    text.catch(() => texts.delete(name));
+    text = readText(path);
+    texts.set(path, text);
+    text.catch(() => texts.delete(path));
   }
   return text;
 }
+
+/** A file of the German dictionary. */
+export const dictionaryText = (name: string): Promise<string> => appText(`dictionary/de/${name}`);
 
 async function attempt(): Promise<Validate> {
   const [lemmas, forms, { createDictionary }, { createValidator }] = await Promise.all([dictionaryText('lemmas.txt'), dictionaryText('forms.txt'), import('../core/dictionary'), import('../core/validation')]);

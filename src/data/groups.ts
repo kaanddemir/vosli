@@ -2,8 +2,8 @@ import Dexie from 'dexie';
 import { normalizeText } from '../core/identity';
 import { newId } from '../core/id';
 import type { AppDatabase } from './db';
-import type { Group, GroupMember } from './types';
-import { purgeWords, wordTables } from './words';
+import type { Group, GroupMember, LearningLanguage, Word } from './types';
+import { LanguageMismatchError, purgeWords, wordTables } from './words';
 
 export const GROUP_NAME_MAX = 80;
 
@@ -31,12 +31,15 @@ class GroupNotFoundError extends Error {
 
 const nameKey = (name: string) => normalizeText(name).toLocaleLowerCase('tr');
 
-/** Names are unique within their kind, as the importer keeps PDF names unique: a list may share a name with a PDF. */
-async function checkName(db: AppDatabase, name: string, ownId: string | null, kind: 'custom' | 'pdf' = 'custom'): Promise<string> {
+/**
+ * Names are unique within their kind and language, as the importer keeps PDF names unique: a list may share a name
+ * with a PDF, and a German list with an English one.
+ */
+async function checkName(db: AppDatabase, name: string, ownId: string | null, language: LearningLanguage, kind: 'custom' | 'pdf' = 'custom'): Promise<string> {
   const clean = normalizeText(name);
   if (!clean) throw new GroupNameError('empty');
   if (clean.length > GROUP_NAME_MAX) throw new GroupNameError('too_long');
-  const taken = await db.groups.where('kind').equals(kind).filter((group) => group.id !== ownId && nameKey(group.name) === nameKey(clean)).count();
+  const taken = await db.groups.where('kind').equals(kind).filter((group) => group.language === language && group.id !== ownId && nameKey(group.name) === nameKey(clean)).count();
   if (taken) throw new GroupNameError('taken');
   return clean;
 }
@@ -48,11 +51,16 @@ async function customGroup(db: AppDatabase, id: string): Promise<Group> {
   return group;
 }
 
-export async function createCustomGroup(db: AppDatabase, name: string, now: number): Promise<Group> {
+/** A word and a collection may only be linked when they belong to the same learning language. */
+export function assertSameLanguage(group: Pick<Group, 'id' | 'language'>, word: Pick<Word, 'id' | 'language'>): void {
+  if (group.language !== word.language) throw new LanguageMismatchError(`Word ${word.id} (${word.language}) cannot join collection ${group.id} (${group.language})`);
+}
+
+export async function createCustomGroup(db: AppDatabase, name: string, now: number, language: LearningLanguage): Promise<Group> {
   return db.transaction('rw', db.groups, async () => {
-    const clean = await checkName(db, name, null);
+    const clean = await checkName(db, name, null, language);
     const last = await db.groups.orderBy('order').last();
-    const group: Group = { id: newId(), kind: 'custom', name: clean, order: (last?.order ?? -1) + 1, sourceId: null, createdAt: now };
+    const group: Group = { id: newId(), language, kind: 'custom', name: clean, order: (last?.order ?? -1) + 1, sourceId: null, createdAt: now };
     await db.groups.add(group);
     return group;
   });
@@ -66,7 +74,7 @@ export async function renameGroup(db: AppDatabase, id: string, name: string): Pr
     const group = await db.groups.get(id);
     if (!group) throw new GroupNotFoundError(id);
     if (group.kind === 'lesson') throw new ProtectedGroupError(id);
-    await db.groups.update(id, { name: await checkName(db, name, id, group.kind) });
+    await db.groups.update(id, { name: await checkName(db, name, id, group.language, group.kind) });
   });
 }
 
@@ -116,10 +124,11 @@ export async function deleteGroupsWithWords(db: AppDatabase, ids: readonly strin
 
 export async function addWordsToGroup(db: AppDatabase, groupId: string, wordIds: readonly string[], now: number): Promise<void> {
   await db.transaction('rw', db.groups, db.groupMembers, db.words, async () => {
-    await customGroup(db, groupId);
+    const group = await customGroup(db, groupId);
     for (const wordId of wordIds) {
       const word = await db.words.get(wordId);
       if (!word || word.deletedAt !== null) continue;
+      assertSameLanguage(group, word);
       // An existing membership keeps its date and its link to an import row.
       if (!(await db.groupMembers.get([groupId, wordId]))) await db.groupMembers.add({ groupId, wordId, addedAt: now, importRowId: null });
     }
@@ -152,9 +161,12 @@ export async function removeWordFromGroup(db: AppDatabase, groupId: string, word
  */
 export async function restoreGroupMembers(db: AppDatabase, members: readonly GroupMember[]): Promise<void> {
   await db.transaction('rw', db.groups, db.groupMembers, db.words, async () => {
-    for (const groupId of new Set(members.map((member) => member.groupId))) await customGroup(db, groupId);
+    const groups = new Map<string, Group>();
+    for (const groupId of new Set(members.map((member) => member.groupId))) groups.set(groupId, await customGroup(db, groupId));
     const words = await db.words.bulkGet(members.map((member) => member.wordId));
-    await db.groupMembers.bulkPut(members.filter((_, at) => words[at] !== undefined && words[at]!.deletedAt === null));
+    const kept = members.filter((_, at) => words[at] !== undefined && words[at]!.deletedAt === null);
+    members.forEach((member, at) => words[at] && assertSameLanguage(groups.get(member.groupId)!, words[at]!));
+    await db.groupMembers.bulkPut(kept);
   });
 }
 
@@ -162,9 +174,13 @@ export const restoreGroupMember = (db: AppDatabase, member: GroupMember): Promis
 
 /** Makes a word's custom-list memberships match the choice. Memberships of PDF and lesson collections are left alone. */
 export async function setWordCustomGroups(db: AppDatabase, wordId: string, groupIds: readonly string[], now: number): Promise<void> {
-  await db.transaction('rw', db.groups, db.groupMembers, async () => {
+  await db.transaction('rw', db.groups, db.groupMembers, db.words, async () => {
     const wanted = new Set(groupIds);
-    for (const id of wanted) await customGroup(db, id);
+    const word = await db.words.get(wordId);
+    for (const id of wanted) {
+      const group = await customGroup(db, id);
+      if (word) assertSameLanguage(group, word);
+    }
     const custom = new Set(await db.groups.where('kind').equals('custom').primaryKeys());
     const members = await db.groupMembers.where('wordId').equals(wordId).toArray();
     for (const member of members) {

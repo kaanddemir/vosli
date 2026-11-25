@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { commonsUrls } from '../src/audio/audioIndex';
 import { t } from '../src/i18n/strings';
 
@@ -83,7 +84,7 @@ const write = (page: Page, tables: Record<string, unknown[]>) =>
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const tx = request.result.transaction(Object.keys(data), 'readwrite');
-          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(row);
+          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(['words', 'groups', 'sources'].includes(name) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             request.result.close();
             resolve();
@@ -118,7 +119,7 @@ async function seed(page: Page, extra: Record<string, unknown[]> = {}) {
 
 const row = (page: Page, text: string) => page.locator('main .list-item').filter({ hasText: text });
 const speaker = (scope: Page | Locator) => scope.getByTestId('speaker');
-const listen = (label: string) => t.pronunciation.listen(label);
+const listen = (label: string) => t.lang.de.listen(label);
 
 test.describe('with stand-in audio', () => {
   test.beforeEach(async ({ page }) => {
@@ -210,9 +211,9 @@ test.describe('with stand-in audio', () => {
     await page.getByRole('button', { name: t.dictionary.hideAnswers }).click();
     // German first: the German is in view, so it can be heard.
     await expect(speaker(row(page, 'Apfel'))).toBeVisible();
-    await page.getByRole('button', { name: t.dictionary.direction }).click();
+    await page.getByRole('button', { name: t.lang.de.meaningFirst }).click();
     await expect(speaker(page.locator('main .list'))).toHaveCount(0);
-    await page.getByRole('button', { name: t.dictionary.revealGerman('ev') }).click();
+    await page.getByRole('button', { name: t.lang.de.revealWord('ev') }).click();
     await expect(speaker(row(page, 'ev'))).toHaveAccessibleName(listen('das Haus'));
     await expect(speaker(page.locator('main .list'))).toHaveCount(1);
 
@@ -271,7 +272,7 @@ test.describe('with stand-in audio', () => {
     const pick = (name: string) => page.locator('.segmented label').filter({ hasText: new RegExp(`^${name}$`) }).click();
     await pick(t.practice.studies.cards);
     await page.locator('.check-row').filter({ hasText: t.practice.favorites }).click();
-    await pick(t.practice.directions.tr_de);
+    await pick(t.lang.de.directions.tr_de);
     await page.getByRole('button', { name: t.practice.startCards }).click();
     await page.getByTestId('card-hide').click();
     const card = page.getByTestId('card');

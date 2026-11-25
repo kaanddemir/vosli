@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 import { buildPdf, tablePage, type VocabRow } from '../tests/support/pdfBuilder';
 import { anyCount, anyText, escapeRe, label } from './labels';
@@ -66,7 +67,8 @@ test('a PDF goes from selection to the dictionary, with its source and collectio
   await open(page);
   await choose(page, pdf('Ders+1.pdf', LESSON));
   await reviewed(page);
-  await expect(page.locator('.eyebrow')).toHaveText('Ders+1.pdf');
+  // The review names the workspace the words go to, then the file.
+  await expect(page.locator('.eyebrow')).toHaveText(`${t.lang.de.name} · Ders+1.pdf`);
   await expect(page.getByTestId('review-tally')).toHaveText(`${t.import.tallies.new(5)} · ${t.import.pdfFacts(2, 5)}`);
   await expect(rows(page)).toHaveCount(5);
   await expect(rows(page).first()).toContainText('der Apfel');
@@ -155,7 +157,7 @@ test('blocking rows come first and must be fixed, warnings are optional, repairs
   await expect(rows(page).first()).toContainText(t.import.errors.turkish_missing);
   await expect(page.getByText(t.import.waiting(1))).toBeVisible();
   await expect(commitButton(page)).toBeDisabled();
-  await rows(page).getByLabel(t.import.turkishField).fill('armut');
+  await rows(page).getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('armut');
   await expect(commitButton(page)).toBeEnabled();
 
   // Haus has an empty article cell, which does not block saving.
@@ -253,12 +255,12 @@ test.describe('warnings', () => {
     await openEditor(kranken);
 
     // Editing the meaning changes nothing about the warnings.
-    await kranken.getByLabel(t.import.turkishField).fill('hasta evi');
+    await kranken.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('hasta evi');
     await expect(page.getByRole('radio', { name: filterName(3) })).toBeVisible();
     await expect(warning(kranken)).toHaveAccessibleName(new RegExp(escapeRe(t.import.warningLabel('', 2))));
 
     // Fixing one cause leaves the other.
-    await kranken.getByLabel(t.import.germanField).fill('Krankenhaus');
+    await kranken.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Krankenhaus');
     const whole = rows(page).filter({ hasText: 'Krankenhaus' });
     await expect(warning(whole)).toHaveAccessibleName(new RegExp(escapeRe(t.import.warningLabel('', 1))));
     await whole.getByLabel(t.import.articleField).selectOption('das');
@@ -690,7 +692,7 @@ test.describe('layout and accessibility', () => {
     await openSettings(page);
     await check('review all, settings open');
     await openSettings(page);
-    await rows(page).filter({ hasText: 'Birne' }).getByLabel(t.import.turkishField).fill('armut');
+    await rows(page).filter({ hasText: 'Birne' }).getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('armut');
     await page.getByRole('button', { name: t.import.excludeProblems }).waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: t.common.cancel }).click();
     await page.getByRole('dialog').waitFor();

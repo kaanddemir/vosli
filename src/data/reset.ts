@@ -7,7 +7,8 @@ const CHANNEL = `${PREFIX}reset`;
 /** A tab hears its own broadcast, and must not clear the notice it just left for itself. */
 const TAB = Math.random().toString(36);
 
-export type ResetNotice = 'complete' | 'partial';
+/** How a fresh start went, shown once on Home: a reset that cleared everything or almost, or a restored backup. */
+export type ResetNotice = 'complete' | 'partial' | 'restored';
 
 /** Only this app's keys: the origin's storage can be shared with other apps, and the offline files stay untouched. */
 function clearStorage(storage: () => Storage, keep: readonly string[] = []): boolean {
@@ -34,12 +35,25 @@ export async function resetAllData(db: AppDatabase, keep: readonly string[] = []
   });
   const local = clearStorage(() => localStorage, keep);
   const session = clearStorage(() => sessionStorage);
-  if (typeof BroadcastChannel !== 'undefined') {
-    const channel = new BroadcastChannel(CHANNEL);
-    channel.postMessage(TAB);
-    channel.close();
-  }
+  announce();
   return local && session ? 'complete' : 'partial';
+}
+
+function announce(): void {
+  if (typeof BroadcastChannel === 'undefined') return;
+  const channel = new BroadcastChannel(CHANNEL);
+  channel.postMessage(TAB);
+  channel.close();
+}
+
+/**
+ * After a backup replaced every record. A practice round, card session, test or review saved in this tab points at
+ * records that are gone, or now mean something else, so they go; settings stay. Other tabs start over, as after a
+ * reset. The caller then reloads this tab.
+ */
+export function afterDataReplaced(): void {
+  clearStorage(() => sessionStorage);
+  announce();
 }
 
 /** Another open tab holds screens and a session built on the old data, so it starts over too. */
@@ -67,7 +81,7 @@ export function takeResetNotice(): ResetNotice | null {
   try {
     const notice = sessionStorage.getItem(NOTICE_KEY);
     sessionStorage.removeItem(NOTICE_KEY);
-    return notice === 'complete' || notice === 'partial' ? notice : null;
+    return notice === 'complete' || notice === 'partial' || notice === 'restored' ? notice : null;
   } catch {
     return null;
   }

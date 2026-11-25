@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 interface Seed {
@@ -30,7 +31,7 @@ async function write(page: Page, tables: Record<string, unknown[]>) {
         request.onsuccess = () => {
           const db = request.result;
           const tx = db.transaction(Object.keys(data), 'readwrite');
-          for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(row);
+          for (const [table, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(table).put(['words', 'groups', 'sources'].includes(table) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             db.close();
             resolve();
@@ -501,7 +502,8 @@ test.describe('safety', () => {
     await page.goto('./#/settings');
     await page.locator('input[type="file"]').setInputFiles({ name: 'yedek.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...backup, tables })) });
     await page.getByRole('button', { name: t.restore.confirm, exact: true }).click();
-    await expect.poll(async () => (await cards(page))[0]?.due).toBe(due);
+    // The app reloads once the backup is in: a read that meets the reload is tried again, not counted as an answer.
+    await expect.poll(async () => (await cards(page).catch(() => []))[0]?.due).toBe(due);
     await page.goto('./#/');
     await page.reload();
     await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
@@ -647,7 +649,7 @@ test.describe('home without waiting', () => {
   test('a stored result for the same words shows the number with no dictionary at all', async ({ page }) => {
     await seed(page, [FLAGGED, APFEL], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('automat', 'de_tr', OVERDUE())], '#/');
     await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
-    await page.route('**/dictionary/*.txt', (route) => route.abort());
+    await page.route('**/dictionary/de/*.txt', (route) => route.abort());
     await page.reload();
     await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
   });
@@ -655,20 +657,20 @@ test.describe('home without waiting', () => {
   test('while warnings are unknown it states no number, then the right one', async ({ page }) => {
     let release = () => {};
     const gate = new Promise<void>((resolve) => (release = resolve));
-    await page.route('**/dictionary/*.txt', async (route) => {
+    await page.route('**/dictionary/de/*.txt', async (route) => {
       await gate;
       await route.continue();
     });
     await seed(page, [FLAGGED, APFEL], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('automat', 'de_tr', OVERDUE())], '#/');
     await expect(page.getByRole('main').locator('.btn-primary')).toHaveText(t.home.smartReview);
-    await expect(page.getByRole('main')).toContainText(t.home.wordCount(2));
+    await expect(page.getByRole('main')).toContainText(t.home.workspace(2));
     await expect(homeStatus(page)).toBeEmpty();
     release();
     await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
   });
 
   test('if the dictionary cannot load, the number matches what a session would ask', async ({ page }) => {
-    await page.route('**/dictionary/*.txt', (route) => route.abort());
+    await page.route('**/dictionary/de/*.txt', (route) => route.abort());
     await seed(page, [FLAGGED, APFEL], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('automat', 'de_tr', OVERDUE())], '#/');
     await expect(homeStatus(page)).toContainText(t.home.dueStatus(2));
   });
@@ -750,7 +752,7 @@ test.describe('a dictionary request that fails once', () => {
 
   test('still holds back warned words, as after a reload in Safari', async ({ page }) => {
     let failed = false;
-    await page.route('**/dictionary/lemmas.txt', async (route) => {
+    await page.route('**/dictionary/de/lemmas.txt', async (route) => {
       if (failed) return route.continue();
       failed = true;
       return route.abort();

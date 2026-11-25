@@ -1,0 +1,15 @@
+Vosli English pronunciation list
+
+Source: the links to recordings on English entries of German Wiktionary (https://de.wiktionary.org/), by its
+contributors, data dump of 2026-11-01, via Kaikki.org (https://kaikki.org/dewiktionary/rawdata.html), each checked
+against Wikimedia Commons (https://commons.wikimedia.org/) for its license, author and the English variety Commons
+files it under.
+
+Changes: reduced to English words with one American or British English recording each, reformatted as sorted text.
+
+License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+This license covers these data files, not the app. Wiktionary does not endorse this app.
+
+recordings.txt names, for each word, a recording on Wikimedia Commons, and credits.txt lists their authors and
+licenses. The recordings themselves are not part of these files; the app loads each from Commons when asked, under
+its own license, which the word's page in the app names with a link to its source.

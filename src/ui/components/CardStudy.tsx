@@ -4,8 +4,9 @@ import { isCardsFinished, type CardSession } from '../../core/practice/cards';
 import type { Word } from '../../data/types';
 import { t } from '../../i18n/strings';
 import { Icon } from './Icon';
-import { preparePronunciation, SpeakerButton } from './SpeakerButton';
+import { SpeakerButton, usePreparedPronunciation } from './SpeakerButton';
 import { GermanWord, meaningsOf, wordLabel } from './WordList';
+import { meaningLang, useLearningLanguage } from '../workspace';
 
 /** Long text gets a smaller size, so a phrase does not fill the screen one word per line. */
 const LONG_TEXT = 22;
@@ -38,6 +39,8 @@ interface CardStudyProps {
  */
 export function CardStudy({ session, word, doubtfulArticle, notice, onMove, onDirection, onHidden, onRestart, onSetup, onClose }: CardStudyProps) {
   const total = session.wordIds.length;
+  const language = useLearningLanguage();
+  const meaningTag = meaningLang(language);
   const finished = isCardsFinished(session) || !word;
   const position = Math.min(session.index + 1, total);
   const turkishFirst = session.direction === 'tr_de';
@@ -61,7 +64,7 @@ export function CardStudy({ session, word, doubtfulArticle, notice, onMove, onDi
     if (finished) doneRef.current?.focus();
   }, [finished]);
 
-  useEffect(preparePronunciation, []);
+  usePreparedPronunciation();
 
   // Any move, turn or cover starts the card covered again, even when it comes back to the same place.
   // A recording still playing belongs to the card left behind, so it stops; the next one never starts by itself.
@@ -97,9 +100,9 @@ export function CardStudy({ session, word, doubtfulArticle, notice, onMove, onDi
   const spoken = word ? (doubtfulArticle ? { ...word, article: null } : word) : null;
   const germanText = word ? (doubtfulArticle ? word.lemma : wordLabel(word)) : '';
   const meaning = word ? meaningsOf(word) : '';
-  const front = turkishFirst ? { node: meaning, text: meaning, lang: 'tr' } : { node: german, text: germanText, lang: 'de' };
-  const back = turkishFirst ? { node: german, text: germanText, lang: 'de' } : { node: meaning, text: meaning, lang: 'tr' };
-  const revealLabel = turkishFirst ? t.practice.cards.revealGerman : t.practice.cards.revealMeaning;
+  const front = turkishFirst ? { node: meaning, text: meaning, lang: meaningTag } : { node: german, text: germanText, lang: language };
+  const back = turkishFirst ? { node: german, text: germanText, lang: language } : { node: meaning, text: meaning, lang: meaningTag };
+  const revealLabel = turkishFirst ? t.lang[language].showWord : t.practice.cards.revealMeaning;
   // Read out only what can be seen: a covered side is never in the announcement either.
   const announcement = finished ? t.practice.cards.doneTitle : [`${t.practice.cards.position} ${position} / ${total}`, front.text, revealed ? back.text : ''].filter(Boolean).join('. ');
 
@@ -114,7 +117,7 @@ export function CardStudy({ session, word, doubtfulArticle, notice, onMove, onDi
         <span class="count" data-testid="card-position" aria-hidden="true">{position} / {total}</span>
         {!finished && (
           <>
-            <button type="button" class="btn btn-small btn-square btn-toggle" aria-pressed={turkishFirst} aria-label={t.practice.cards.direction} title={t.practice.cards.direction} data-testid="card-direction" onClick={() => {
+            <button type="button" class="btn btn-small btn-square btn-toggle" aria-pressed={turkishFirst} aria-label={t.lang[language].meaningFirst} title={t.lang[language].meaningFirst} data-testid="card-direction" onClick={() => {
                 setRevealedKey(null);
                 player().stop();
                 onDirection();

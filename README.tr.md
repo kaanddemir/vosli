@@ -10,26 +10,29 @@
 
 ## Vosli Nedir?
 
-Vosli bir kelime öğrenme uygulamasıdır. Kelimeler kullanıcının kendi anlamlarıyla eklenir ya da bir dosyadan içe aktarılır, sonra pratik ve aralıklı tekrarla çalışılır. Tarayıcıda çalışır; sunucu, hesap veya ücretli servis gerektirmez.
+Vosli bir kelime öğrenme uygulamasıdır. Kelimeleri kendi anlamlarınla ekler ya da bir dosyadan içe aktarırsın, sonra pratik ve aralıklı tekrarla çalışırsın. Tarayıcıda çalışır; sunucu, hesap veya ücretli servis gerektirmez.
 
-Şu anda Almanca öğrenilebilir; İngilizce kelime öğrenme planlanıyor. Arayüz İngilizce, Türkçe veya Almanca olabilir. Varsayılan dil İngilizcedir ve Ayarlar’dan istendiği zaman değiştirilebilir.
+Ayarlar’da birbirinden bağımsız iki seçim vardır:
+
+- **Öğrenilen dil:** Almanca veya İngilizce. Her biri kendi kelimeleri, koleksiyonları ve ilerlemesiyle ayrı bir çalışma alanıdır.
+- **Arayüz dili:** İngilizce (varsayılan), Türkçe veya Almanca. Yalnızca uygulamanın metinlerini değiştirir; kelimelere ve ilerlemeye dokunmaz.
 
 ## Neler Yapabilir?
 
 - Kelime ekler, düzenler, arar, favorilere alır ve koleksiyonlarda düzenler.
 - Yapıştırılan metin, CSV ve metin katmanlı PDF dosyalarını önizlemeyle içe aktarır.
-- Serbest Pratik'te dört yolla çalışmayı sağlar: yazarak, dinleyerek, kartlarla ve seçenekleri yalnızca kullanıcının kendi kelimelerinden gelen çoktan seçmeli test. Hiçbiri tekrar takvimini değiştirmez.
+- Serbest Pratik sunar: yazarak, dinleyerek, kartlarla veya kendi kelimelerinden oluşan çoktan seçmeli testle. Tekrar takvimini hiç değiştirmez.
 - Akıllı Tekrar'da FSRS-6 ile tekrar planlar.
-- Çevrimdışı sözlükle Almanca yazımı ve artikelleri denetler.
-- Kelimelerin telaffuzunu gerçek insan kayıtlarıyla dinletir.
-- Tüm verileri tek bir JSON dosyasına yedekler ve kurulabilir bir PWA olarak çevrimdışı çalışır.
+- Almancada çevrimdışı sözlükle yazımı ve artikelleri denetler, artikel (der, die, das) çalıştırır. İngilizce kelimeler denetlenmez.
+- Telaffuzu gerçek insan kayıtlarıyla dinletir: Almanca ile Amerikan veya İngiliz İngilizcesi.
+- İki dili de tek bir JSON dosyasına yedekler (eski, yalnızca Almanca yedekler de geri yüklenir) ve kurulabilir bir PWA olarak çevrimdışı çalışır.
 
 ## Nasıl Çalışır?
 
-1. Kullanıcı kelimeleri elle girer veya bir dosyadan içe aktarır.
-2. İçe aktarılan satırlar kaydedilmeden önce gözden geçirilir; sözlük yalnızca uyarır ve öneri sunar.
+1. Kelimeleri elle girer veya bir dosyadan içe aktarırsın.
+2. İçe aktarılan satırlar kaydedilmeden önce gözden geçirilir; Almancada sözlük yalnızca uyarır ve öneri sunar.
 3. Kelimeler Serbest Pratik veya Akıllı Tekrar ile çalışılır.
-4. Akıllı Tekrar her kelimenin Almanca-anlam, anlam-Almanca ve artikel becerilerini ayrı planlar.
+4. Akıllı Tekrar her kelimenin kelime-anlam ve anlam-kelime becerilerini, Almancada artikeli de ayrı planlar.
 5. Veriler cihazda, IndexedDB'de kalır.
 
 ## Kullanılan Teknolojiler
@@ -72,7 +75,9 @@ vosli/
 │   ├── audio/           # telaffuz kayıtları ve oynatma
 │   ├── ui/              # ekranlar ve bileşenler
 │   └── styles/          # tasarım değişkenleri ve stiller
-├── public/dictionary/   # çevrimdışı sözlük
+├── public/
+│   ├── dictionary/de/   # Almanca sözlük (yazım ve artikel kontrolü)
+│   └── pronunciation/   # dile göre telaffuz listeleri ve künyeler (de/, en/)
 ├── scripts/             # sözlük ve telaffuz verisi araçları
 ├── tests/               # birim testleri
 └── e2e/                 # tarayıcı testleri
@@ -80,15 +85,15 @@ vosli/
 
 ## Veri Kaynakları
 
-Çevrimdışı sözlük, [Kaikki.org](https://kaikki.org/dewiktionary/rawdata.html) üzerinden Almanca Vikisözlük'ün 1 Kasım 2026 tarihli dökümünden üretilir.
+- **Sözlük ve telaffuz listeleri:** [Kaikki.org](https://kaikki.org/dewiktionary/rawdata.html) üzerinden Almanca Vikisözlük'ün 1 Kasım 2026 tarihli dökümünden üretilir.
+- **Kayıtlar:** Almanca Vikisözlük'ün Almanca ve İngilizce maddelerine bağlı [Wikimedia Commons](https://commons.wikimedia.org/) dosyalarıdır. İngilizce kayıtlar yalnızca Commons onları Amerikan veya İngiliz İngilizcesi olarak sınıflandırıyorsa kullanılır.
+- **Gizlilik:** kayıtlar uygulamayla gelmez ve saklanmaz. Her biri hoparlöre dokunduğunda Commons'tan yüklenir; bu yüzden telaffuz internet gerektirir ve Wikimedia dinlenen kelimeyi görebilir.
 
-Telaffuz kayıtları, Vikisözlük maddelerine bağlı [Wikimedia Commons](https://commons.wikimedia.org/) dosyalarıdır. Uygulamayla gelmez ve saklanmaz; hoparlöre dokunulduğunda Commons'tan yüklenir. Bu yüzden telaffuz internet gerektirir ve Wikimedia dinlenen kelimeyi görebilir.
-
-Sözlüğü ve telaffuz verisini güncelleme adımları [scripts/build-dictionary.mjs](scripts/build-dictionary.mjs) ve [scripts/sync-commons-audio.mjs](scripts/sync-commons-audio.mjs) dosyalarının başında anlatılır.
+Güncelleme adımları [scripts/build-dictionary.mjs](scripts/build-dictionary.mjs), [scripts/sync-commons-audio.mjs](scripts/sync-commons-audio.mjs) (İngilizce için `--language en`) ve [scripts/build-english-audio.mjs](scripts/build-english-audio.mjs) dosyalarının başında anlatılır.
 
 ## Lisans
 
-Sözlük verisi [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) lisanslıdır; ayrıntılar [public/dictionary/LICENSE.txt](public/dictionary/LICENSE.txt) dosyasındadır. Telaffuz kayıtlarının lisansı kayda göre değişir ve her kelimenin sayfasında gösterilir.
+Sözlük ve telaffuz listesi verileri [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) lisanslıdır; ayrıntılar [public/dictionary/de/LICENSE.txt](public/dictionary/de/LICENSE.txt), [public/pronunciation/de/LICENSE.txt](public/pronunciation/de/LICENSE.txt) ve [public/pronunciation/en/LICENSE.txt](public/pronunciation/en/LICENSE.txt) dosyalarındadır. Telaffuz kayıtlarının lisansı kayda göre değişir ve her kelimenin sayfasında gösterilir.
 
 <div align="center">
   <p><a href="https://heykaan.dev">heykaan.dev</a> tarafından geliştirildi.</p>

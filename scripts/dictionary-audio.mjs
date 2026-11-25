@@ -5,15 +5,16 @@
  * Recordings come only from the links German Wiktionary editors put on each entry, never from a
  * filename that merely looks right. Each one is checked against Wikimedia Commons before it is used:
  * the check gives the canonical title (a link may be a redirect), the license and the author. Those
- * checks live in scripts/data/commons-audio.tsv, so a dictionary build never needs the network.
+ * checks live in scripts/data/commons-audio-de.tsv, so a dictionary build never needs the network.
  *
  * In lemmas.txt a word with a recording gets one tag:
  *   a=KEY:FILE[#AUTHOR.LICENSE]|KEY:FILE...
  * KEY is the part of speech, with the gender for nouns: nm nf nn n v a d p o, or * for every one.
  * FILE is empty for De-<word>.ogg, a digit for De-<word><digit>.ogg, or =<canonical title>, spaces as _.
- * AUTHOR and LICENSE index audio-credits.txt; both 0 is left out. A tag a! marks a word where one part
+ * AUTHOR and LICENSE index pronunciation/de/credits.txt; both 0 is left out. A tag a! marks a word where one part
  * of speech has two pronunciations that cannot be told apart, so no other recording stands in for it.
  */
+import { fileURLToPath } from 'node:url';
 
 export const FORM_TITLES = new Set(['Deklinierte Form', 'Konjugierte Form', 'Dekliniertes Gerundivum', 'Erweiterter Infinitiv', 'Partizip I', 'Partizip II', 'Komparativ', 'Superlativ']);
 export const POS = { noun: 'S', verb: 'V', adj: 'A', adv: 'D', name: 'N', phrase: 'P', abbrev: 'K', num: 'Z', pron: 'O', prep: 'O', conj: 'O', particle: 'O', det: 'O', intj: 'O', postp: 'O' };
@@ -155,9 +156,13 @@ export function creditsText({ authors, licenses }) {
   return [...licenses.map((name, index) => `L\t${index}\t${name}\t${licenseUrl(name)}`), ...authors.map((name, index) => `A\t${index}\t${name}`)].join('\n') + '\n';
 }
 
-// ---------- The Commons check cache: scripts/data/commons-audio.tsv ----------
+// ---------- The Commons check cache: scripts/data/commons-audio-<language>.tsv ----------
+
+/** Where the Commons checks for a learning language's recordings are kept: one cache per language. */
+export const commonsCachePath = (language) => fileURLToPath(new URL(`./data/commons-audio-${language}.tsv`, import.meta.url));
 
 const CACHE_HEADER = '# Wikimedia Commons checks for dictionary recordings. Written by sync-commons-audio.mjs.\n# requested name\tcanonical title (empty if the same)\tlicense\tauthor   |   requested name\t- when missing or without a license\n';
+const CATEGORY_HEADER = '# Wikimedia Commons checks for English recordings. Written by sync-commons-audio.mjs --language en.\n# requested name\tcanonical title (empty if the same)\tlicense\tauthor\tvariety Commons files it under (us, uk, en, other, none)   |   requested name\t- when missing or without a license\n';
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 /** Authors Commons cannot name. The uploader stands in for them. */
 const UNNAMED = /^(myself|own work|self|ich|selbst|eigenes werk|unknown|anonymous|no machine-readable author.*|uploader)$/iu;
@@ -186,17 +191,20 @@ export function parseCache(text) {
     const parts = line.split('\t');
     if (parts.length === 2 && parts[1] === '-') cache.set(parts[0], false);
     else if (parts.length === 4 && parts[2]) cache.set(parts[0], { title: parts[1] || parts[0], license: parts[2], author: parts[3] });
-    else throw new Error(`commons-audio.tsv line ${index + 1} is not valid: ${JSON.stringify(line)}`);
+    // A fifth column, where the check also read the file's categories: what Commons files it as (English only).
+    else if (parts.length === 5 && parts[2] && parts[4]) cache.set(parts[0], { title: parts[1] || parts[0], license: parts[2], author: parts[3], kind: parts[4] });
+    else throw new Error(`Commons check cache line ${index + 1} is not valid: ${JSON.stringify(line)}`);
   }
   return cache;
 }
 
 const byCodeUnit = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
-export function cacheText(cache) {
+export function cacheText(cache, { categories = false } = {}) {
   const lines = [...cache.keys()].sort(byCodeUnit).map((name) => {
     const found = cache.get(name);
-    return found ? `${name}\t${found.title === name ? '' : found.title}\t${found.license}\t${found.author}` : `${name}\t-`;
+    if (!found) return `${name}\t-`;
+    return `${name}\t${found.title === name ? '' : found.title}\t${found.license}\t${found.author}${found.kind ? `\t${found.kind}` : ''}`;
   });
-  return CACHE_HEADER + lines.join('\n') + '\n';
+  return (categories ? CATEGORY_HEADER : CACHE_HEADER) + lines.join('\n') + '\n';
 }

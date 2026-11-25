@@ -17,12 +17,12 @@ import { makeWord, T0, uniqueDbName } from './support/fixtures';
 
 /** What can be asked now, which is what offers the way on after a session. */
 const available = async (database: AppDatabase, now: number) => {
-  const plan = planFrom(await loadReviewData(database, null), false, now);
+  const plan = planFrom(await loadReviewData(database, null, 'de'), false, now);
   return { plan, count: plan.due.length + plan.fresh.length };
 };
 
 /** What Home reads. */
-const readOverview = async (db: AppDatabase, validate: Validate | null, now: number) => overviewOf(await loadReviewData(db, validate), now);
+const readOverview = async (db: AppDatabase, validate: Validate | null, now: number) => overviewOf(await loadReviewData(db, validate, 'de'), now);
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -184,14 +184,14 @@ describe('free practice stays out of schedules', () => {
   it('a practice attempt creates no card for a word never reviewed', async () => {
     await recordPracticeAttempt(db, { wordId: 'w-apfel', track: 'tr_de', at: T0, typed: 'der Apfel', result: 'correct', hintsUsed: 0 });
     expect(await db.cards.count()).toBe(0);
-    const data = await loadReviewData(db, null);
+    const data = await loadReviewData(db, null, 'de');
     expect(planFrom(data, false, T0).fresh).toHaveLength(1);
   });
 
   it('a practice attempt on a due card does not make it any less due', async () => {
     const end = await graduate();
     await recordPracticeAttempt(db, { wordId: 'w-apfel', track: 'de_tr', at: end, typed: 'elma', result: 'correct', hintsUsed: 0 });
-    expect(planFrom(await loadReviewData(db, null), false, end).due).toHaveLength(1);
+    expect(planFrom(await loadReviewData(db, null, 'de'), false, end).due).toHaveLength(1);
   });
 });
 
@@ -207,7 +207,7 @@ describe('article changes', () => {
     expect(await stateOf('de_tr')).toEqual(de);
     expect(await db.reviewLogs.count()).toBe(logs);
     // Once the kept skill is not due, the reset ones come back as new, one at a time.
-    const plan = planFrom(await loadReviewData(db, null), false, T0 + 11 * MIN);
+    const plan = planFrom(await loadReviewData(db, null, 'de'), false, T0 + 11 * MIN);
     expect(plan.due).toEqual([]);
     expect(plan.fresh.map((item) => item.track)).toEqual(['tr_de']);
   });
@@ -219,7 +219,7 @@ describe('article changes', () => {
     await updateWord(db, 'w-apfel', entry('Apfel', null, 'elma'), T0);
     expect(await stateOf('article')).toBeNull();
     expect(await stateOf('de_tr')).toEqual(de);
-    const plan = planFrom(await loadReviewData(db, null), false, end + 365 * DAY);
+    const plan = planFrom(await loadReviewData(db, null, 'de'), false, end + 365 * DAY);
     expect([...plan.due, ...plan.fresh].some((item) => item.track === 'article')).toBe(false);
   });
 
@@ -234,7 +234,7 @@ describe('article changes', () => {
     // Writing Lampe alone is no longer a right answer, so that skill starts over too, before the article.
     expect(await stateOf('tr_de', 'w-lampe')).toBeNull();
     expect(await stateOf('de_tr', 'w-lampe')).toEqual(de);
-    const later = planFrom(await loadReviewData(db, null), false, T0 + 11 * MIN).fresh.filter((item) => item.wordId === 'w-lampe');
+    const later = planFrom(await loadReviewData(db, null, 'de'), false, T0 + 11 * MIN).fresh.filter((item) => item.wordId === 'w-lampe');
     expect(later.map((item) => item.track)).toEqual(['tr_de']);
   });
 
@@ -277,7 +277,7 @@ describe('deleted words', () => {
   it('a deleted word is not asked or counted, and nothing of it remains', async () => {
     const end = await graduate();
     await deleteWord(db, 'w-apfel');
-    const plan = planFrom(await loadReviewData(db, null), false, end);
+    const plan = planFrom(await loadReviewData(db, null, 'de'), false, end);
     expect(plan).toEqual({ due: [], fresh: [] });
     expect(await readOverview(db, null, end)).toMatchObject({ words: 0, due: 0, fresh: 0, studied: false });
     expect(await db.cards.count()).toBe(0);
@@ -287,10 +287,10 @@ describe('deleted words', () => {
   it('adding it again starts from nothing', async () => {
     const end = await graduate();
     await deleteWord(db, 'w-apfel');
-    const outcome = await addWord(db, entry('Apfel', 'der', 'elma'), null, [], end);
+    const outcome = await addWord(db, entry('Apfel', 'der', 'elma'), null, [], end, 'de');
     if (outcome.kind !== 'saved') throw new Error('not saved');
     expect(outcome.word.id).not.toBe('w-apfel');
-    const plan = planFrom(await loadReviewData(db, null), false, end);
+    const plan = planFrom(await loadReviewData(db, null, 'de'), false, end);
     expect(plan.due).toEqual([]);
     expect(plan.fresh).toMatchObject([{ wordId: outcome.word.id, track: 'de_tr', kind: 'new' }]);
   });
@@ -300,8 +300,8 @@ describe('collections', () => {
   it('moving a word between collections changes nothing about its cards, and makes none', async () => {
     await graduate();
     const before = await db.cards.toArray();
-    const one = await createCustomGroup(db, 'Bir', T0);
-    const two = await createCustomGroup(db, 'İki', T0);
+    const one = await createCustomGroup(db, 'Bir', T0, 'de');
+    const two = await createCustomGroup(db, 'İki', T0, 'de');
     await addWordsToGroup(db, one.id, ['w-apfel'], T0);
     await addWordsToGroup(db, two.id, ['w-apfel'], T0);
     expect(await db.cards.toArray()).toEqual(before);
@@ -353,7 +353,7 @@ describe('dictionary warnings', () => {
 
   it('leaves a word with a real warning out unless included, and a word it does not know stays in', async () => {
     await db.words.add(makeWord('w-yok', 'Xyzzyquark', 'der', 'yok'));
-    const data = await loadReviewData(db, validate());
+    const data = await loadReviewData(db, validate(), 'de');
     const ids = (include: boolean) => planFrom(data, include, T0).fresh.map((item) => item.wordId);
     expect(ids(false)).not.toContain('w-automat');
     expect(ids(false)).toContain('w-yok');
@@ -368,26 +368,26 @@ describe('dictionary warnings', () => {
 
   it('a due card of a flagged word is held back too', async () => {
     await graduate('de_tr', flaggedWord);
-    const data = await loadReviewData(db, validate());
+    const data = await loadReviewData(db, validate(), 'de');
     expect(planFrom(data, false, T0 + 5 * DAY).due.filter((item) => item.wordId === 'w-automat')).toEqual([]);
     expect(planFrom(data, true, T0 + 5 * DAY).due.filter((item) => item.wordId === 'w-automat')).toHaveLength(1);
   });
 
   it('even when included, a disputed article is never asked as a question', async () => {
     await graduate('article', flaggedWord);
-    const data = await loadReviewData(db, validate());
+    const data = await loadReviewData(db, validate(), 'de');
     const plan = planFrom(data, true, T0 + 365 * DAY);
     expect([...plan.due, ...plan.fresh].filter((item) => item.wordId === 'w-automat' && item.track === 'article')).toEqual([]);
   });
 
   it('an accepted warning no longer holds anything back', async () => {
     await addDismissals(db, [dismissalKey('article_wrong', 'Geldautomat', 'das')]);
-    const data = await loadReviewData(db, validate());
+    const data = await loadReviewData(db, validate(), 'de');
     expect(planFrom(data, false, T0).fresh.map((item) => item.wordId)).toContain('w-automat');
   });
 
   it('without a dictionary nothing is held back', async () => {
-    const data = await loadReviewData(db, null);
+    const data = await loadReviewData(db, null, 'de');
     expect(planFrom(data, false, T0).fresh.map((item) => item.wordId)).toContain('w-automat');
   });
 });
@@ -430,7 +430,7 @@ describe('backup and restore', () => {
     if (!parsed.ok) throw new Error('parse');
     const target = await openDatabase({ name: uniqueDbName() });
     await restoreBackup(target, parsed.backup);
-    expect(planFrom(await loadReviewData(target, null), false, T0 + 5 * DAY)).toEqual(planFrom(await loadReviewData(db, null), false, T0 + 5 * DAY));
+    expect(planFrom(await loadReviewData(target, null, 'de'), false, T0 + 5 * DAY)).toEqual(planFrom(await loadReviewData(db, null, 'de'), false, T0 + 5 * DAY));
     target.close();
   });
 });

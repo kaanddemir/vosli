@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 import { buildPdf, tablePage, type VocabRow } from '../tests/support/pdfBuilder';
 import { anyCount, anyText, escapeRe, label } from './labels';
@@ -95,9 +96,9 @@ test('a suggestion changes a row only when pressed, and saving works either way'
 
 test('a correction that meets a saved word asks a person instead of merging', async ({ page }) => {
   await open(page, '#/dictionary/new');
-  await page.getByLabel(t.wordForm.german, { exact: true }).fill('Geldautomat');
+  await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Geldautomat');
   await page.locator('.segmented label').filter({ hasText: /^der$/ }).click();
-  await page.getByLabel(t.wordForm.turkish, { exact: true }).fill('bankamatik');
+  await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('bankamatik');
   await page.getByRole('button', { name: t.common.save }).click();
   await expect(page).toHaveURL(/#\/dictionary\/[0-9a-f]{8}/);
 
@@ -141,10 +142,10 @@ test('a row shows what the dictionary knows only when opened', async ({ page }) 
 
 test('the word form warns after a pause, offers a fix, and keeps saving possible', { tag: '@smoke' }, async ({ page }) => {
   await open(page, '#/dictionary/new');
-  const german = page.getByLabel(t.wordForm.german, { exact: true });
+  const german = page.getByRole('textbox', { name: t.lang.de.word, exact: true });
   await german.fill('Geldautomat');
   await page.locator('.segmented label').filter({ hasText: /^das$/ }).click();
-  await page.getByLabel(t.wordForm.turkish, { exact: true }).fill('ATM');
+  await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('ATM');
 
   const icon = page.getByRole('button', { name: t.validation.label('Geldautomat') });
   await icon.click();
@@ -164,9 +165,9 @@ test('the word form warns after a pause, offers a fix, and keeps saving possible
 
 test('an unknown word is not called wrong, and an edit keeps the word and its identity', async ({ page }) => {
   await open(page, '#/dictionary/new');
-  await page.getByLabel(t.wordForm.german, { exact: true }).fill('Xqzvbn');
+  await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Xqzvbn');
   await expect(page.getByTestId('word-check-note')).toHaveText(t.validation.notFound);
-  await page.getByLabel(t.wordForm.turkish, { exact: true }).fill('deneme');
+  await page.getByRole('textbox', { name: t.lang.de.meaning, exact: true }).fill('deneme');
   await page.getByRole('button', { name: t.common.save }).click();
   await expect(page).toHaveURL(/#\/dictionary\/[0-9a-f]{8}/);
   const [saved] = await readTable(page, 'words');
@@ -234,7 +235,7 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(review.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target).join(', ')}`)).toEqual([]);
 
     await open(page, '#/dictionary/new');
-    await page.getByLabel(t.wordForm.german, { exact: true }).fill('Geldautmat');
+    await page.getByRole('textbox', { name: t.lang.de.word, exact: true }).fill('Geldautmat');
     await page.locator('.segmented label').filter({ hasText: /^der$/ }).click();
     await page.getByRole('button', { name: t.validation.label('Geldautmat') }).click();
     await expect(page.locator('.popover-panel:popover-open')).toBeVisible();

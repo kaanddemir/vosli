@@ -9,6 +9,6 @@ License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
 This license covers these data files, not the app. Wiktionary does not endorse this app.
 
 Pronunciation: lemmas.txt names, for many words, a recording on Wikimedia Commons
-(https://commons.wikimedia.org/), and audio-credits.txt lists their authors and licenses.
+(https://commons.wikimedia.org/), and ../../pronunciation/de/credits.txt lists their authors and licenses.
 The recordings themselves are not part of these files; the app loads each from Commons when
 asked, under its own license, which the word's page in the app names with a link to its source.

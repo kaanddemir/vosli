@@ -25,7 +25,7 @@ interface RowProps {
   /** An action rather than a place to go: accent text and no chevron. */
   action?: boolean;
   disabled?: boolean;
-  lang?: string;
+  lang?: string | undefined;
   /** A separate control after the row, such as remove. It sits beside the link, never inside it. */
   trailing?: ComponentChildren;
 }

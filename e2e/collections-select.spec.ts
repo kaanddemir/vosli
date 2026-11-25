@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 const word = (id: string, lemma: string) => ({ id, identityKey: `${lemma}|der`, lemma, article: 'der', pos: 'noun', plural: null, meanings: [{ text: 'x', note: null }], senseTag: null, searchTokens: [], favoritedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null });
@@ -43,7 +44,7 @@ test.beforeEach(async ({ page }) => {
         const open = indexedDB.open('vosli');
         open.onsuccess = () => {
           const tx = open.result.transaction(Object.keys(data), 'readwrite');
-          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(row);
+          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(['words', 'groups', 'sources'].includes(name) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             open.result.close();
             resolve();

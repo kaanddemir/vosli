@@ -1,6 +1,7 @@
 import Dexie from 'dexie';
 import type { AppDatabase } from './db';
-import type { Group, PracticeLog, Source, Word } from './types';
+import type { Group, LearningLanguage, PracticeLog, Source, Word } from './types';
+import { activeWordsOf } from './words';
 
 /**
  * Records a Free Practice attempt. The transaction does not include cards, so this cannot change
@@ -27,22 +28,23 @@ export function isBackupDue(wordCount: number, lastBackupAt: number | null, now:
   return lastBackupAt === null || now - lastBackupAt >= BACKUP_REMINDER_MS;
 }
 
-const german = new Intl.Collator('de');
+const COLLATORS: Readonly<Record<LearningLanguage, Intl.Collator>> = { de: new Intl.Collator('de'), en: new Intl.Collator('en') };
 
-/** German alphabetical order. Equal spellings fall back to article and id, so the order never shifts between visits. */
+/** Alphabetical order of the word's own language. Equal spellings fall back to article and id, so the order never shifts between visits. */
 function compareWords(a: Word, b: Word): number {
-  return german.compare(a.lemma, b.lemma) || german.compare(a.article ?? '', b.article ?? '') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const collator = COLLATORS[a.language] ?? COLLATORS.de;
+  return collator.compare(a.lemma, b.lemma) || collator.compare(a.article ?? '', b.article ?? '') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
-/** Active words in German alphabetical order. */
-export async function listActiveWords(db: AppDatabase): Promise<Word[]> {
-  const words = await db.words.filter((word) => word.deletedAt === null).toArray();
-  return words.sort(compareWords);
+/** The active words of one learning language, in that language's alphabetical order. */
+export async function listActiveWords(db: AppDatabase, language: LearningLanguage): Promise<Word[]> {
+  return (await activeWordsOf(db, language)).sort(compareWords);
 }
 
-export async function getActiveWord(db: AppDatabase, id: string): Promise<Word | null> {
+/** A word by its id, only if it is active and belongs to this learning language: another's is not there to show or change. */
+export async function getActiveWord(db: AppDatabase, id: string, language: LearningLanguage): Promise<Word | null> {
   const word = await db.words.get(id);
-  return word && word.deletedAt === null ? word : null;
+  return word && word.deletedAt === null && word.language === language ? word : null;
 }
 
 export interface GroupSummary {
@@ -50,9 +52,10 @@ export interface GroupSummary {
   wordCount: number;
 }
 
-/** Every group in its saved order. Deleted words are not counted. */
-export async function listGroupSummaries(db: AppDatabase): Promise<GroupSummary[]> {
-  const [groups, members, words] = await Promise.all([db.groups.orderBy('order').toArray(), db.groupMembers.toArray(), listActiveWords(db)]);
+/** Every group of one learning language in its saved order. Deleted words are not counted. */
+export async function listGroupSummaries(db: AppDatabase, language: LearningLanguage): Promise<GroupSummary[]> {
+  const [all, members, words] = await Promise.all([db.groups.orderBy('order').toArray(), db.groupMembers.toArray(), activeWordsOf(db, language)]);
+  const groups = all.filter((group) => group.language === language);
   const active = new Set(words.map((word) => word.id));
   const counts = new Map<string, number>();
   for (const member of members) {
@@ -61,12 +64,13 @@ export async function listGroupSummaries(db: AppDatabase): Promise<GroupSummary[
   return groups.map((group) => ({ group, wordCount: counts.get(group.id) ?? 0 }));
 }
 
-export async function getGroupWithWords(db: AppDatabase, groupId: string): Promise<{ group: Group; words: Word[] } | null> {
+/** A collection by its id, only if it belongs to this learning language, with its active words. */
+export async function getGroupWithWords(db: AppDatabase, groupId: string, language: LearningLanguage): Promise<{ group: Group; words: Word[] } | null> {
   const group = await db.groups.get(groupId);
-  if (!group) return null;
+  if (!group || group.language !== language) return null;
   const members = await db.groupMembers.where('[groupId+wordId]').between([groupId, Dexie.minKey], [groupId, Dexie.maxKey]).toArray();
   const found = await db.words.bulkGet(members.map((member) => member.wordId));
-  const words = found.filter((word): word is Word => word !== undefined && word.deletedAt === null);
+  const words = found.filter((word): word is Word => word !== undefined && word.deletedAt === null && word.language === language);
   return { group, words: words.sort(compareWords) };
 }
 
@@ -76,8 +80,23 @@ export async function listGroupsOfWord(db: AppDatabase, wordId: string): Promise
   return groups.filter((group): group is Group => group !== undefined).sort((a, b) => a.order - b.order);
 }
 
-export async function listCustomGroups(db: AppDatabase): Promise<Group[]> {
-  return db.groups.where('kind').equals('custom').sortBy('order');
+export async function listCustomGroups(db: AppDatabase, language: LearningLanguage): Promise<Group[]> {
+  return db.groups.where('kind').equals('custom').filter((group) => group.language === language).sortBy('order');
+}
+
+export interface LanguageCounts {
+  /** Active words of each learning language. */
+  words: Record<LearningLanguage, number>;
+  groups: number;
+  reviewLogs: number;
+}
+
+/** What the database holds now, for comparing with a backup before it replaces everything. */
+export async function countLibrary(db: AppDatabase): Promise<LanguageCounts> {
+  return db.transaction('r', db.words, db.groups, db.reviewLogs, async () => {
+    const [de, en, groups, reviewLogs] = await Promise.all([activeWordsOf(db, 'de'), activeWordsOf(db, 'en'), db.groups.count(), db.reviewLogs.count()]);
+    return { words: { de: de.length, en: en.length }, groups, reviewLogs };
+  });
 }
 
 /** The ids of every word in a group, deleted or not. */

@@ -1538,6 +1538,18 @@ main:focus {
   fill: var(--flag-cream);
 }
 
+.flag-navy {
+  fill: var(--flag-navy);
+}
+
+.flag-crimson {
+  fill: var(--flag-crimson);
+}
+
+.flag-white {
+  fill: var(--flag-white);
+}
+
 @media (min-width: 48rem) {
   .today-garland-narrow {
     display: none;
@@ -3240,6 +3252,156 @@ dialog::backdrop {
   text-align: right;
 }
 
+/* ---------- Learning-language row in Settings ---------- */
+/* Beside its choices when both fit, otherwise a line of its own above them, never squeezed. */
+.workspace-text {
+  flex: 1 1 14rem;
+}
+
+.workspace-error {
+  padding-inline: var(--space-4);
+  padding-bottom: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+/* ---------- First-start welcome ---------- */
+.welcome-dialog::backdrop {
+  backdrop-filter: blur(var(--backdrop-blur));
+}
+
+.welcome-dialog .dialog-body {
+  /* So the fox can make room when enlarged text leaves the dialog narrow. */
+  container-type: inline-size;
+}
+
+.welcome-fox {
+  align-self: center;
+  width: 4rem;
+  height: 4rem;
+}
+
+.welcome-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.welcome-label {
+  font-weight: var(--weight-medium);
+}
+
+.welcome-dialog .btn-primary {
+  width: 100%;
+}
+
+@container (max-width: 18rem) {
+  .welcome-fox {
+    display: none;
+  }
+}
+
+@media (max-height: 34em) {
+  .welcome-fox {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .welcome-dialog::backdrop {
+    backdrop-filter: none;
+  }
+}
+
+/* What the device holds now beside what the backup holds, so what a restore removes is plain before it happens. */
+.restore-compare {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.restore-compare th,
+.restore-compare td {
+  padding-block: var(--space-1);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A label may wrap at large text sizes; the numbers never do. */
+.restore-compare th:first-child {
+  text-align: left;
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+.restore-compare thead th {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+
+.restore-compare td,
+.restore-compare thead th:not(:first-child) {
+  padding-inline-start: var(--space-4);
+  white-space: nowrap;
+}
+
+.restore-compare td {
+  font-weight: var(--weight-medium);
+}
+
+.restore-compare tbody tr {
+  border-top: 1px solid var(--border);
+}
+
+/*
+ * Three columns need about 17rem. Narrower, as on a small phone or with enlarged text, each row stacks: its label,
+ * then each number with its column's name. The query is in rem, so it follows the text size, not only the screen.
+ */
+.restore-compare-box {
+  container-type: inline-size;
+}
+
+@container (max-width: 17rem) {
+  .restore-compare,
+  .restore-compare tbody {
+    display: block;
+  }
+
+  /* Out of sight, still read: each cell keeps its column header. */
+  .restore-compare thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .restore-compare tbody tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+    gap: 0 var(--space-3);
+    padding-block: var(--space-2);
+  }
+
+  .restore-compare tbody th {
+    grid-column: 1 / -1;
+    padding: 0;
+  }
+
+  .restore-compare td {
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  /* Seen only: a screen reader already hears the column header. */
+  .restore-compare td::before {
+    content: attr(data-label) ' ' / '';
+    font-weight: var(--weight-regular);
+    color: var(--text-muted);
+  }
+}
+
 /* Phone-only controls whose job the sidebar does on larger screens. Last, so it wins over their display. */
 @media (min-width: 48em) {
   .only-compact {
@@ -3339,6 +3501,10 @@ dialog::backdrop {
 
 /* ---------- Windows High Contrast and similar: backgrounds and shadows are removed. ---------- */
 @media (forced-colors: active) {
+  .welcome-dialog::backdrop {
+    backdrop-filter: none;
+  }
+
   /* Color alone said it was playing; the system highlight says it here. */
   .speaker-btn[data-status='playing'] {
     color: Highlight;

@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
+import { SCHEMA_VERSION } from '../src/data/schema';
 
 const HARNESS = 'http://127.0.0.1:4174/e2e/harness.html';
 
@@ -38,15 +39,19 @@ test('a failed restore keeps existing data', { tag: '@smoke' }, async ({ page })
 });
 
 test('a database from a newer version is refused and left unchanged', async ({ page }) => {
-  expect(await run(page, 'newerSchemaRefused')).toEqual({ refused: true, words: 1, verno: 2 });
+  expect(await run(page, 'newerSchemaRefused')).toEqual({ refused: true, words: 1, verno: SCHEMA_VERSION + 1 });
+});
+
+test('a database from before learning languages upgrades in the browser with every record kept and made German', async ({ page }) => {
+  expect(await run(page, 'legacyUpgradeKeepsEverything')).toEqual({ unchanged: true, verno: SCHEMA_VERSION, language: 'de', via: 'legacy', words: 5 });
 });
 
 test('a failed migration rolls back', async ({ page }) => {
-  expect(await run(page, 'failedMigrationRollsBack')).toEqual({ reported: true, lemma: 'Fuß', damaged: false, verno: 1 });
+  expect(await run(page, 'failedMigrationRollsBack')).toEqual({ reported: true, lemma: 'Fuß', damaged: false, verno: SCHEMA_VERSION });
 });
 
 test('an upgrade in another tab closes this connection and notifies it', async ({ page }) => {
-  expect(await run(page, 'upgradeClosesOtherConnection')).toEqual({ notified: true, firstOpen: false, secondVersion: 2 });
+  expect(await run(page, 'upgradeClosesOtherConnection')).toEqual({ notified: true, firstOpen: false, secondVersion: SCHEMA_VERSION + 1 });
 });
 
 test('a failed import leaves every table as it was', async ({ page }) => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import type { LearningLanguage } from '../../core/learningLanguage';
 import { newId } from '../../core/id';
 import { createCardSession, currentCard, dropCard, moveCard, restartCards, reviveCardSession, type CardSession } from '../../core/practice/cards';
 import { evaluateAnswer, type AnswerWord } from '../../core/practice/answers';
@@ -24,6 +25,7 @@ import { useDb } from '../dbContext';
 import { readSavedCards, readSavedSession, readSavedSettings, readSavedTest, readStudyChoice, saveCards, saveSession, saveSettings, saveStudyChoice, saveTest, type StudyChoice } from '../practiceStorage';
 import { hrefFor } from '../router';
 import { useLoad } from '../useLoad';
+import { useLearningLanguage } from '../workspace';
 
 /** Practice does not wait longer than this for the dictionary. Words then simply go unchecked. */
 const DICTIONARY_WAIT_MS = 2000;
@@ -32,11 +34,13 @@ const goHome = () => {
   location.hash = hrefFor('home');
 };
 
-function restoreSettings(data: PracticeData): PracticeSettings {
-  const saved = readSavedSettings() as Partial<PracticeSettings> | null;
+function restoreSettings(data: PracticeData, language: LearningLanguage): PracticeSettings {
+  const saved = readSavedSettings(language) as Partial<PracticeSettings> | null;
   if (!saved || typeof saved !== 'object') return DEFAULT_SETTINGS;
   const known = new Set(data.groups.map((item) => item.group.id));
-  const mode = (['tr_de', 'de_tr', 'article', 'mixed'] as const).find((item) => item === saved.mode) ?? DEFAULT_SETTINGS.mode;
+  // Article questions are German only.
+  const modes = language === 'de' ? (['tr_de', 'de_tr', 'article', 'mixed'] as const) : (['tr_de', 'de_tr', 'mixed'] as const);
+  const mode = modes.find((item) => item === saved.mode) ?? DEFAULT_SETTINGS.mode;
   const count = saved.count === null || saved.count === 10 || saved.count === 20 || saved.count === 50 ? saved.count : DEFAULT_SETTINGS.count;
   const groupIds = Array.isArray(saved.scope?.groupIds) ? saved.scope.groupIds.filter((id) => known.has(id)) : [];
   const favorites = saved.scope?.favorites === true;
@@ -47,6 +51,7 @@ function restoreSettings(data: PracticeData): PracticeSettings {
 
 export function PracticeScreen() {
   const db = useDb();
+  const language = useLearningLanguage();
   const [storedSettings, setSettingsState] = useState<PracticeSettings>(DEFAULT_SETTINGS);
   const [session, setSessionState] = useState<Session | null>(null);
   const [closing, setClosing] = useState(false);
@@ -54,7 +59,7 @@ export function PracticeScreen() {
   const [starting, setStarting] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const moving = useRef(false);
-  const [study, setStudyState] = useState<StudyChoice>(readStudyChoice);
+  const [study, setStudyState] = useState<StudyChoice>(() => readStudyChoice(language));
   const [cards, setCardsState] = useState<CardSession | null>(null);
   const cardsRef = useRef<CardSession | null>(null);
   const [cardNotice, setCardNotice] = useState<string | null>(null);
@@ -68,44 +73,45 @@ export function PracticeScreen() {
   const setCards = useCallback((next: CardSession | null) => {
     cardsRef.current = next;
     setCardsState(next);
-    saveCards(next);
-  }, []);
+    saveCards(language, next);
+  }, [language]);
 
   /** A test keeps its questions and answers in this tab only. Nothing about it reaches the database. */
   const setTest = useCallback((next: TestSession | null) => {
     testRef.current = next;
     setTestState(next);
-    saveTest(next);
-  }, []);
+    saveTest(language, next);
+  }, [language]);
 
   const setSession = useCallback((next: Session | null) => {
     sessionRef.current = next;
     setSessionState(next);
-    saveSession(next);
-  }, []);
+    saveSession(language, next);
+  }, [language]);
 
   const readData = useCallback(async () => {
-    return loadPracticeData(db, await validatorWithin(DICTIONARY_WAIT_MS));
-  }, [db]);
+    // The dictionary is German. Another language's practice neither waits for it nor loads it.
+    return loadPracticeData(db, language === 'de' ? await validatorWithin(DICTIONARY_WAIT_MS) : null, language);
+  }, [db, language]);
 
   const { state, reload } = useLoad(async () => {
     const data = await readData();
     const active = new Set(data.words.map((word) => word.id));
-    const restored = reviveSession(readSavedSession(), active);
-    const restoredTest = restored ? null : reviveTest(readSavedTest(), active);
+    const restored = reviveSession(readSavedSession(language), active);
+    const restoredTest = restored ? null : reviveTest(readSavedTest(language), active);
     testRef.current = restoredTest;
     setTestState(restoredTest);
-    saveTest(restoredTest);
-    const restoredCards = restored || restoredTest ? null : reviveCardSession(readSavedCards(), active);
+    saveTest(language, restoredTest);
+    const restoredCards = restored || restoredTest ? null : reviveCardSession(readSavedCards(language), active);
     cardsRef.current = restoredCards;
     setCardsState(restoredCards);
-    saveCards(restoredCards);
+    saveCards(language, restoredCards);
     sessionRef.current = restored;
     setSessionState(restored);
-    saveSession(restored);
-    setSettingsState(restored?.settings ?? restoredTest?.settings ?? restoreSettings(data));
+    saveSession(language, restored);
+    setSettingsState(restored?.settings ?? restoredTest?.settings ?? restoreSettings(data, language));
     return data;
-  }, [readData]);
+  }, [readData, language]);
   const [fresh, setFresh] = useState<PracticeData | null>(null);
   const data = fresh ?? (state.status === 'ready' ? state.data : null);
 
@@ -150,12 +156,12 @@ export function PracticeScreen() {
 
   const changeSettings = (next: PracticeSettings) => {
     setSettingsState(next);
-    saveSettings(next);
+    saveSettings(language, next);
   };
 
   const changeStudy = (next: StudyChoice) => {
     setStudyState(next);
-    saveStudyChoice(next);
+    saveStudyChoice(language, next);
   };
 
   /** The same choice of words as a typed round, read fresh, then only the order is kept. */
@@ -192,7 +198,7 @@ export function PracticeScreen() {
       const landed = cardsRef.current;
       const id = landed && currentCard(landed);
       if (!landed || !id) return;
-      const latest = await getActiveWord(db, id);
+      const latest = await getActiveWord(db, id, language);
       const now = cardsRef.current;
       // Moved on meanwhile: the newer move checks its own card.
       if (!now || now.id !== landed.id || currentCard(now) !== id) return;
@@ -236,7 +242,7 @@ export function PracticeScreen() {
       // Listening is asked from the typed settings with only the question kind changed, and those settings are
       // what the round keeps, so the typed question type is still there afterwards.
       const chosen = study.study === 'listen' ? settingsFor(current, study) : current;
-      const audio = chosen.mode === 'listen' ? await loadAudioIndex() : null;
+      const audio = chosen.mode === 'listen' ? await loadAudioIndex(language) : null;
       const { eligible } = eligibilityOf(latest, chosen, audio);
       const active = new Set(latest.words.map((entry) => entry.id));
       const round = only
@@ -306,7 +312,7 @@ export function PracticeScreen() {
     moving.current = true;
     try {
       for (let question = currentQuestion(next); question; ) {
-        if (await getActiveWord(db, question.wordId)) break;
+        if (await getActiveWord(db, question.wordId, language)) break;
         const now = testRef.current;
         if (!now || now.id !== next.id) return;
         const settled = dropTestWord(now, question.wordId);
@@ -357,7 +363,7 @@ export function PracticeScreen() {
     try {
       let next = start;
       for (let entry = currentItem(next); entry; entry = currentItem(next)) {
-        const latest = await getActiveWord(db, entry.wordId);
+        const latest = await getActiveWord(db, entry.wordId, language);
         if (latest) {
           words.set(latest.id, latest);
           break;

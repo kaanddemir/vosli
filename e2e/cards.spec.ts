@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { t } from '../src/i18n/strings';
 
 interface Seed {
@@ -34,7 +35,7 @@ const write = (page: Page, tables: Record<string, unknown[]>) =>
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const tx = request.result.transaction(Object.keys(data), 'readwrite');
-          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(row);
+          for (const [name, rows] of Object.entries(data)) for (const row of rows) tx.objectStore(name).put(['words', 'groups', 'sources'].includes(name) ? Object.assign({ language: 'de' }, row) : row);
           tx.oncomplete = () => {
             request.result.close();
             resolve();
@@ -113,7 +114,7 @@ test('Yazarak stays the default, and Kartlarla swaps only what differs', async (
 
   await pick(page, t.practice.studies.cards);
   await expect(page.getByRole('group', { name: t.practice.modeLabel })).toHaveCount(0);
-  await expect(page.getByRole('group', { name: t.practice.directionLabel }).getByRole('radio', { name: t.practice.directions.de_tr })).toBeChecked();
+  await expect(page.getByRole('group', { name: t.practice.directionLabel }).getByRole('radio', { name: t.lang.de.directions.de_tr })).toBeChecked();
   await expect(page.getByRole('group', { name: t.practice.cardCountLabel })).toBeVisible();
   await expect(page.getByRole('group', { name: t.practice.scopeLabel })).toBeVisible();
   await expect(startCards(page)).toHaveAttribute('data-questions', '4');
@@ -182,7 +183,7 @@ test('a covered side is out of the page until revealed, and covers again on ever
   await page.evaluate(() => localStorage.setItem('vosli.article-colors', 'on'));
   await page.reload();
   await pick(page, t.practice.studies.cards);
-  await pick(page, t.practice.directions.tr_de);
+  await pick(page, t.lang.de.directions.tr_de);
   await startCards(page).click();
   await page.getByTestId('card-hide').click();
   await expect(page.getByTestId('card-hide')).toHaveAttribute('aria-pressed', 'true');
@@ -195,7 +196,7 @@ test('a covered side is out of the page until revealed, and covers again on ever
   await expect(card).not.toContainText(word.lemma);
   await expect(card.locator('.article-der, .article-die, .article-das')).toHaveCount(0);
   await expect(page.getByTestId('card-announcement')).not.toContainText(word.lemma);
-  const reveal = page.getByRole('button', { name: t.practice.cards.revealGerman, exact: true });
+  const reveal = page.getByRole('button', { name: t.lang.de.showWord, exact: true });
   await expect(reveal).not.toHaveAttribute('aria-label', new RegExp(word.lemma));
   const slot = await page.locator('.study-back-slot').boundingBox();
 

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AUTOCORRECT_OFF } from '../inputProps';
 import { hashText, newId } from '../../core/id';
-import { blankDraft, countEditedRows, type ImportDraft } from '../../core/review';
-import { assignRole, decodeBytes, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, mappingIsComplete, parseImportText, rowsFromTable, type ColumnMapping, type ColumnRole, type ParsedRow } from '../../core/tabular';
+import { blankDraft, countEditedRows, draftsFor, type ImportDraft } from '../../core/review';
+import { assignRole, columnRolesFor, decodeBytes, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, mappingIsComplete, parseImportText, rowsFromTable, type ColumnMapping, type ColumnRole, type ParsedRow } from '../../core/tabular';
 import { TEXT_PIPELINE_VERSION, type ImportSource, type ImportSummary, type SourceCollections } from '../../data/importCommit';
 import { preparePdfImport, type PdfReviewInfo } from '../../pdf/importPdf';
 import { loadPdfLibrary } from '../../pdf/loadPdf';
@@ -16,6 +16,8 @@ import { ConfirmDialog } from '../components/Modal';
 import { useDb } from '../dbContext';
 import { Screen } from '../components/Screen';
 import { hrefFor, hrefForGroup } from '../router';
+import { useBusy, useLearningLanguage } from '../workspace';
+import type { LearningLanguage } from '../../core/learningLanguage';
 
 interface TableInput {
   table: string[][];
@@ -30,9 +32,9 @@ type Step =
   | { step: 'done'; summary: ImportSummary };
 
 /** Survives leaving the screen, so looking something up in the dictionary does not lose a review in progress. */
-let inProgress: Step = { step: 'input' };
+/** An import set aside by leaving the screen, one per learning language, so it comes back only in its own workspace. */
+const inProgress: Partial<Record<LearningLanguage, Step>> = {};
 
-const ROLES: readonly ColumnRole[] = ['german', 'article', 'turkish', 'plural', 'ignore'];
 
 /** Starts a review; the first copy of the rows is what later edits are measured against. */
 const reviewStep = (source: ImportSource, drafts: ImportDraft[], tableInput?: TableInput, pdf?: { info: PdfReviewInfo; collections: SourceCollections }): Step => ({ step: 'review', source, original: drafts, drafts, ...(tableInput ? { tableInput } : {}), ...(pdf ? { pdf } : {}) });
@@ -42,9 +44,10 @@ function groupNames(summary: ImportSummary): string[] {
   return [summary.pdfGroup, summary.group].flatMap((group) => (group ? [group.name] : []));
 }
 
-const toDrafts = (rows: readonly ParsedRow[]): ImportDraft[] => rows.map((row) => blankDraft(newId(), row.rowIndex, row));
+const toDrafts = (rows: readonly ParsedRow[], language: LearningLanguage): ImportDraft[] => draftsFor(language, rows.map((row) => blankDraft(newId(), row.rowIndex, row)));
 
 function MapStep({ input, onChange, onNext, onBack }: { input: TableInput; onChange: (mapping: ColumnMapping) => void; onNext: () => void; onBack: () => void }) {
+  const language = useLearningLanguage();
   const { table, mapping } = input;
   const complete = mappingIsComplete(mapping);
   const samples = table.slice(mapping.hasHeader ? 1 : 0, (mapping.hasHeader ? 1 : 0) + 3);
@@ -71,14 +74,14 @@ function MapStep({ input, onChange, onNext, onBack }: { input: TableInput; onCha
                   <span class="row-detail">{sample || '–'}</span>
                 </span>
                 <select id={`column-${column}`} class="field field-compact map-select" value={role} onChange={(event) => onChange(assignRole(mapping, column, event.currentTarget.value as ColumnRole))}>
-                  {ROLES.map((option) => <option key={option} value={option}>{t.import.roles[option]}</option>)}
+                  {columnRolesFor(language).map((option) => <option key={option} value={option}>{option === 'german' ? t.lang[language].word : option === 'turkish' ? t.lang[language].meaning : t.import.roles[option]}</option>)}
                 </select>
               </div>
             </li>
           );
         })}
       </ul>
-      {!complete && <p class="form-hint">{t.import.mapHint}</p>}
+      {!complete && <p class="form-hint">{t.lang[language].mapHint}</p>}
       <div class="btn-row">
         <button type="button" class="btn" onClick={onBack}>{t.import.back}</button>
         <button type="button" class="btn btn-primary" disabled={!complete} onClick={onNext}>{t.import.next}</button>
@@ -102,6 +105,8 @@ function ReadingStep({ done, total, onCancel }: { done: number; total: number; o
 }
 
 function InputStep({ initialProblem, onParsed, onPdf }: { initialProblem: string | null; onParsed: (text: string, origin: 'paste' | 'file', fileName: string) => Promise<string | null>; onPdf: (file: File) => void }) {
+  // The example shows words of the workspace they go into.
+  const language = useLearningLanguage();
   const [text, setText] = useState('');
   const [problem, setProblem] = useState<string | null>(initialProblem);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -142,7 +147,7 @@ function InputStep({ initialProblem, onParsed, onPdf }: { initialProblem: string
           class="field field-area"
           rows={5}
           value={text}
-          placeholder={t.import.pastePlaceholder}
+          placeholder={t.lang[language].pastePlaceholder}
           autocomplete="off"
           autocapitalize="off"
           autocorrect={AUTOCORRECT_OFF}
@@ -195,14 +200,17 @@ function DoneStep({ summary, onAgain }: { summary: ImportSummary; onAgain: () =>
 
 export function ImportScreen() {
   const db = useDb();
-  const [current, setCurrent] = useState<Step>(inProgress);
+  const language = useLearningLanguage();
+  const [current, setCurrent] = useState<Step>(() => inProgress[language] ?? { step: 'input' });
+  // Rows being read or reviewed belong to this workspace: it stays until they are saved or set aside.
+  useBusy(current.step === 'reading' || current.step === 'map' || current.step === 'review');
   const [inputProblem, setInputProblem] = useState<string | null>(null);
   const reader = useRef<AbortController | null>(null);
 
   // Reading is tied to this screen: leaving cancels it, and nothing half-read is kept.
   useEffect(() => {
-    inProgress = current.step === 'done' || current.step === 'reading' ? { step: 'input' } : current;
-  }, [current]);
+    inProgress[language] = current.step === 'done' || current.step === 'reading' ? { step: 'input' } : current;
+  }, [current, language]);
   useEffect(() => () => reader.current?.abort(), []);
 
   const readPdf = async (file: File) => {
@@ -214,7 +222,7 @@ export function ImportScreen() {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const lib = await loadPdfLibrary();
-      const prepared = await preparePdfImport(db, lib, file.name, bytes, {
+      const prepared = await preparePdfImport(db, language, lib, file.name, bytes, {
         signal: control.signal,
         onProgress: (done, total) => setCurrent({ step: 'reading', fileName: file.name, done, total }),
       });
@@ -232,13 +240,13 @@ export function ImportScreen() {
   };
 
   const parse = async (text: string, origin: 'paste' | 'file', fileName: string): Promise<string | null> => {
-    const parsed = parseImportText(text, origin);
-    const source: ImportSource = { fileName, fileHash: await hashText(text), pipelineVersion: TEXT_PIPELINE_VERSION };
+    const parsed = parseImportText(text, origin, language);
+    const source: ImportSource = { language, fileName, fileHash: await hashText(text), pipelineVersion: TEXT_PIPELINE_VERSION };
     const size = parsed.kind === 'lines' ? parsed.rows.length : parsed.table.length;
     if (size === 0) return t.import.nothingFound;
     if (size > MAX_IMPORT_ROWS) return t.import.tooManyRows(MAX_IMPORT_ROWS);
-    if (parsed.kind === 'lines') setCurrent(reviewStep(source, toDrafts(parsed.rows)));
-    else if (parsed.confident) setCurrent(reviewStep(source, toDrafts(rowsFromTable(parsed.table, parsed.mapping)), { table: parsed.table, mapping: parsed.mapping }));
+    if (parsed.kind === 'lines') setCurrent(reviewStep(source, toDrafts(parsed.rows, language)));
+    else if (parsed.confident) setCurrent(reviewStep(source, toDrafts(rowsFromTable(parsed.table, parsed.mapping), language), { table: parsed.table, mapping: parsed.mapping }));
     else setCurrent({ step: 'map', source, table: parsed.table, mapping: parsed.mapping });
     return null;
   };
@@ -270,6 +278,7 @@ export function ImportScreen() {
     case 'input':
       return (
         <Screen title={t.import.title} back={back}>
+          <p class="form-hint import-target" data-testid="import-target">{t.lang[language].importInto}</p>
           <InputStep key={inputProblem} initialProblem={inputProblem} onParsed={parse} onPdf={(file) => void readPdf(file)} />
         </Screen>
       );
@@ -286,7 +295,7 @@ export function ImportScreen() {
             input={current}
             onChange={(mapping) => setCurrent({ ...current, mapping })}
             onBack={restart}
-            onNext={() => setCurrent(reviewStep(current.source, toDrafts(rowsFromTable(current.table, current.mapping)), { table: current.table, mapping: current.mapping }))}
+            onNext={() => setCurrent(reviewStep(current.source, toDrafts(rowsFromTable(current.table, current.mapping), current.source.language), { table: current.table, mapping: current.mapping }))}
           />
         </Screen>
       );
@@ -294,7 +303,7 @@ export function ImportScreen() {
       return (
         <ImportReview
           title={t.import.reviewTitle}
-          eyebrow={current.source.fileName || undefined}
+          eyebrow={[t.lang[current.source.language].name, current.source.fileName].filter(Boolean).join(' · ')}
           back={back}
           cancel={
             current.tableInput ? (

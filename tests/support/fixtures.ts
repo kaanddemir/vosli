@@ -1,13 +1,14 @@
 import { identityKey, type Article } from '../../src/core/identity';
 import type { FsrsState } from '../../src/core/scheduling/fsrs';
 import { SCHEDULER_VERSION } from '../../src/core/scheduling/fsrs';
-import type { Card, Word } from '../../src/data/types';
+import type { Card, LearningLanguage, Word } from '../../src/data/types';
 
 export const T0 = Date.UTC(2026, 0, 1, 9);
 
-export function makeWord(id: string, lemma: string, article: Article | null, meaning: string): Word {
+export function makeWord(id: string, lemma: string, article: Article | null, meaning: string, language: LearningLanguage = 'de'): Word {
   return {
     id,
+    language,
     identityKey: identityKey(lemma, article),
     lemma,
     article,

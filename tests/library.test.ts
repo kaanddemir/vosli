@@ -22,7 +22,7 @@ afterEach(() => open.splice(0).forEach((db) => db.close()));
 const entry = (lemma: string, article: 'der' | 'die' | 'das' | null, ...meanings: string[]) => ({ lemma, article, meanings, plural: null });
 
 async function save(db: AppDatabase, ...args: Parameters<typeof entry>) {
-  const outcome = await addWord(db, entry(...args), null, [], T0);
+  const outcome = await addWord(db, entry(...args), null, [], T0, 'de');
   if (outcome.kind !== 'saved') throw new Error('expected a save');
   return outcome.word;
 }
@@ -39,7 +39,7 @@ describe('creating words', () => {
     const word = await save(db, 'Apfel', 'der', 'elma');
     expect(word).toMatchObject({ lemma: 'Apfel', article: 'der', pos: 'noun', identityKey: 'Apfel|der', meanings: [{ text: 'elma', note: null }], deletedAt: null });
     expect(word.id).toMatch(/^[0-9a-f]{32}$/);
-    expect(await getActiveWord(db, word.id)).toEqual(word);
+    expect(await getActiveWord(db, word.id, 'de')).toEqual(word);
   });
 
   it('does not assume a word is a noun', async () => {
@@ -53,13 +53,13 @@ describe('creating words', () => {
     const noun = await save(db, 'Essen', 'das', 'yemek');
     const verb = await save(db, 'essen', null, 'yemek yemek');
     expect(noun.id).not.toBe(verb.id);
-    expect((await listActiveWords(db)).length).toBe(2);
+    expect((await listActiveWords(db, 'de')).length).toBe(2);
   });
 
   it('refuses a duplicate and writes nothing until told what to do', async () => {
     const db = await fresh();
     const apple = await save(db, 'Apfel', 'der', 'elma');
-    const outcome = await addWord(db, entry('Apfel', 'der', 'elma'), null, [], T0 + 1);
+    const outcome = await addWord(db, entry('Apfel', 'der', 'elma'), null, [], T0 + 1, 'de');
     expect(outcome).toMatchObject({ kind: 'conflict', found: { kind: 'existing', entry: { ref: apple.id }, newMeanings: [] } });
     expect(await db.words.count()).toBe(1);
     expect((await db.words.get(apple.id))?.updatedAt).toBe(T0);
@@ -68,7 +68,7 @@ describe('creating words', () => {
   it('joins an existing word when asked, adding the new meaning', async () => {
     const db = await fresh();
     const apple = await save(db, 'Apfel', 'der', 'elma');
-    await addWord(db, entry('Apfel', 'der', 'elma', 'alma'), apple.id, [], T0);
+    await addWord(db, entry('Apfel', 'der', 'elma', 'alma'), apple.id, [], T0, 'de');
     expect((await db.words.get(apple.id))?.meanings.map((m) => m.text)).toEqual(['elma', 'alma']);
     expect(await db.words.count()).toBe(1);
   });
@@ -76,10 +76,10 @@ describe('creating words', () => {
   it('keeps a real homonym as a separate word through a sense tag', async () => {
     const db = await fresh();
     await save(db, 'Bank', 'die', 'banka');
-    expect((await addWord(db, entry('Bank', 'die', 'sıra'), null, [], T0)).kind).toBe('conflict');
-    const outcome = await addWord(db, entry('Bank', 'die', 'sıra'), SEPARATE, [], T0);
+    expect((await addWord(db, entry('Bank', 'die', 'sıra'), null, [], T0, 'de')).kind).toBe('conflict');
+    const outcome = await addWord(db, entry('Bank', 'die', 'sıra'), SEPARATE, [], T0, 'de');
     expect(outcome).toMatchObject({ kind: 'saved', word: { senseTag: 'sıra', identityKey: 'Bank|die|sıra' } });
-    expect((await listActiveWords(db)).length).toBe(2);
+    expect((await listActiveWords(db, 'de')).length).toBe(2);
   });
 
   it('does not create a word when a chosen collection fails', async () => {
@@ -87,9 +87,9 @@ describe('creating words', () => {
     const failing = () => {
       throw new Error('disk full');
     };
-    const group = await createCustomGroup(db, 'Zor', T0);
+    const group = await createCustomGroup(db, 'Zor', T0, 'de');
     db.groupMembers.hook('creating', failing);
-    await expect(addWord(db, entry('Apfel', 'der', 'elma'), null, [group.id], T0)).rejects.toThrow('disk full');
+    await expect(addWord(db, entry('Apfel', 'der', 'elma'), null, [group.id], T0, 'de')).rejects.toThrow('disk full');
     db.groupMembers.hook('creating').unsubscribe(failing);
     expect(await db.words.count()).toBe(0);
   });
@@ -97,7 +97,7 @@ describe('creating words', () => {
   it('assigns the chosen custom lists, and ignores protected ones', async () => {
     const db = await fresh();
     await seedLibrary(db);
-    const outcome = await addWord(db, entry('Birne', 'die', 'armut'), null, ['g-custom', 'g-pdf'], T0);
+    const outcome = await addWord(db, entry('Birne', 'die', 'armut'), null, ['g-custom', 'g-pdf'], T0, 'de');
     if (outcome.kind !== 'saved') throw new Error('expected a save');
     expect((await listGroupsOfWord(db, outcome.word.id)).map((g) => g.id)).toEqual(['g-custom']);
   });
@@ -174,9 +174,9 @@ describe('deleting words', () => {
     await seedLibrary(db);
     await deleteWord(db, 'w-apfel');
     expect(await db.words.get('w-apfel')).toBeUndefined();
-    expect((await listActiveWords(db)).map((w) => w.id)).not.toContain('w-apfel');
-    expect((await getGroupWithWords(db, 'g-custom'))?.words).toEqual([]);
-    expect((await listGroupSummaries(db)).map((s) => s.wordCount)).toEqual([0, 0]);
+    expect((await listActiveWords(db, 'de')).map((w) => w.id)).not.toContain('w-apfel');
+    expect((await getGroupWithWords(db, 'g-custom', 'de'))?.words).toEqual([]);
+    expect((await listGroupSummaries(db, 'de')).map((s) => s.wordCount)).toEqual([0, 0]);
     expect(await history(db, 'w-apfel')).toEqual({ cards: [], logs: [] });
     expect(await db.groupMembers.where('wordId').equals('w-apfel').count()).toBe(0);
     expect(await db.importRows.filter((row) => row.wordId === 'w-apfel').count()).toBe(0);
@@ -196,7 +196,7 @@ describe('deleting words', () => {
     const db = await fresh();
     await seedLibrary(db);
     await deleteWord(db, 'w-apfel');
-    const outcome = await addWord(db, entry('Apfel', 'der', 'kırmızı elma'), null, [], T0 + 10);
+    const outcome = await addWord(db, entry('Apfel', 'der', 'kırmızı elma'), null, [], T0 + 10, 'de');
     if (outcome.kind !== 'saved') throw new Error('not saved');
     expect(outcome.word.id).not.toBe('w-apfel');
     expect(outcome.word).toMatchObject({ deletedAt: null, createdAt: T0 + 10, favoritedAt: null });
@@ -208,19 +208,19 @@ describe('deleting words', () => {
     const db = await fresh();
     const word = await save(db, 'See', 'der', 'göl');
     await deleteWord(db, word.id);
-    expect((await addWord(db, entry('See', 'die', 'deniz'), null, [], T0)).kind).toBe('saved');
+    expect((await addWord(db, entry('See', 'die', 'deniz'), null, [], T0, 'de')).kind).toBe('saved');
   });
 });
 
 describe('custom collections', () => {
   it('creates, renames and refuses bad names', async () => {
     const db = await fresh();
-    const group = await createCustomGroup(db, '  Zor   kelimeler ', T0);
+    const group = await createCustomGroup(db, '  Zor   kelimeler ', T0, 'de');
     expect(group).toMatchObject({ kind: 'custom', name: 'Zor kelimeler', sourceId: null });
-    await expect(createCustomGroup(db, 'ZOR KELİMELER', T0).catch((e: GroupNameError) => e.problem)).resolves.toBe('taken');
-    await expect(createCustomGroup(db, 'zor kelimeler', T0).catch((e: GroupNameError) => e.problem)).resolves.toBe('taken');
-    await expect(createCustomGroup(db, '   ', T0).catch((e: GroupNameError) => e.problem)).resolves.toBe('empty');
-    await expect(createCustomGroup(db, 'x'.repeat(81), T0).catch((e: GroupNameError) => e.problem)).resolves.toBe('too_long');
+    await expect(createCustomGroup(db, 'ZOR KELİMELER', T0, 'de').catch((e: GroupNameError) => e.problem)).resolves.toBe('taken');
+    await expect(createCustomGroup(db, 'zor kelimeler', T0, 'de').catch((e: GroupNameError) => e.problem)).resolves.toBe('taken');
+    await expect(createCustomGroup(db, '   ', T0, 'de').catch((e: GroupNameError) => e.problem)).resolves.toBe('empty');
+    await expect(createCustomGroup(db, 'x'.repeat(81), T0, 'de').catch((e: GroupNameError) => e.problem)).resolves.toBe('too_long');
     await renameGroup(db, group.id, 'Kolay');
     expect((await db.groups.get(group.id))?.name).toBe('Kolay');
     await renameGroup(db, group.id, 'kolay');
@@ -230,23 +230,23 @@ describe('custom collections', () => {
   it('a word can sit in several lists as one record, counted correctly', async () => {
     const db = await fresh();
     const word = await save(db, 'Apfel', 'der', 'elma');
-    const [a, b] = [await createCustomGroup(db, 'A', T0), await createCustomGroup(db, 'B', T0)];
+    const [a, b] = [await createCustomGroup(db, 'A', T0, 'de'), await createCustomGroup(db, 'B', T0, 'de')];
     await addWordsToGroup(db, a.id, [word.id], T0);
     await addWordsToGroup(db, b.id, [word.id, word.id], T0);
     expect(await db.words.count()).toBe(1);
-    expect((await listGroupSummaries(db)).map((s) => s.wordCount)).toEqual([1, 1]);
+    expect((await listGroupSummaries(db, 'de')).map((s) => s.wordCount)).toEqual([1, 1]);
     expect((await listGroupsOfWord(db, word.id)).map((g) => g.name)).toEqual(['A', 'B']);
   });
 
   it('removing from one list leaves other lists, the word and its history', async () => {
     const db = await fresh();
     await seedLibrary(db);
-    const second = await createCustomGroup(db, 'İkinci', T0);
+    const second = await createCustomGroup(db, 'İkinci', T0, 'de');
     await addWordsToGroup(db, second.id, ['w-apfel'], T0);
     const before = await history(db, 'w-apfel');
     await removeWordFromGroup(db, 'g-custom', 'w-apfel');
     expect((await listGroupsOfWord(db, 'w-apfel')).map((g) => g.id)).toEqual(['g-pdf', second.id]);
-    expect(await getActiveWord(db, 'w-apfel')).not.toBeNull();
+    expect(await getActiveWord(db, 'w-apfel', 'de')).not.toBeNull();
     expect(await history(db, 'w-apfel')).toEqual(before);
   });
 
@@ -263,7 +263,7 @@ describe('custom collections', () => {
     const db = await fresh();
     await seedLibrary(db);
     await addWordsToGroup(db, 'g-custom', ['w-fuss', 'w-spinat', 'w-morgen'], T0 + 5);
-    const second = await createCustomGroup(db, 'İkinci', T0);
+    const second = await createCustomGroup(db, 'İkinci', T0, 'de');
     await addWordsToGroup(db, second.id, ['w-apfel', 'w-fuss'], T0);
     const tables = async () => ({ words: await db.words.toArray(), cards: await db.cards.toArray(), logs: await db.reviewLogs.toArray(), rows: await db.importRows.toArray() });
     const before = await tables();
@@ -314,7 +314,7 @@ describe('custom collections', () => {
     const before = await history(db, 'w-apfel');
     await removeWordsFromGroup(db, 'g-custom', ['w-apfel']);
     expect(await history(db, 'w-apfel')).toEqual(before);
-    expect(await getActiveWord(db, 'w-apfel')).not.toBeNull();
+    expect(await getActiveWord(db, 'w-apfel', 'de')).not.toBeNull();
   });
 
   it('deleting a list removes memberships only', async () => {
@@ -395,7 +395,7 @@ describe('custom collections', () => {
     await seedLibrary(db);
     await addWordsToGroup(db, 'g-custom', ['w-fuss', 'w-morgen'], T0);
     const { ownWordIds } = await previewGroupDeletion(db, ['g-custom']);
-    const later = await createCustomGroup(db, 'Sonra', T0);
+    const later = await createCustomGroup(db, 'Sonra', T0, 'de');
     await addWordsToGroup(db, later.id, ['w-fuss'], T0);
     await deleteGroupsWithWords(db, ['g-custom'], ownWordIds.filter((id) => id !== 'w-morgen').concat('w-spinat'));
     expect(await db.words.get('w-fuss')).toBeTruthy();
@@ -427,7 +427,7 @@ describe('custom collections', () => {
   it('protects the words of source collections from every edit, and a lesson from renaming', async () => {
     const db = await fresh();
     await seedLibrary(db);
-    await db.groups.add({ id: 'g-lesson', kind: 'lesson', name: 'Lektion 1', order: 2, sourceId: 's1', createdAt: T0 });
+    await db.groups.add({ id: 'g-lesson', language: 'de', kind: 'lesson', name: 'Lektion 1', order: 2, sourceId: 's1', createdAt: T0 });
     await db.groupMembers.add({ groupId: 'g-lesson', wordId: 'w-apfel', addedAt: T0, importRowId: 'r1' });
     const before = await db.groupMembers.toArray();
     for (const id of ['g-pdf', 'g-lesson']) {
@@ -450,7 +450,7 @@ describe('custom collections', () => {
   it('setting a word\'s lists leaves source memberships alone', async () => {
     const db = await fresh();
     await seedLibrary(db);
-    const second = await createCustomGroup(db, 'İkinci', T0);
+    const second = await createCustomGroup(db, 'İkinci', T0, 'de');
     await setWordCustomGroups(db, 'w-apfel', [second.id], T0 + 1);
     expect((await listGroupsOfWord(db, 'w-apfel')).map((g) => g.id)).toEqual(['g-pdf', second.id]);
     await setWordCustomGroups(db, 'w-apfel', [], T0 + 1);
@@ -459,7 +459,7 @@ describe('custom collections', () => {
 });
 
 describe('committing an import', () => {
-  const source = { fileName: 'liste.csv', fileHash: 'hash-a', pipelineVersion: TEXT_PIPELINE_VERSION };
+  const source = { language: 'de' as const, fileName: 'liste.csv', fileHash: 'hash-a', pipelineVersion: TEXT_PIPELINE_VERSION };
   const draft = (id: string, german: string, article: string, turkish: string, extra: Partial<ImportDraft> = {}) => blankDraft(id, Number(id), { german, article, turkish, ...extra });
   const commit = (db: AppDatabase, drafts: ImportDraft[], target: ImportTarget = { kind: 'none' }, fileHash = 'hash-a') => commitImport(db, { source: { ...source, fileHash }, drafts, target }, T0);
 
@@ -482,7 +482,7 @@ describe('committing an import', () => {
     const db = await fresh();
     const summary = await commit(db, [draft('1', 'Apfel', 'der', 'elma'), draft('2', 'Apfel', 'der', 'elma, alma')]);
     expect(summary).toMatchObject({ rows: 2, created: 1, existing: 0, repeats: 1, linked: 0 });
-    expect((await listActiveWords(db)).map((w) => w.meanings.map((m) => m.text))).toEqual([['elma', 'alma']]);
+    expect((await listActiveWords(db, 'de')).map((w) => w.meanings.map((m) => m.text))).toEqual([['elma', 'alma']]);
   });
 
   it('applies answers to ambiguous rows', async () => {
@@ -493,14 +493,14 @@ describe('committing an import', () => {
     expect(summary).toMatchObject({ created: 2, existing: 1, repeats: 0, linked: 1, meaningsAdded: 1 });
     expect((await db.words.get(bank.id))?.meanings.map((m) => m.text)).toEqual(['banka', 'kurum']);
     expect((await db.words.get(see.id))?.meanings.map((m) => m.text)).toEqual(['göl']);
-    expect((await listActiveWords(db)).length).toBe(4);
+    expect((await listActiveWords(db, 'de')).length).toBe(4);
   });
 
   it('joins a batch row when asked', async () => {
     const db = await fresh();
     const summary = await commit(db, [draft('1', 'Bank', 'die', 'banka'), draft('2', 'Bank', 'die', 'sıra', { choice: rowRef('1') })]);
     expect(summary).toMatchObject({ created: 1, existing: 0, repeats: 1, linked: 0, meaningsAdded: 1 });
-    expect((await listActiveWords(db))[0]?.meanings.map((m) => m.text)).toEqual(['banka', 'sıra']);
+    expect((await listActiveWords(db, 'de'))[0]?.meanings.map((m) => m.text)).toEqual(['banka', 'sıra']);
   });
 
   it('refuses unresolved or invalid rows and writes nothing', async () => {
@@ -543,7 +543,7 @@ describe('committing an import', () => {
     await seedLibrary(db);
     const summary = await commit(db, [draft('1', 'Birne', 'die', 'armut'), draft('2', 'Apfel', 'der', 'elma')], { kind: 'new_group', name: 'Meyveler' });
     expect(summary.group?.name).toBe('Meyveler');
-    const opened = await getGroupWithWords(db, summary.group!.id);
+    const opened = await getGroupWithWords(db, summary.group!.id, 'de');
     expect(opened?.words.map((w) => w.lemma)).toEqual(['Apfel', 'Birne']);
     expect(await db.groupMembers.get(['g-pdf', 'w-apfel'])).toMatchObject({ importRowId: 'r1' });
     const again = await commit(db, [draft('1', 'Kirsche', 'die', 'kiraz')], { kind: 'group', id: 'g-custom' }, 'hash-b');
@@ -555,7 +555,7 @@ describe('committing an import', () => {
   it('removing a word from a list keeps its source', async () => {
     const db = await fresh();
     const summary = await commit(db, [draft('1', 'Birne', 'die', 'armut')], { kind: 'new_group', name: 'Meyveler' });
-    const [word] = await listActiveWords(db);
+    const [word] = await listActiveWords(db, 'de');
     await removeWordFromGroup(db, summary.group!.id, word!.id);
     expect((await listSourcesOfWord(db, word!.id)).map((s) => s.fileName)).toEqual(['liste.csv']);
     await deleteGroups(db, [summary.group!.id]);
@@ -611,7 +611,7 @@ describe('committing an import', () => {
     await seedLibrary(db);
     await deleteWord(db, 'w-apfel');
     expect(await commit(db, [draft('1', 'Apfel', 'der', 'elma')])).toMatchObject({ created: 1 });
-    const again = (await listActiveWords(db)).find((word) => word.lemma === 'Apfel')!;
+    const again = (await listActiveWords(db, 'de')).find((word) => word.lemma === 'Apfel')!;
     expect(again.id).not.toBe('w-apfel');
     expect(await history(db, again.id)).toEqual({ cards: [], logs: [] });
   });
@@ -619,7 +619,7 @@ describe('committing an import', () => {
   it('keeps German and Turkish characters exactly', async () => {
     const db = await fresh();
     await commit(db, [draft('1', 'Größe', 'die', 'büyüklük, ıspanak, İnce')]);
-    const [word] = await listActiveWords(db);
+    const [word] = await listActiveWords(db, 'de');
     expect(word).toMatchObject({ lemma: 'Größe', meanings: [{ text: 'büyüklük' }, { text: 'ıspanak' }, { text: 'İnce' }] });
   });
 });
@@ -629,10 +629,10 @@ describe('collections, sources and warnings in backups', () => {
     const source = await fresh();
     await seedLibrary(source);
     await setFavorite(source, 'w-apfel', true, T0 + 1);
-    const list = await createCustomGroup(source, 'Şık kelimeler', T0);
+    const list = await createCustomGroup(source, 'Şık kelimeler', T0, 'de');
     const bank = await save(source, 'Bank', 'die', 'banka');
-    await addWord(source, entry('Bank', 'die', 'sıra'), SEPARATE, [list.id], T0);
-    await commitImport(source, { source: { fileName: '', fileHash: 'paste-1', pipelineVersion: 1 }, drafts: [blankDraft('1', 0, { german: 'Größe', article: 'die', turkish: 'boy' }), blankDraft('2', 1, { german: 'Apfel', article: 'der', turkish: 'elma, alma' })], target: { kind: 'group', id: list.id } }, T0);
+    await addWord(source, entry('Bank', 'die', 'sıra'), SEPARATE, [list.id], T0, 'de');
+    await commitImport(source, { source: { language: 'de', fileName: '', fileHash: 'paste-1', pipelineVersion: 1 }, drafts: [blankDraft('1', 0, { german: 'Größe', article: 'die', turkish: 'boy' }), blankDraft('2', 1, { german: 'Apfel', article: 'der', turkish: 'elma, alma' })], target: { kind: 'group', id: list.id } }, T0);
     await deleteWord(source, 'w-fuss');
 
     const before = await createBackup(source, T0);
@@ -648,7 +648,7 @@ describe('collections, sources and warnings in backups', () => {
     expect((await target.words.get(bank.id))?.article).toBe('die');
     expect(await target.words.get('w-fuss')).toBeUndefined();
     expect((await listSourcesOfWord(target, 'w-apfel')).map((s) => s.fileName).sort()).toEqual(['', 'bolum-1.pdf']);
-    const again = await addWord(target, entry('Fuß', 'der', 'ayak'), null, [], T0);
+    const again = await addWord(target, entry('Fuß', 'der', 'ayak'), null, [], T0, 'de');
     if (again.kind !== 'saved') throw new Error('not saved');
     await saveReview(target, { word: again.word, track: 'tr_de', expected: null, typed: 'ayak', result: 'correct', correct: true, hinted: false, at: T0, sessionId: 's1', retry: false });
     expect(await target.reviewLogs.where('wordId').equals(again.word.id).count()).toBe(1);
@@ -673,9 +673,9 @@ describe('sorting', () => {
     await save(db, 'Zebra', 'das', 'zebra');
     await save(db, 'Äpfel', null, 'elmalar');
     await save(db, 'See', 'die', 'deniz');
-    await addWord(db, entry('See', 'der', 'göl'), SEPARATE, [], T0);
+    await addWord(db, entry('See', 'der', 'göl'), SEPARATE, [], T0, 'de');
     await save(db, 'Apfel', 'der', 'elma');
-    const list = await listActiveWords(db);
+    const list = await listActiveWords(db, 'de');
     expect(list.map((w) => `${w.article ?? ''} ${w.lemma}`.trim())).toEqual(['der Apfel', 'Äpfel', 'der See', 'die See', 'das Zebra']);
   });
 });
