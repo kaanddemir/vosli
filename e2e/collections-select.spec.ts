@@ -183,7 +183,7 @@ test('Seç sits just before create, and becomes Vazgeç with focus kept', async 
   const cancel = main(page).getByRole('button', { name: t.common.cancel, exact: true });
   await expect(cancel).toBeFocused();
   await expect(remove(page)).toBeDisabled();
-  await expect(page.getByRole('status')).toHaveText(t.common.selected('0'));
+  await expect(page.getByRole('status')).toHaveText(t.common.selected(0));
   await cancel.click();
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Dosya/ })).toBeVisible();
@@ -192,28 +192,28 @@ test('Seç sits just before create, and becomes Vazgeç with focus kept', async 
 test('one, then several across sections, by mouse and keyboard', async ({ page }) => {
   await enter(page);
   await box(page, 'Dosya').click();
-  await expect(page.getByRole('status')).toHaveText(t.common.selected('1'));
+  await expect(page.getByRole('status')).toHaveText(t.common.selected(1));
   await box(page, 'Listem').focus();
   await page.keyboard.press('Space');
-  await expect(page.getByRole('status')).toHaveText(t.common.selected('2'));
+  await expect(page.getByRole('status')).toHaveText(t.common.selected(2));
   await box(page, 'Dosya').click();
-  await expect(page.getByRole('status')).toHaveText(t.common.selected('1'));
+  await expect(page.getByRole('status')).toHaveText(t.common.selected(1));
   await expect(box(page, 'Listem')).toBeChecked();
 });
 
 test('select all turns into clear', async ({ page }) => {
   await enter(page);
   await main(page).getByRole('button', { name: t.common.selectAll }).click();
-  await expect(page.getByRole('status')).toHaveText(t.common.selected('3'));
+  await expect(page.getByRole('status')).toHaveText(t.common.selected(3));
   await main(page).getByRole('button', { name: t.common.clearSelection }).click();
-  await expect(page.getByRole('status')).toHaveText(t.common.selected('0'));
+  await expect(page.getByRole('status')).toHaveText(t.common.selected(0));
 });
 
 test('cancelling the confirmation deletes nothing and keeps the selection', async ({ page }) => {
   await enter(page);
   await box(page, 'Dosya').click();
   await remove(page).click();
-  await expect(dialog(page)).toContainText(t.collections.bulkDeleteTitle('1'));
+  await expect(dialog(page)).toContainText(t.collections.bulkDeleteTitle(1));
   await expect(dialog(page)).toContainText(t.collections.deleteOnlyDetail);
   expect((await new AxeBuilder({ page }).include('dialog').analyze()).violations).toEqual([]);
   await dialog(page).getByRole('button', { name: t.common.cancel }).click();
@@ -243,7 +243,7 @@ test('deleting every collection leads to the empty state', async ({ page }) => {
   await enter(page);
   await main(page).getByRole('button', { name: t.common.selectAll }).click();
   await remove(page).click();
-  await expect(dialog(page)).toContainText(t.collections.bulkDeleteTitle('3'));
+  await expect(dialog(page)).toContainText(t.collections.bulkDeleteTitle(3));
   await dialog(page).getByRole('button', { name: t.common.delete }).click();
   await expect(page.getByText(t.collections.emptyTitle)).toBeVisible();
   expect(await db(page, 'groupMembers')).toEqual([]);
@@ -306,8 +306,8 @@ test.describe('deleting words too', () => {
     await expect(dialog(page).getByRole('radio', { name: new RegExp(t.collections.deleteOnlyCollections) })).toBeChecked();
     await expect(dialog(page).getByRole('button', { name: t.common.delete, exact: true })).toBeVisible();
     await expect(dialog(page).getByText(t.collections.deleteForever)).toHaveCount(0);
-    await expect(dialog(page).getByTestId('delete-counts')).toHaveText(t.collections.deleteWithWordsDetail('1'));
-    await expect(dialog(page).getByTestId('delete-shared')).toHaveText(t.collections.deleteShared('1'));
+    await expect(dialog(page).getByTestId('delete-counts')).toHaveText(t.collections.deleteWithWordsDetail(1));
+    await expect(dialog(page).getByTestId('delete-shared')).toHaveText(t.collections.deleteShared(1));
     await choose(page).check();
     await expect(dialog(page).getByText(t.collections.deleteForever)).toBeVisible();
     expect((await new AxeBuilder({ page }).include('dialog').analyze()).violations).toEqual([]);
@@ -337,7 +337,7 @@ test.describe('deleting words too', () => {
     await box(page, 'Dosya').click();
     await box(page, 'Ders Bir').click();
     await remove(page).click();
-    await expect(dialog(page).getByTestId('delete-counts')).toHaveText(t.collections.deleteWithWordsDetail('2'));
+    await expect(dialog(page).getByTestId('delete-counts')).toHaveText(t.collections.deleteWithWordsDetail(2));
     await expect(dialog(page).getByTestId('delete-shared')).toHaveCount(0);
     await choose(page).check();
     await dialog(page).getByRole('button', { name: t.collections.deleteForeverConfirm }).click();
@@ -377,7 +377,7 @@ test.describe('deleting words too', () => {
   test('the same choice on a collection page', async ({ page }) => {
     await page.goto('./#/collections/pdf');
     await page.getByRole('button', { name: t.collections.deleteCollection }).click();
-    await expect(dialog(page).getByTestId('delete-shared')).toHaveText(t.collections.deleteShared('1'));
+    await expect(dialog(page).getByTestId('delete-shared')).toHaveText(t.collections.deleteShared(1));
     await choose(page).check();
     await dialog(page).getByRole('button', { name: t.collections.deleteForeverConfirm }).click();
     await expect(page.locator('h1')).toHaveText(t.collections.title);

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { formatCount } from '../src/i18n/format';
 import { t } from '../src/i18n/strings';
 
 const ROUTES = ['#/', '#/dictionary', '#/collections', '#/practice', '#/review', '#/import', '#/settings'];
@@ -150,7 +151,7 @@ test.describe('restore safeguards', () => {
     backup.tables.words = Array.from({ length: 1284 }, (_, i) => word(i));
     await page.locator('input[type=file]').setInputFiles(asFile(backup));
     const dialog = page.getByRole('dialog', { name: t.restore.title });
-    await expect(dialog).toContainText('1.284');
+    await expect(dialog).toContainText(formatCount(1284));
     await expect(dialog.getByRole('button', { name: t.common.cancel })).toBeFocused();
 
     let downloads = 0;
@@ -381,8 +382,8 @@ test.describe('home', () => {
     await seedHome(page, dueWords(1284));
     await open(page);
     await expect(heading(page)).toHaveText(t.home.title);
-    await expect(main(page)).toContainText(t.home.wordCount('1.284'));
-    await expect(page.locator('.today-status')).toContainText(t.home.dueStatus('1.284'));
+    await expect(main(page)).toContainText(t.home.wordCount(1284));
+    await expect(page.locator('.today-status')).toContainText(t.home.dueStatus(1284));
     await expect(main(page).locator('.btn-primary')).toHaveText(t.home.smartReview);
     await expect(main(page).getByRole('link', { name: t.home.freePractice })).toBeVisible();
     await expect(main(page).getByRole('link', { name: t.nav.import })).toBeVisible();
@@ -393,7 +394,7 @@ test.describe('home', () => {
     await seedHome(page, { words: LIBRARY.words.slice(0, 1), cards: allScheduled(LIBRARY.words[0]!.id), meta: [{ key: 'lastBackupAt', value: Date.now() }] });
     await open(page);
     await expect(heading(page)).toHaveText(t.home.title);
-    await expect(main(page)).toContainText(t.home.wordCount('1'));
+    await expect(main(page)).toContainText(t.home.wordCount(1));
     await expect(page.locator('.today-status')).toHaveText(t.home.doneStatus);
     await expect(main(page).locator('.btn-primary')).toHaveText(t.home.smartReview);
     await expect(page.getByText(t.home.backupDue)).toHaveCount(0);
@@ -410,7 +411,7 @@ test.describe('home', () => {
       groupMembers: memberships,
     });
     await open(page);
-    await expect(main(page)).toContainText(t.home.wordCount('2'));
+    await expect(main(page)).toContainText(t.home.wordCount(2));
   });
 
   test('the secondary actions stay side by side on the narrowest phone', async ({ page }) => {

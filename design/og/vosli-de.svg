@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <title>Vosli — Almancayı kelime kelime öğren</title>
+  <title>Vosli — Deutsch lernen, Wort für Wort</title>
   <!--
-    Vosli Open Graph artwork, German. Source for public/og/vosli-de.png.
+    Vosli Open Graph artwork, German, with the German interface's line. Source for public/og/vosli-de.png.
+    Identical to vosli-tr.svg and vosli-en.svg except for the line under the name; keep the three in step.
     The fox is public/icons/vosli-mark.svg and the roofline is HomeScene.tsx (FAR, NEAR, WINDOWS, LIT); path data is
     unchanged, only placed. As on Home, the fox sits behind the centre house: its ridge hides the chin and nose where the
     mask meets, and the stepped gable and the gable either side cover its lower corners. The Fernsehturm, FAR's last
@@ -36,7 +37,7 @@
   <rect width="1200" height="630" fill="url(#glow)"/>
 
   <text x="74" y="352" font-size="176" font-weight="600" letter-spacing="-3.87" fill="#272727">Vosli</text>
-  <text x="80" y="403" font-size="28" font-weight="400" fill="#65615B">Almancayı kelime kelime öğren</text>
+  <text x="80" y="403" font-size="28" font-weight="400" fill="#65615B">Deutsch lernen, Wort für Wort</text>
 
   <g mask="url(#dissolve)">
     <g transform="translate(-144.00 354.00) scale(1.15)">

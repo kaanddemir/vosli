@@ -70,7 +70,7 @@ export function TestStep({ question, stepKey, at, total, answered, last, onPick,
   const verdict = answered === null ? null : answered === 'blank' ? { kind: 'revealed', title: t.practice.test.blanked } : answered === question.correct ? { kind: 'correct', title: t.practice.correct } : { kind: 'wrong', title: t.practice.wrong };
   const spoken = verdict
     ? [verdict.title, verdict.kind === 'correct' ? '' : `${t.practice.answerWas}: ${right.text}`].filter(Boolean).join('. ')
-    : [t.practice.test.questionSpoken(String(at + 1), String(total)), `${cue}: ${question.prompt}`, question.detail ?? ''].filter(Boolean).join('. ');
+    : [t.practice.test.questionSpoken(at + 1, total), `${cue}: ${question.prompt}`, question.detail ?? ''].filter(Boolean).join('. ');
 
   const options = (
     <>

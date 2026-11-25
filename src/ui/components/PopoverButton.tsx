@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { interfaceLang } from '../../i18n/locale';
 import { Icon, type IconName } from './Icon';
 
 const hasPopover = typeof HTMLElement !== 'undefined' && 'popover' in HTMLElement.prototype;
@@ -75,7 +76,7 @@ export function PopoverButton({ id, icon, label, attention = false, keepFocus = 
       <span
         ref={panel}
         id={id}
-        lang="tr"
+        lang={interfaceLang()}
         role="group"
         aria-label={label}
         class="popover-panel"

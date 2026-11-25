@@ -3,16 +3,16 @@
 <div align="center">
   <img src="public/icons/icon-512.png" alt="Vosli fox icon" width="160" />
 
-**A German vocabulary trainer for Turkish speakers.**
+**A vocabulary learning app.**
 
 English · [Türkçe](README.tr.md)
 </div>
 
 ## What Is Vosli?
 
-Vosli makes it easy to add, import and study German vocabulary with spaced repetition. It runs entirely in the browser, with no server, account or paid service.
+Vosli is a vocabulary learning app. You add words with your own meanings, or import them from a file, then study them with practice and spaced repetition. It runs in the browser, with no server, account or paid service.
 
-The interface is in Turkish.
+For now you can learn German; learning English vocabulary is planned. The interface is in English, Turkish or German. English is the default, and you can change it in Settings at any time.
 
 ## What Can It Do?
 
@@ -29,7 +29,7 @@ The interface is in Turkish.
 1. The learner enters words or imports them from a file.
 2. Imported rows are reviewed before saving; the dictionary only warns and suggests.
 3. Words are studied in Free Practice or Smart Review.
-4. Smart Review schedules German-to-Turkish, Turkish-to-German and article skills separately for each word.
+4. Smart Review schedules German-to-meaning, meaning-to-German and article skills separately for each word.
 5. Data stays on the device, in IndexedDB.
 
 ## Technologies

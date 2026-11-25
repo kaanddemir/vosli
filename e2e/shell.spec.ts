@@ -30,8 +30,8 @@ test.describe('navigation', () => {
       await nav.getByRole('link', { name: screen.nav }).click();
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(screen.heading);
       await expect(nav.getByRole('link', { name: screen.nav })).toHaveAttribute('aria-current', 'page');
-      // The static title from index.html, which search results show; screens never change it.
-      await expect(page).toHaveTitle('Vosli — Almanca Kelime Öğren ve Pratik Yap');
+      // The default language's title, the same as index.html, which search results show; screens never change it.
+      await expect(page).toHaveTitle(t.documentTitle);
     }
   });
 
@@ -315,7 +315,7 @@ test.describe('backup and restore through the interface', () => {
     await putWord(page, 'a', 'Fuß');
 
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: t.settings.download }).click()]);
-    expect(download.suggestedFilename()).toMatch(/^vosli-yedek-.*\.json$/);
+    expect(download.suggestedFilename()).toMatch(new RegExp(`^${t.settings.backupFileName('.*').replace('.json', '\\.json')}$`));
     const stream = await download.createReadStream();
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(chunk as Buffer);
@@ -332,7 +332,7 @@ test.describe('backup and restore through the interface', () => {
     await expect(dialog.getByRole('button', { name: t.common.cancel })).toBeVisible();
 
     const [safety] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: t.restore.confirm }).click()]);
-    expect(safety.suggestedFilename()).toMatch(/yedek/);
+    expect(safety.suggestedFilename().startsWith(t.settings.backupFileName('').replace('.json', ''))).toBe(true);
     await expect(page.getByRole('status').filter({ hasText: t.restore.done })).toBeVisible();
     expect(await readWords(page)).toEqual(['Fuß']);
   });

@@ -482,7 +482,25 @@ main:focus {
 
 .page-title-row:has(.header-buttons) {
   --header-reserve: calc(3 * var(--header-icon-width) + 2 * var(--header-actions-gap) + var(--space-2));
+  /* Dictionary has a fourth button. */
+  --header-reserve-4: calc(var(--header-reserve) + var(--header-icon-width) + var(--header-actions-gap));
+  /*
+   * The longest title beside three buttons (Collections) and beside four (Dictionary), in em of the heading,
+   * for each interface language: "Koleksiyonlar" and "Sözlük", "Collections" and "Dictionary", "Sammlungen" and "Wörterbuch".
+   */
+  --header-title-3: 6;
+  --header-title-4: 3;
   column-gap: var(--space-2);
+}
+
+.page-title-row:has(.header-buttons):lang(en) {
+  --header-title-3: 4.9;
+  --header-title-4: 4.5;
+}
+
+.page-title-row:has(.header-buttons):lang(de) {
+  --header-title-3: 5.75;
+  --header-title-4: 5.2;
 }
 
 .page-title-row:has(.header-buttons) .page-title {
@@ -666,8 +684,12 @@ main:focus {
   }
 
   .page-title-row:has(.header-buttons) h1 {
-    /* "Koleksiyonlar" is just under 6em wide in Fira Sans. The floor follows the reader's text size, so enlarged text wraps and never shrinks. */
-    font-size: clamp(calc(var(--text-2xl) * 0.75), calc((100cqw - var(--header-reserve)) / 6), var(--text-2xl));
+    /* Small enough for the longest title of the interface language on either screen. The floor follows the reader's text size, so enlarged text wraps and never shrinks. */
+    font-size: clamp(
+      calc(var(--text-2xl) * 0.75),
+      min((100cqw - var(--header-reserve)) / var(--header-title-3), (100cqw - var(--header-reserve-4)) / var(--header-title-4)),
+      var(--text-2xl)
+    );
   }
 }
 
@@ -2558,16 +2580,29 @@ select.field {
 .practice-help {
   display: flex;
   flex: 1 1 100%;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
 }
 
-/* Two equal halves filling the row, so the pair lines up with the field above. */
+/*
+ * Two equal halves filling the row, so the pair lines up with the field above. A label that cannot fit its half,
+ * at the narrowest width with enlarged text, takes a line of its own instead of spilling out.
+ */
 .practice-help > * {
   flex: 1 1 0;
-  min-width: 0;
+  min-width: min-content;
   text-align: center;
+}
+
+/*
+ * The side padding of a quiet button is empty space until it is pressed, so it is the part that gives way. As a
+ * share of the row it stays at its usual size wherever there is room, and only on the narrowest screen with
+ * enlarged text does it narrow, so a one-word label and its icon still fit inside the row.
+ */
+.practice-help > .btn {
+  padding-inline: max(var(--space-2), min(var(--space-4), 12%));
 }
 
 /* ---------- Test: options to choose from, in place of the typed answer ---------- */
@@ -3143,6 +3178,11 @@ html:has(.practice-start) {
 dialog {
   width: min(var(--dialog-width), calc(100vw - var(--space-6)));
   padding: var(--space-5);
+  /*
+   * The side padding stays at its usual size wherever there is room. Only on a narrow screen with enlarged
+   * text does it give way, so the longest single word on a button (German "Abbrechen") still fits whole.
+   */
+  padding-inline: max(var(--space-3), min(var(--space-5), 7.5%));
   overscroll-behavior: contain;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

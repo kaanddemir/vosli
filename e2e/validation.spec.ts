@@ -2,6 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { t } from '../src/i18n/strings';
 import { buildPdf, tablePage, type VocabRow } from '../tests/support/pdfBuilder';
+import { anyCount, anyText, escapeRe, label } from './labels';
+
+const EDIT_ROW = label(anyText(t.import.editRow));
+const WARNING = label(anyCount((n) => t.import.warningLabel('', n)), anyText(t.validation.label));
 
 const open = async (page: Page, hash = '#/import') => {
   await page.goto(`./${hash}`);
@@ -12,7 +16,7 @@ const SOURCE: readonly VocabRow[] = [['Geldautomat', 'das', 'ATM'], ['Moos', 'de
 const file = (rows: readonly VocabRow[] = SOURCE) => ({ name: 'ders.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf([tablePage(rows)])) });
 const rows = (page: Page) => page.getByTestId('review-row');
 const row = (page: Page, word: string) => rows(page).filter({ hasText: word });
-const warning = (item: Locator) => item.getByRole('button', { name: /uyarı/ });
+const warning = (item: Locator) => item.getByRole('button', { name: WARNING });
 const filter = (page: Page, name: RegExp) => page.locator('.review-toolbar label').filter({ hasText: name });
 const reviewed = async (page: Page, rowsToRead?: readonly VocabRow[]) => {
   await page.locator('input[type=file]').setInputFiles(file(rowsToRead));
@@ -44,11 +48,11 @@ test('a PDF review warns only where the dictionary has a reason, and never hides
   await open(page);
   await reviewed(page);
   await expect(rows(page)).toHaveCount(SOURCE.length);
-  await expect(filter(page, /Uyarılar/)).toContainText('3');
+  await expect(filter(page, label(escapeRe(t.import.filterWarnings)))).toContainText('3');
   for (const word of ['Geldautomat', 'Moos', 'Chor']) await expect(warning(row(page, word))).toBeVisible();
   for (const word of ['Vier', 'Hund', 'See']) await expect(warning(row(page, word))).toHaveCount(0);
 
-  await filter(page, /Uyarılar/).click();
+  await filter(page, label(escapeRe(t.import.filterWarnings))).click();
   await expect(rows(page)).toHaveCount(3);
 });
 
@@ -64,7 +68,7 @@ test('a suggestion changes a row only when pressed, and saving works either way'
 
   await expect(row(page, 'Geldautomat').locator('.article')).toHaveText('der ');
   await expect(warning(row(page, 'Geldautomat'))).toHaveCount(0);
-  await expect(filter(page, /Uyarılar/)).toContainText('2');
+  await expect(filter(page, label(escapeRe(t.import.filterWarnings)))).toContainText('2');
 
   // Moos is rejected, Chor is left as it is. Neither stops the save.
   await warning(row(page, 'Moos')).click();
@@ -123,7 +127,7 @@ test('the warning works by keyboard, and focus is never lost', async ({ page, is
   const apply = page.locator('.popover-panel:popover-open').getByRole('button', { name: t.validation.apply('der Geldautomat') });
   await apply.focus();
   await page.keyboard.press('Enter');
-  await expect(row(page, 'Geldautomat').getByRole('button', { name: /düzenle/ })).toBeFocused();
+  await expect(row(page, 'Geldautomat').getByRole('button', { name: EDIT_ROW })).toBeFocused();
 });
 
 test('a row shows what the dictionary knows only when opened', async ({ page }) => {
@@ -131,7 +135,7 @@ test('a row shows what the dictionary knows only when opened', async ({ page }) 
   await reviewed(page);
   await expect(page.getByTestId('row-check')).toHaveCount(0);
   const see = row(page, 'See');
-  await see.getByRole('button', { name: /düzenle/ }).click();
+  await see.getByRole('button', { name: EDIT_ROW }).click();
   await expect(see.getByTestId('row-check')).toHaveText(t.validation.articles('der, die'));
 });
 
@@ -174,7 +178,7 @@ test('with no dictionary file everything still works, and it says so', async ({ 
   await open(page);
   await reviewed(page);
   await expect(rows(page)).toHaveCount(SOURCE.length);
-  await expect(page.getByRole('button', { name: /uyarı/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: WARNING })).toHaveCount(0);
   await page.getByRole('button', { name: t.import.infoLabel }).click();
   await expect(page.locator('.popover-panel:popover-open')).toContainText(t.validation.unavailable);
   await page.keyboard.press('Escape');

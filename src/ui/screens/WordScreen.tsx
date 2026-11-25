@@ -3,7 +3,7 @@ import { createCustomGroup, GROUP_NAME_MAX, GroupNameError, setWordCustomGroups,
 import { getActiveWord, listCustomGroups, listGroupsOfWord, listOriginsOfWord } from '../../data/repository';
 import type { Group, Word } from '../../data/types';
 import { deleteWord, setFavorite } from '../../data/words';
-import { formatCount, formatDate } from '../../i18n/format';
+import { formatDate } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 import { GroupChecks } from '../components/GroupChecks';
 import { Icon } from '../components/Icon';
@@ -163,7 +163,7 @@ export function WordScreen({ wordId, groupId }: { wordId: string; groupId?: stri
       {origins.length > 0 && (
         <List label={t.dictionary.sources}>
           {origins.map(({ source, pages }) => (
-            <Row key={source.id} title={source.fileName || t.dictionary.pastedSource} detail={[pages.length ? t.import.page(pages.map((page) => formatCount(page)).join(', ')) : '', formatDate(source.importedAt)].filter(Boolean).join(' · ')} />
+            <Row key={source.id} title={source.fileName || t.dictionary.pastedSource} detail={[pages.length ? t.import.page(pages) : '', formatDate(source.importedAt)].filter(Boolean).join(' · ')} />
           ))}
         </List>
       )}

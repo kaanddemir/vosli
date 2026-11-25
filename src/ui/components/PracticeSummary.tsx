@@ -39,7 +39,7 @@ export function PracticeSummary({ summary, wordOf, title = t.practice.summaryTit
     <Screen title={title} actions={close}>
       <div class="practice-summary" data-testid="practice-summary">
         <p class="summary-score">
-          <strong data-testid="practice-score">{t.practice.firstTry(formatCount(summary.firstClean), formatCount(summary.total))}</strong>
+          <strong data-testid="practice-score">{t.practice.firstTry(summary.firstClean, summary.total)}</strong>
           <span>{t.practice.firstTryLabel}</span>
         </p>
         {facts.length > 0 && (

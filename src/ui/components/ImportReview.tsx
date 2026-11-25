@@ -37,7 +37,7 @@ const isBackground = (notice: PdfNotice) => notice.kind === 'repaired' || notice
 
 function noticeText(notice: PdfNotice): string {
   const texts = t.import.notices;
-  return notice.kind === 'repaired' ? texts.repaired(formatCount(notice.count)) : texts[notice.kind](notice.pages.map((page) => formatCount(page)).join(', '));
+  return notice.kind === 'repaired' ? texts.repaired(notice.count) : texts[notice.kind](notice.pages);
 }
 
 /** The collections a file's words will join, and the details behind them. Source and collections stay separate things. */
@@ -89,7 +89,7 @@ function statusBadge(status: RowStatus): { text: string; attention: boolean; qui
 
 function RowEditor({ row, validation, onChange }: { row: ReviewedRow; validation: Validation; onChange: (patch: Partial<ImportDraft>) => void }) {
   const { draft } = row;
-  const origin = [draft.page > 0 ? t.import.rowOrigin(formatCount(draft.page), formatCount(draft.rowIndex)) : '', ...rowCorrections(draft).map((flag) => t.import.corrections[flag])].filter(Boolean);
+  const origin = [draft.page > 0 ? t.import.rowOrigin(draft.page, draft.rowIndex) : '', ...rowCorrections(draft).map((flag) => t.import.corrections[flag])].filter(Boolean);
   const checked = validationText(validation);
   const known = ARTICLES.includes(draft.article.toLowerCase() as (typeof ARTICLES)[number]) || draft.article === '';
   return (
@@ -146,7 +146,7 @@ function ReviewItem({ row, validation, issues, onChange }: { row: ReviewedRow; v
         </div>
         <span class={`badge ${badge.attention ? 'badge-attention' : ''} ${badge.quiet ? 'badge-quiet' : ''}`}>{badge.text}</span>
         {count > 0 && (
-          <PopoverButton id={`warning-${draft.id}`} icon="warning" attention label={t.import.warningLabel(name, formatCount(count))}>
+          <PopoverButton id={`warning-${draft.id}`} icon="warning" attention label={t.import.warningLabel(name, count)}>
             {warnings.map((warning) => <span key={warning} class="popover-line">{t.import.warnings[warning]}</span>)}
             <IssueList
               issues={issues}
@@ -290,11 +290,11 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
   const saving = counts.create + counts.existing + counts.repeat;
 
   const tally = [
-    counts.create && t.import.tallies.new(formatCount(counts.create)),
-    counts.existing && t.import.tallies.existing(formatCount(counts.existing)),
-    counts.repeat && t.import.tallies.repeat(formatCount(counts.repeat)),
-    excluded && t.import.tallies.excluded(formatCount(excluded)),
-    pdf && t.import.pdfFacts(formatCount(pdf.info.pageCount), formatCount(rows.length)),
+    counts.create && t.import.tallies.new(counts.create),
+    counts.existing && t.import.tallies.existing(counts.existing),
+    counts.repeat && t.import.tallies.repeat(counts.repeat),
+    excluded && t.import.tallies.excluded(excluded),
+    pdf && t.import.pdfFacts(pdf.info.pageCount, rows.length),
   ].filter(Boolean);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -307,7 +307,7 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
     setConfirming(true);
   };
 
-  const notes = [...(pdf ? [...pdf.info.notices.filter((notice) => !isBackground(notice)).map(noticeText), ...(pdf.info.remaining === 'all' ? [t.import.notices.reused] : []), ...(pdf.info.remaining === 'some' ? [t.import.notices.reusedPartly(formatCount(pdf.info.missingWords))] : []), ...(pdf.info.sameNameDifferent ? [t.import.notices.sameName] : [])] : []), ...(ready && !ready.available ? [t.validation.unavailable] : [])];
+  const notes = [...(pdf ? [...pdf.info.notices.filter((notice) => !isBackground(notice)).map(noticeText), ...(pdf.info.remaining === 'all' ? [t.import.notices.reused] : []), ...(pdf.info.remaining === 'some' ? [t.import.notices.reusedPartly(pdf.info.missingWords)] : []), ...(pdf.info.sameNameDifferent ? [t.import.notices.sameName] : [])] : []), ...(ready && !ready.available ? [t.validation.unavailable] : [])];
 
   const commit = async () => {
     setBusy(true);
@@ -390,7 +390,7 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
       <div class="form review-commit">
         {!pdf && targetField}
         {error && <p class="status-error" role="alert">{error}</p>}
-        {problems.length > 0 && <p class="form-hint">{t.import.waiting(formatCount(problems.length))}</p>}
+        {problems.length > 0 && <p class="form-hint">{t.import.waiting(problems.length)}</p>}
         <div class="review-actions">
           {pdf && (
             <button type="button" class="btn" aria-expanded={settingsOpen} aria-controls="pdf-settings" onClick={() => setSettingsOpen(!settingsOpen)}>
@@ -398,7 +398,7 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
               <span class={`disclosure-mark ${settingsOpen ? 'disclosure-mark-open' : ''}`}><Icon name="forward" /></span>
             </button>
           )}
-          <button type="button" class="btn btn-primary" disabled={problems.length > 0 || saving === 0} onClick={askToCommit}>{t.import.commit(formatCount(saving))}</button>
+          <button type="button" class="btn btn-primary" disabled={problems.length > 0 || saving === 0} onClick={askToCommit}>{t.import.commit(saving)}</button>
         </div>
         {pdf && (
           <div id="pdf-settings" class="form review-settings" hidden={!settingsOpen}>
@@ -431,7 +431,7 @@ export function ImportReview({ drafts, source, pdf, onChange, onDone, title, eye
 
       {confirming && (
         <ConfirmDialog
-          title={t.import.confirmTitle(formatCount(saving))}
+          title={t.import.confirmTitle(saving)}
           body={
             <dl class="summary">
               <dt>{t.import.confirmCreate}</dt>

@@ -171,7 +171,7 @@ test.describe('setup', () => {
     await expect(page.getByText(t.practice.countLabel, { exact: true })).toBeVisible();
     await expect(page.getByText(t.practice.scopeLabel, { exact: true })).toBeVisible();
     // Only Apfel, Haus and Tür can be heard: Hochzeit's recordings are ambiguous and Quatschwort has none.
-    await expect(page.getByTestId('practice-coverage')).toHaveText(t.practice.listenCoverage('3'));
+    await expect(page.getByTestId('practice-coverage')).toHaveText(t.practice.listenCoverage(3));
 
     await studyOption(page, t.practice.studies.cards).click();
     await expect(page.getByText(t.practice.directionLabel, { exact: true })).toBeVisible();
@@ -189,7 +189,7 @@ test.describe('setup', () => {
     await openSetup(page);
     await studyOption(page, t.practice.studies.listen).click();
     await page.getByRole('checkbox', { name: /Listem/ }).check();
-    await expect(page.getByTestId('practice-coverage')).toHaveText(t.practice.listenCoverage('1'));
+    await expect(page.getByTestId('practice-coverage')).toHaveText(t.practice.listenCoverage(1));
     await page.getByRole('checkbox', { name: /Listem/ }).uncheck();
     await page.getByRole('checkbox', { name: /Sessiz/ }).check();
     await expect(page.getByTestId('practice-blocked')).toHaveText(t.practice.noRecordings);
@@ -245,7 +245,7 @@ test.describe('a listening round', () => {
     await page.keyboard.press('Enter');
     await expect(feedback(page)).toContainText(t.practice.reasons.article_wrong);
     await expect(feedback(page)).toContainText(`${first.article} ${first.lemma}`);
-    await expect(feedback(page)).toContainText(t.practice.meaning(first.meaning));
+    await expect(feedback(page)).toContainText(`${t.practice.meaning}: ${first.meaning}`);
 
     // Moving on plays the next one, with no tap.
     await page.waitForTimeout(300);
@@ -259,7 +259,7 @@ test.describe('a listening round', () => {
     await page.keyboard.press('Enter');
     await expect(feedback(page)).toHaveClass(/feedback-correct/);
     await expect(feedback(page)).toContainText(`${second.article} ${second.lemma}`);
-    await expect(feedback(page)).toContainText(t.practice.meaning(second.meaning));
+    await expect(feedback(page)).toContainText(`${t.practice.meaning}: ${second.meaning}`);
 
     expect(await table(page, 'reviewLogs')).toEqual([]);
     expect(await table(page, 'cards')).toEqual([]);
@@ -322,7 +322,7 @@ test.describe('a listening round', () => {
       if (i === 0) await moveOn();
       else await page.getByTestId('practice-action').click();
     }
-    await expect(page.getByTestId('practice-score')).toHaveText(t.practice.firstTry('0', '2'));
+    await expect(page.getByTestId('practice-score')).toHaveText(t.practice.firstTry(0, 2));
     expect(await table(page, 'reviewLogs')).toEqual([]);
   });
 

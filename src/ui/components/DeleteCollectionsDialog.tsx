@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { deleteGroups, deleteGroupsWithWords, previewGroupDeletion } from '../../data/groups';
-import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 import { useDb } from '../dbContext';
 import { useLoad } from '../useLoad';
@@ -60,12 +59,12 @@ export function DeleteCollectionsDialog({ title, groupIds, onDeleted, onCancel }
               <span class="row-text">
                 <span class="row-title">{t.collections.deleteWithWords}</span>
                 <span class="row-detail" data-testid="delete-counts">
-                  {ownCount === 0 ? t.collections.deleteNoOwnWords : t.collections.deleteWithWordsDetail(formatCount(ownCount))}
+                  {ownCount === 0 ? t.collections.deleteNoOwnWords : t.collections.deleteWithWordsDetail(ownCount)}
                 </span>
               </span>
             </label>
           </fieldset>
-          {(preview?.sharedCount ?? 0) > 0 && <p class="form-hint" data-testid="delete-shared">{t.collections.deleteShared(formatCount(preview!.sharedCount))}</p>}
+          {(preview?.sharedCount ?? 0) > 0 && <p class="form-hint" data-testid="delete-shared">{t.collections.deleteShared(preview!.sharedCount)}</p>}
           {withWords && <p ref={warning} class="dialog-warning delete-warning">{t.collections.deleteForever}</p>}
         </>
       }

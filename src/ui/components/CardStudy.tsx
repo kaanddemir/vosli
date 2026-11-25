@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { player } from '../../audio/pronunciation';
 import { isCardsFinished, type CardSession } from '../../core/practice/cards';
 import type { Word } from '../../data/types';
-import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 import { Icon } from './Icon';
 import { preparePronunciation, SpeakerButton } from './SpeakerButton';
@@ -72,20 +71,26 @@ export function CardStudy({ session, word, doubtfulArticle, notice, onMove, onDi
     onMove(delta);
   };
 
+  // Set on every render, so a key always meets the screen as it is now. Effects run only after the next paint:
+  // a listener re-added by one would still hold the last screen's state until then, and drop a key pressed
+  // straight after starting over.
+  const onKey = useRef<(event: KeyboardEvent) => void>(() => undefined);
+  onKey.current = (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || ownsArrows(event.target) || document.querySelector('dialog[open]')) return;
+    if (event.key === 'ArrowRight' && !finished) {
+      event.preventDefault();
+      move(1);
+    } else if (event.key === 'ArrowLeft' && session.index > 0) {
+      event.preventDefault();
+      move(-1);
+    }
+  };
+
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || ownsArrows(event.target) || document.querySelector('dialog[open]')) return;
-      if (event.key === 'ArrowRight' && !finished) {
-        event.preventDefault();
-        move(1);
-      } else if (event.key === 'ArrowLeft' && session.index > 0) {
-        event.preventDefault();
-        move(-1);
-      }
-    };
-    addEventListener('keydown', onKey);
-    return () => removeEventListener('keydown', onKey);
-  });
+    const listener = (event: KeyboardEvent) => onKey.current(event);
+    addEventListener('keydown', listener);
+    return () => removeEventListener('keydown', listener);
+  }, []);
 
   const german = word ? (doubtfulArticle ? word.lemma : <GermanWord word={word} quiet={false} />) : null;
   // A doubted article is not taught here, so the speaker's label leaves it out too.
@@ -133,7 +138,7 @@ export function CardStudy({ session, word, doubtfulArticle, notice, onMove, onDi
       {finished ? (
         <section class="practice-card study-card study-done">
           <h2 ref={doneRef} class="study-done-title" tabIndex={-1}>{t.practice.cards.doneTitle}</h2>
-          <p class="muted">{t.practice.cards.doneSupport(formatCount(total))}</p>
+          <p class="muted">{t.practice.cards.doneSupport(total)}</p>
         </section>
       ) : (
         <section class="practice-card study-card" aria-label={`${t.practice.cards.position} ${position} / ${total}`} data-testid="card">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { MigrationFailedError, NewerSchemaError, openDatabase, type AppDatabase } from '../data/db';
+import { currentLocale, onLocaleChange } from '../i18n/locale';
 import { t } from '../i18n/strings';
 import { reloadWhenResetElsewhere } from '../data/reset';
 import { requestPersistence } from '../storage';
@@ -54,6 +55,10 @@ function CurrentScreen({ place }: { place: Place }) {
 export function App() {
   const place = usePlace();
   const [state, setState] = useState<DbState>({ status: 'opening' });
+  // Every screen reads its text while rendering, so rendering again from here is all a language change needs.
+  // Nothing is remounted: focus, scroll and anything typed stay where they were.
+  const [, setLocale] = useState(currentLocale);
+  useEffect(() => onLocaleChange(setLocale), []);
 
   useEffect(() => {
     let active = true;

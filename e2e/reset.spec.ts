@@ -65,7 +65,7 @@ const openDialog = async (page: Page) => {
 
 test('the section sits between backup and sources', async ({ page }) => {
   await page.goto('./#/settings');
-  await expect(page.locator('.list-label')).toHaveText([t.settings.appearance, t.settings.backup, t.settings.dataManagement, t.settings.sources]);
+  await expect(page.locator('.list-label')).toHaveText([t.settings.language, t.settings.appearance, t.settings.backup, t.settings.dataManagement, t.settings.sources]);
 });
 
 test('cancelling changes nothing and returns focus', async ({ page }) => {

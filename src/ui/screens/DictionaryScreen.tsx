@@ -3,7 +3,6 @@ import { AUTOCORRECT_OFF } from '../inputProps';
 import { searchWords } from '../../core/search';
 import { listActiveWords } from '../../data/repository';
 import { deleteWords } from '../../data/words';
-import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 import { Icon } from '../components/Icon';
 import { EmptyFox } from '../components/EmptyFox';
@@ -133,7 +132,7 @@ export function DictionaryScreen() {
   );
 
   return (
-    <Screen title={t.dictionary.title} eyebrow={words?.length ? t.common.words(formatCount(words.length)) : undefined} actions={words?.length ? headerButtons : undefined}>
+    <Screen title={t.dictionary.title} eyebrow={words?.length ? t.common.words(words.length) : undefined} actions={words?.length ? headerButtons : undefined}>
       {selected && (
         <SelectionBar count={selected.size} canSelectAll={results.length > 1} allSelected={allResultsSelected} actionLabel={t.common.delete} onToggleAll={toggleAll} onAction={() => setConfirming(true)} />
       )}
@@ -172,7 +171,7 @@ export function DictionaryScreen() {
           </fieldset>
         </div>
       )}
-      <p class="visually-hidden" role="status">{searching && words ? t.dictionary.results(formatCount(results.length)) : ''}</p>
+      <p class="visually-hidden" role="status">{searching && words ? t.dictionary.results(results.length) : ''}</p>
       {state.status === 'loading' && <LoadingState />}
       {state.status === 'error' && <LoadError onRetry={() => void reload()} />}
       {words && words.length === 0 && !searching && (
@@ -208,11 +207,11 @@ export function DictionaryScreen() {
       )}
       {confirming && selected && (
         <ConfirmDialog
-          title={t.dictionary.bulkDeleteTitle(formatCount(selected.size))}
+          title={t.dictionary.bulkDeleteTitle(selected.size)}
           body={
             <>
               <p class="dialog-warning">{t.dictionary.bulkDeleteBody}</p>
-              {outOfSight > 0 && <p class="form-hint" data-testid="delete-hidden">{t.dictionary.bulkDeleteHidden(formatCount(outOfSight))}</p>}
+              {outOfSight > 0 && <p class="form-hint" data-testid="delete-hidden">{t.dictionary.bulkDeleteHidden(outOfSight)}</p>}
             </>
           }
           confirmLabel={t.collections.deleteForeverConfirm}

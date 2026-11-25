@@ -52,7 +52,7 @@ export function TestSummary({ test, onClose, children }: { test: TestSession; on
       <div class="practice-summary" data-testid="test-summary">
         <p class="summary-score">
           <strong data-testid="test-accuracy">{formatPercent(score.accuracy)}</strong>
-          <span data-testid="test-score">{t.practice.test.score(formatCount(score.correct), formatCount(score.scored))}</span>
+          <span data-testid="test-score">{t.practice.test.score(score.correct, score.scored)}</span>
         </p>
         <List>
           {facts.map((fact) => <Row key={fact.id} title={fact.label} value={formatCount(fact.value)} valueTestId={fact.id} />)}
@@ -62,7 +62,7 @@ export function TestSummary({ test, onClose, children }: { test: TestSession; on
             label={t.practice.test.missed}
             footer={
               !showAll && score.missed.length > FIRST_MISSED ? (
-                <button type="button" class="btn btn-quiet btn-small test-show-all" onClick={() => setShowAll(true)}>{t.practice.test.showAll(formatCount(score.missed.length))}</button>
+                <button type="button" class="btn btn-quiet btn-small test-show-all" onClick={() => setShowAll(true)}>{t.practice.test.showAll(score.missed.length)}</button>
               ) : null
             }
           >

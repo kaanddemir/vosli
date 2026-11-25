@@ -4,7 +4,7 @@ Guidance for AI coding agents working on Vosli. For what the app does and how to
 
 ## Project Overview
 
-Vosli is a local-first German vocabulary trainer for Turkish speakers. The learning language is **German only**; the interface language is **Turkish only**.
+Vosli is a vocabulary learning app. The learning language is **German only**; English vocabulary learning is planned but not implemented. Learners enter their own meanings for each word. The interface is **English (default), Turkish or German**, chosen in Settings. Switching applies at once, without a reload; Reset all data keeps a valid chosen interface language and otherwise starts in English.
 
 - Words are added by hand or imported (pasted text, CSV, text-based PDF) with a preview, then organized into favorites and collections.
 - Study modes: **Free Practice** (Yazarak typing, Dinleyerek listening, Kartlarla cards, or a multiple-choice Test) and **Smart Review** (FSRS-6 scheduling).
@@ -19,7 +19,7 @@ Vosli is a local-first German vocabulary trainer for Turkish speakers. The learn
 | Pure logic | `src/core/` | No storage, DOM or UI imports. Identity, validation, dictionary lookup, practice answers and selection, scheduling. |
 | Persistence | `src/data/` | Dexie database (`db.ts`), migrations (`schema.ts`), backups, repositories. UI should read and write through these modules; do not add new direct Dexie queries in components. |
 | UI | `src/ui/` | Screens in `screens/`, shared pieces in `components/`. Reuse `List`, `WordList`, `Modal`, `PopoverButton`, `Icon` and similar before writing new ones. |
-| Text | `src/i18n/strings.ts` | All interface text lives here. No hardcoded Turkish in components. |
+| Text | `src/i18n/` | All interface text: `tr.ts` (Turkish, and the shape every language must match), `en.ts` (US English), `de.ts` (German, informal du), `strings.ts` (the live `t`), `locale.ts` (the saved choice), `format.ts` (numbers and dates). No hardcoded interface text in components. Every key exists in every language; counts are passed as numbers so each language pluralizes them. A learner's word goes into a sentence exactly as saved (`der Apfel`): German templates quote it („…“) or set it after a colon, never re-inflect it. Read `t` while rendering, never at module level, or a language change will not reach it. |
 | Styles | `src/styles/tokens.css`, `src/styles/app.css` | Tokens are the only source of visual values. |
 | Audio | `src/audio/` | Pronunciation index and player. |
 
@@ -53,7 +53,7 @@ Vosli is a local-first German vocabulary trainer for Turkish speakers. The learn
 - Keep the FSRS engine language-agnostic; tracks are what vary per language.
 - Introduce the abstraction with the second language, shaped by real needs, not ahead of it.
 
-**Interface language vs. learning language (future guideline, not implemented):** the *interface language* is the UI locale (navigation, buttons, settings, instructions, all text in `src/i18n`). The *learning language* is what the user studies (vocabulary, grammar rules, pronunciation, language-specific exercises). Today both are fixed (Turkish UI, German learning). In future they must vary independently: German or French could each be studied with a Turkish or English interface.
+**Interface language vs. learning language:** the *interface language* is the UI locale (navigation, buttons, settings, instructions, all text in `src/i18n`). The *learning language* is what the user studies (vocabulary, grammar rules, pronunciation, language-specific exercises). Today the interface is Turkish, English or German and the learning language is fixed to German. A German interface is still not a German learning language: German interface text and the learner's German words are separate, and meanings stay the learner's own (tagged `lang="tr"`). In future the two must vary independently: German or French could each be studied with any interface language.
 
 - Never infer one from the other.
 - Keep UI translations out of vocabulary data, grammar rules, pronunciation and learning logic.

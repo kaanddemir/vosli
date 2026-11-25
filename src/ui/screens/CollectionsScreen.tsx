@@ -108,7 +108,7 @@ export function CollectionsScreen() {
   return (
     <Screen
       title={t.collections.title}
-      eyebrow={groups?.length ? t.collections.count(formatCount(groups.length)) : undefined}
+      eyebrow={groups?.length ? t.collections.count(groups.length) : undefined}
       actions={
         groups?.length ? (
           <div class="header-buttons">
@@ -172,7 +172,7 @@ export function CollectionsScreen() {
       })}
       {confirming && selected && (
         <DeleteCollectionsDialog
-          title={t.collections.bulkDeleteTitle(formatCount(selected.size))}
+          title={t.collections.bulkDeleteTitle(selected.size)}
           groupIds={[...selected]}
           onDeleted={async () => {
             await reload();
@@ -288,7 +288,7 @@ function WordPicker({ group, onClose, onAdded }: { group: Group; onClose: () => 
       </a>
       <div class="btn-row">
         <button type="button" class="btn" disabled={busy} onClick={onClose}>{t.common.cancel}</button>
-        <button type="button" class="btn btn-primary" disabled={busy || selected.size === 0} onClick={() => void add()}>{t.collections.addSelected(formatCount(selected.size))}</button>
+        <button type="button" class="btn btn-primary" disabled={busy || selected.size === 0} onClick={() => void add()}>{t.collections.addSelected(selected.size)}</button>
       </div>
     </Modal>
   );
@@ -342,7 +342,7 @@ export function GroupScreen({ groupId }: { groupId: string }) {
     try {
       const members = await removeWordsFromGroup(db, group.id, chosenWords.map((word) => word.id));
       const only = members.length === 1 ? chosenWords.find((word) => word.id === members[0]!.wordId) : undefined;
-      setRemoved(members.length ? { members, label: only ? t.collections.removed(wordLabel(only)) : t.collections.removedMany(formatCount(members.length)) } : null);
+      setRemoved(members.length ? { members, label: only ? t.collections.removed(wordLabel(only)) : t.collections.removedMany(members.length) } : null);
       await reload();
       refocus.current = true;
       setChosen(null);
@@ -386,7 +386,7 @@ export function GroupScreen({ groupId }: { groupId: string }) {
     ) : undefined;
 
   return (
-    <Screen title={group.name} eyebrow={`${t.collections.kind[group.kind]} · ${t.common.words(formatCount(list.length))}`} back={back} actions={headerButtons}>
+    <Screen title={group.name} eyebrow={`${t.collections.kind[group.kind]} · ${t.common.words(list.length)}`} back={back} actions={headerButtons}>
       {selected && (
         <SelectionBar
           count={selected.size}

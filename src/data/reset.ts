@@ -10,10 +10,10 @@ const TAB = Math.random().toString(36);
 export type ResetNotice = 'complete' | 'partial';
 
 /** Only this app's keys: the origin's storage can be shared with other apps, and the offline files stay untouched. */
-function clearStorage(storage: () => Storage): boolean {
+function clearStorage(storage: () => Storage, keep: readonly string[] = []): boolean {
   try {
     const area = storage();
-    const keys = Array.from({ length: area.length }, (_, i) => area.key(i)).filter((key): key is string => key?.startsWith(PREFIX) === true);
+    const keys = Array.from({ length: area.length }, (_, i) => area.key(i)).filter((key): key is string => key?.startsWith(PREFIX) === true && !keep.includes(key));
     for (const key of keys) area.removeItem(key);
     return true;
   } catch {
@@ -24,13 +24,15 @@ function clearStorage(storage: () => Storage): boolean {
 /**
  * Empties the database in one transaction, so a failure throws with every record still in place. Settings
  * are cleared only after that. If they fail, the learning data is already gone, so the result says so.
+ * `keep` names saved settings that survive, such as the interface language, so the fresh start is still
+ * in a language the learner reads.
  */
-export async function resetAllData(db: AppDatabase): Promise<ResetNotice> {
+export async function resetAllData(db: AppDatabase, keep: readonly string[] = []): Promise<ResetNotice> {
   await db.transaction('rw', db.tables, async () => {
     await Promise.all(db.tables.map((table) => table.clear()));
     await db.meta.put({ key: 'schemaVersion', value: SCHEMA_VERSION });
   });
-  const local = clearStorage(() => localStorage);
+  const local = clearStorage(() => localStorage, keep);
   const session = clearStorage(() => sessionStorage);
   if (typeof BroadcastChannel !== 'undefined') {
     const channel = new BroadcastChannel(CHANNEL);

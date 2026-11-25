@@ -147,7 +147,7 @@ export function PracticeSetup({ data, settings, study, onChange, onStudyChange, 
   const nothing = cards ? t.practice.noCards : listening ? t.practice.noRecordings : plan && plan.askable.length > 0 ? t.practice.test.notEnough : settings.mode === 'article' ? t.practice.noArticles : t.practice.noneInScope;
   // What stops a round from starting, or for listening, how many words can be heard and that it needs a connection.
   const blocked = listening && !online ? t.practice.listenOffline : listening && !audio ? t.practice.listenLoading : questions === 0 ? nothing : null;
-  const startLine = blocked ?? (listening ? t.practice.listenCoverage(formatCount(eligible.length)) : shortTest ? t.practice.test.available(formatCount(questions)) : null);
+  const startLine = blocked ?? (listening ? t.practice.listenCoverage(eligible.length) : shortTest ? t.practice.test.available(questions) : null);
   const favorites = data.words.filter((word) => word.favoritedAt !== null).length;
   const setScope = (next: PracticeScope) => onChange({ ...settings, scope: next });
   const groupsOf = (kind: GroupKind): Group[] => data.groups.filter((item) => item.group.kind === kind && item.wordCount > 0).map((item) => item.group);

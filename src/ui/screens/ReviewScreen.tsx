@@ -9,7 +9,6 @@ import { askItem, askedCount, createReviewSession, delayItem, dropItem, endSessi
 import { loadValidator } from '../../dictionary/loadDictionary';
 import { flaggedWaiting, issuesFor, loadReviewData, planFrom, readCardState, saveReview, waitingCards, type ReviewData } from '../../data/smartReview';
 import type { Word } from '../../data/types';
-import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 import { FlaggedWords } from '../components/FlaggedWords';
 import { Icon } from '../components/Icon';
@@ -285,7 +284,7 @@ export function ReviewScreen() {
               }}
             />
           )}
-          <p role="status" data-testid="review-ready">{questions > 0 ? t.review.ready(formatCount(questions)) : t.review.emptyTitle}</p>
+          <p role="status" data-testid="review-ready">{questions > 0 ? t.review.ready(questions) : t.review.emptyTitle}</p>
           <div class="summary-actions">
             <button type="button" class="btn btn-primary btn-block" disabled={questions === 0 || starting} onClick={() => void startFresh()}>{t.practice.start}</button>
           </div>
@@ -326,7 +325,7 @@ function Finished({ session, data, onContinue, onClose }: { session: ReviewSessi
   const words = new Map(data.words.map((word) => [word.id, word]));
   return (
     <PracticeSummary summary={summarize(session)} wordOf={(id) => words.get(id)} title={waiting > 0 || more > 0 ? t.review.summaryWaitingTitle : t.review.summaryTitle} onClose={onClose}>
-      {more > 0 && <button type="button" class="btn btn-primary btn-block" onClick={onContinue} data-testid="review-continue">{t.review.continueWith(formatCount(more))}</button>}
+      {more > 0 && <button type="button" class="btn btn-primary btn-block" onClick={onContinue} data-testid="review-continue">{t.review.continueWith(more)}</button>}
       <a class={`btn btn-block ${more > 0 ? '' : 'btn-primary'}`} href={hrefFor('practice')}>{t.home.freePractice}</a>
     </PracticeSummary>
   );

@@ -1,4 +1,3 @@
-import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 
 /**
@@ -8,7 +7,7 @@ import { t } from '../../i18n/strings';
 export function SelectionBar({ count, canSelectAll, allSelected, actionLabel, onToggleAll, onAction }: { count: number; canSelectAll: boolean; allSelected: boolean; actionLabel: string; onToggleAll: () => void; onAction: () => void }) {
   return (
     <div class="selection-bar">
-      <p class="selection-count" role="status">{t.common.selected(formatCount(count))}</p>
+      <p class="selection-count" role="status">{t.common.selected(count)}</p>
       {canSelectAll && (
         <button type="button" class="link-btn" onClick={onToggleAll}>
           {allSelected ? t.common.clearSelection : t.common.selectAll}

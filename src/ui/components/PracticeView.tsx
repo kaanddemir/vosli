@@ -16,6 +16,11 @@ const keepFocus = (event: MouseEvent) => event.preventDefault();
 export interface FeedbackLine {
   text: string;
   lang?: string;
+  /**
+   * Shown before the text as "label: text". It is in its own language: an interface word such as "Meaning", or
+   * a German word, while the text is the learner's own, so each part is read aloud in the right voice.
+   */
+  label?: { text: string; lang?: string };
   /** The same German word as text, drawn with its article on its own. Only ever set after an answer. */
   word?: Pick<Word, 'article' | 'lemma'>;
 }
@@ -127,7 +132,7 @@ export function PracticeView({ done, total, retries = 0, cue, tag = null, questi
           {retries > 0 && (
             <span class="count-retries">
               <span aria-hidden="true"> +{retries}</span>
-              <span class="visually-hidden">{t.practice.retriesLeft(String(retries))}</span>
+              <span class="visually-hidden">{t.practice.retriesLeft(retries)}</span>
             </span>
           )}
         </span>
@@ -220,7 +225,13 @@ export function PracticeView({ done, total, retries = 0, cue, tag = null, questi
               {feedback.answer && (
                 <p class="feedback-answer" data-testid="practice-answer-shown">{t.practice.answerWas}: <strong lang={feedback.answer.lang}>{feedback.answer.word ? <GermanWord word={feedback.answer.word} quiet={false} /> : feedback.answer.text}</strong></p>
               )}
-              {feedback.lines?.map((line) => <p key={line.text} class="feedback-note" lang={line.lang}>{line.text}</p>)}
+              {feedback.lines?.map((line) =>
+                line.label ? (
+                  <p key={`${line.label.text}:${line.text}`} class="feedback-note"><span lang={line.label.lang}>{line.label.text}</span>: <span lang={line.lang}>{line.text}</span></p>
+                ) : (
+                  <p key={line.text} class="feedback-note" lang={line.lang}>{line.text}</p>
+                ),
+              )}
               {saveMessage && <p class="feedback-note" role="alert" data-testid="practice-save-message">{saveMessage}</p>}
             </div>
           ) : (

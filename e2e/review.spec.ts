@@ -102,14 +102,14 @@ test.describe('home', () => {
 
   test('words never studied are ready to study, not due, and nothing is scheduled by being imported', async ({ page }) => {
     await seed(page, [APFEL, TUER], [], '#/');
-    await expect(homeStatus(page)).toHaveText(t.home.freshStatus('2'));
+    await expect(homeStatus(page)).toHaveText(t.home.freshStatus(2));
     await expect(page.getByRole('main').locator('.btn-primary')).toHaveText(t.home.smartReview);
     expect(await cards(page)).toEqual([]);
   });
 
   test('due reviews are counted and open real Smart Review, with Free Practice still beside it', { tag: '@smoke' }, async ({ page }) => {
     await seed(page, [APFEL], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('apfel', 'tr_de', OVERDUE())], '#/');
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('2'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(2));
     await expect(page.getByRole('main').getByRole('link', { name: t.home.freePractice })).toBeVisible();
     await page.getByRole('main').locator('.btn-primary').click();
     await expect(prompt(page)).toBeVisible();
@@ -119,13 +119,13 @@ test.describe('home', () => {
 
   test('new questions and due reviews are told apart', async ({ page }) => {
     await seed(page, [APFEL, TUER], [reviewCard('apfel', 'de_tr', OVERDUE())], '#/');
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
-    await expect(homeStatus(page)).toHaveText(`${t.home.dueStatus('1')} · ${t.home.freshStatus('1')}`);
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
+    await expect(homeStatus(page)).toHaveText(`${t.home.dueStatus(1)} · ${t.home.freshStatus(1)}`);
   });
 
   test('a studied library with only new skills left says so', async ({ page }) => {
     await seed(page, [APFEL], [reviewCard('apfel', 'de_tr', LATER())], '#/');
-    await expect(homeStatus(page)).toHaveText(t.home.freshStatus('1'));
+    await expect(homeStatus(page)).toHaveText(t.home.freshStatus(1));
   });
 
   test('all reviews done: Smart Review still opens, and honestly has nothing to ask', async ({ page }) => {
@@ -138,7 +138,7 @@ test.describe('home', () => {
 
   test('deleted words and invalid cards are not counted', async ({ page }) => {
     await seed(page, [DANKE, APFEL], [reviewCard('danke', 'article', OVERDUE()), reviewCard('gone', 'de_tr', OVERDUE()), reviewCard('danke', 'de_tr', LATER()), reviewCard('danke', 'tr_de', LATER()), ...['de_tr', 'tr_de', 'article'].map((track) => reviewCard('apfel', track, OVERDUE()))], '#/');
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('3'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(3));
     await page.evaluate(() => new Promise<void>((resolve) => {
       const request = indexedDB.open('vosli');
       request.onsuccess = () => {
@@ -179,7 +179,7 @@ test.describe('a session', () => {
 
     // Time alone brings no question: the way on appears, and the learner takes it.
     await page.clock.fastForward('10:01');
-    await expect(page.getByTestId('review-continue')).toHaveText(t.review.continueWith('1'));
+    await expect(page.getByTestId('review-continue')).toHaveText(t.review.continueWith(1));
     await expect(prompt(page)).toHaveCount(0);
     await page.reload();
     await page.getByTestId('review-continue').or(prompt(page)).first().waitFor();
@@ -192,7 +192,7 @@ test.describe('a session', () => {
 
     await expect(action(page)).toHaveText(t.practice.seeSummary);
     await action(page).click();
-    await expect(score(page)).toHaveText(t.practice.firstTry('1', '1'));
+    await expect(score(page)).toHaveText(t.practice.firstTry(1, 1));
     // The word's next skill is ready, so this is a summary with a way on, not the end.
     await expect(heading(page)).toHaveText(t.review.summaryWaitingTitle);
     await expect(page.getByTestId('review-continue')).toBeVisible();
@@ -320,7 +320,7 @@ test.describe('a session', () => {
     await answerShown();
     await next(page).catch(() => undefined);
     await page.getByRole('button', { name: t.common.close }).click();
-    await expect(page.getByTestId('review-continue')).toHaveText(t.review.continueWith('1'));
+    await expect(page.getByTestId('review-continue')).toHaveText(t.review.continueWith(1));
     await page.getByTestId('review-continue').click();
     await expect(prompt(page)).toBeVisible();
     await answerShown();
@@ -394,7 +394,7 @@ test.describe('safety', () => {
     await type(page, 'bilmem');
     await next(page);
     await page.getByRole('button', { name: t.common.close }).click();
-    await expect(score(page)).toHaveText(t.practice.firstTry('0', '1'));
+    await expect(score(page)).toHaveText(t.practice.firstTry(0, 1));
     await expect(heading(page)).toHaveText(t.review.summaryWaitingTitle);
     await expect(waiting(page)).toBeVisible();
     expect(await cards(page)).toHaveLength(1);
@@ -494,7 +494,7 @@ test.describe('safety', () => {
   test('restoring a backup brings the schedule back and a due card is asked', { tag: '@smoke' }, async ({ page }) => {
     const due = OVERDUE();
     await seed(page, [APFEL], [reviewCard('apfel', 'de_tr', due)], '#/');
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
     const backup = { app: 'vosli', backupVersion: 1, schemaVersion: 1, exportedAt: 1 };
     const tables = { words: [toRecord(APFEL)], cards: [reviewCard('apfel', 'de_tr', due)], reviewLogs: [], groups: [], groupMembers: [], sources: [], importRows: [], meta: [] };
     await write(page, { cards: [{ ...reviewCard('apfel', 'de_tr', LATER()) }] });
@@ -504,7 +504,7 @@ test.describe('safety', () => {
     await expect.poll(async () => (await cards(page))[0]?.due).toBe(due);
     await page.goto('./#/');
     await page.reload();
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
   });
 });
 
@@ -525,7 +525,7 @@ test.describe('deleting a word', () => {
     await seed(page, [APFEL, TUER], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('tuer', 'de_tr', OVERDUE())], '#/dictionary/apfel');
     await write(page, { reviewLogs: [{ mode: 'practice', wordId: 'apfel', track: 'de_tr', at: 1, typed: 'elma', result: 'correct', hintsUsed: 0 }, { mode: 'practice', wordId: 'tuer', track: 'de_tr', at: 2, typed: 'kapı', result: 'correct', hintsUsed: 0 }] });
     await page.getByRole('button', { name: t.dictionary.deleteWord }).click();
-    await expect(page.getByRole('dialog')).toContainText('Bu kelime ve öğrenme geçmişi kalıcı olarak silinecek. Bu işlem geri alınamaz.');
+    await expect(page.getByRole('dialog')).toContainText(t.dictionary.deleteBody);
     await page.getByRole('dialog').getByRole('button', { name: t.common.delete }).click();
     await expect(heading(page)).toHaveText(t.dictionary.title);
     expect((await readTable<{ id: string }>(page, 'words')).map((word) => word.id)).toEqual(['tuer']);
@@ -590,10 +590,10 @@ test.describe('editing a word', () => {
     await turkish.fill('elma, alma');
     await expect(note).toHaveCount(0);
     await turkish.fill('armut');
-    await expect(note).toHaveText(t.wordForm.resetNote('2'));
+    await expect(note).toHaveText(t.wordForm.resetNote(2));
     await turkish.fill('elma');
     await page.getByRole('radio', { name: 'die', exact: true }).check();
-    await expect(note).toHaveText(t.wordForm.resetNote('2'));
+    await expect(note).toHaveText(t.wordForm.resetNote(2));
   });
 
   test('removing one of two meanings keeps every card; removing all resets only the language skills', async ({ page, isMobile }) => {
@@ -612,7 +612,7 @@ test.describe('editing a word', () => {
 
     await page.goto('./#/dictionary/apfel/edit');
     await turkish.fill('armut');
-    await expect(note).toHaveText(t.wordForm.resetNote('2'));
+    await expect(note).toHaveText(t.wordForm.resetNote(2));
     await page.getByRole('button', { name: t.common.save }).click();
     await expect.poll(async () => (await cards(page)).map((card) => card.track)).toEqual(['article']);
     expect((await cards(page))[0]).toEqual(before.find((card) => card.track === 'article'));
@@ -639,17 +639,17 @@ test.describe('editing a word', () => {
     await page.clock.fastForward('10:01');
     await page.reload();
     await expect(prompt(page)).toHaveCount(0);
-    await expect(score(page)).toHaveText(t.practice.firstTry('1', '1'));
+    await expect(score(page)).toHaveText(t.practice.firstTry(1, 1));
   });
 });
 
 test.describe('home without waiting', () => {
   test('a stored result for the same words shows the number with no dictionary at all', async ({ page }) => {
     await seed(page, [FLAGGED, APFEL], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('automat', 'de_tr', OVERDUE())], '#/');
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
     await page.route('**/dictionary/*.txt', (route) => route.abort());
     await page.reload();
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
   });
 
   test('while warnings are unknown it states no number, then the right one', async ({ page }) => {
@@ -661,24 +661,24 @@ test.describe('home without waiting', () => {
     });
     await seed(page, [FLAGGED, APFEL], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('automat', 'de_tr', OVERDUE())], '#/');
     await expect(page.getByRole('main').locator('.btn-primary')).toHaveText(t.home.smartReview);
-    await expect(page.getByRole('main')).toContainText(t.home.wordCount('2'));
+    await expect(page.getByRole('main')).toContainText(t.home.wordCount(2));
     await expect(homeStatus(page)).toBeEmpty();
     release();
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
   });
 
   test('if the dictionary cannot load, the number matches what a session would ask', async ({ page }) => {
     await page.route('**/dictionary/*.txt', (route) => route.abort());
     await seed(page, [FLAGGED, APFEL], [reviewCard('apfel', 'de_tr', OVERDUE()), reviewCard('automat', 'de_tr', OVERDUE())], '#/');
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('2'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(2));
   });
 
   test('a stored result stops applying when a word changes', async ({ page }) => {
     await seed(page, [FLAGGED], [reviewCard('automat', 'de_tr', OVERDUE())], '#/');
-    await expect(homeStatus(page)).toHaveText(t.home.flaggedStatus('1'));
+    await expect(homeStatus(page)).toHaveText(t.home.flaggedStatus(1));
     await write(page, { words: [{ ...toRecord(FLAGGED), article: 'der', identityKey: 'Geldautomat|der' }] });
     await page.reload();
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
   });
 });
 
@@ -707,7 +707,7 @@ test.describe('free practice stays apart', () => {
     await type(page, 'elma');
     await page.goto('./#/');
     await page.reload();
-    await expect(homeStatus(page)).toContainText(t.home.dueStatus('1'));
+    await expect(homeStatus(page)).toContainText(t.home.dueStatus(1));
     expect((await cards(page))[0]!.due).toBe(due);
   });
 });
@@ -715,13 +715,13 @@ test.describe('free practice stays apart', () => {
 test.describe('dictionary warnings', () => {
   test('held back by default, can be opened to fix, and can be included', async ({ page }) => {
     await seed(page, [FLAGGED, APFEL]);
-    await expect(page.getByTestId('practice-flagged')).toContainText(t.practice.flaggedCount('1'));
-    await expect(page.getByTestId('review-ready')).toHaveText(t.review.ready('1'));
+    await expect(page.getByTestId('practice-flagged')).toContainText(t.practice.flaggedCount(1));
+    await expect(page.getByTestId('review-ready')).toHaveText(t.review.ready(1));
     await page.getByRole('button', { name: t.practice.reviewFlagged }).click();
     await expect(page.getByRole('dialog').getByRole('link', { name: /Geldautomat/ })).toHaveAttribute('href', /automat\/edit/);
     await page.getByRole('dialog').getByRole('button', { name: t.common.close }).click();
     await page.getByRole('checkbox', { name: t.practice.includeFlagged }).check();
-    await expect(page.getByTestId('review-ready')).toHaveText(t.review.ready('2'));
+    await expect(page.getByTestId('review-ready')).toHaveText(t.review.ready(2));
     await page.getByRole('checkbox', { name: t.practice.includeFlagged }).uncheck();
     await page.getByRole('button', { name: t.practice.start }).click();
     await expect(prompt(page)).toHaveText('der Apfel');
@@ -738,7 +738,7 @@ test.describe('dictionary warnings', () => {
 
   test('home says when only warned words are left, rather than calling it done silently', async ({ page }) => {
     await seed(page, [FLAGGED], [], '#/');
-    await expect(homeStatus(page)).toHaveText(t.home.flaggedStatus('1'));
+    await expect(homeStatus(page)).toHaveText(t.home.flaggedStatus(1));
     await page.getByRole('main').getByRole('link', { name: t.home.smartReview }).click();
     await expect(page.getByTestId('practice-flagged')).toBeVisible();
   });
@@ -756,7 +756,7 @@ test.describe('a dictionary request that fails once', () => {
       return route.abort();
     });
     await seed(page, [FLAGGED, APFEL]);
-    await expect(page.getByTestId('practice-flagged')).toContainText(t.practice.flaggedCount('1'), { timeout: 15_000 });
+    await expect(page.getByTestId('practice-flagged')).toContainText(t.practice.flaggedCount(1), { timeout: 15_000 });
     expect(failed).toBe(true);
   });
 });

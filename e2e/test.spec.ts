@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { formatPercent } from '../src/i18n/format';
 import { t } from '../src/i18n/strings';
 
 interface Seed {
@@ -286,7 +287,7 @@ test.describe('setup', () => {
     await pick(page, t.practice.studies.test);
     await pick(page, t.practice.modes.tr_de);
     await pick(page, t.practice.countAll);
-    await expect(page.getByTestId('practice-coverage')).toHaveText(t.practice.test.available('4'));
+    await expect(page.getByTestId('practice-coverage')).toHaveText(t.practice.test.available(4));
     await expect(startTest(page)).toHaveAttribute('data-questions', '4');
   });
 });
@@ -321,8 +322,8 @@ test.describe('taking a test', () => {
 
     const summary = page.getByTestId('test-summary');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(t.practice.test.summaryTitle);
-    await expect(summary.getByTestId('test-accuracy')).toHaveText('%80');
-    await expect(summary.getByTestId('test-score')).toHaveText(t.practice.test.score('8', '10'));
+    await expect(summary.getByTestId('test-accuracy')).toHaveText(formatPercent(0.8));
+    await expect(summary.getByTestId('test-score')).toHaveText(t.practice.test.score(8, 10));
     await expect(summary.getByTestId('test-correct')).toHaveText('8');
     await expect(summary.getByTestId('test-wrong')).toHaveText('1');
     await expect(summary.getByTestId('test-blank-count')).toHaveText('1');
@@ -345,7 +346,7 @@ test.describe('taking a test', () => {
   test('works by keyboard alone: arrows choose, Enter answers, Enter again moves on', async ({ page }) => {
     await begin(page, t.practice.modes.de_tr);
     await expect(radios(page).first()).toBeFocused();
-    await expect(page.getByTestId('practice-announcement')).toContainText(t.practice.test.questionSpoken('1', '10'));
+    await expect(page.getByTestId('practice-announcement')).toContainText(t.practice.test.questionSpoken(1, 10));
     // Enter with nothing chosen does nothing.
     await page.keyboard.press('Enter');
     await expect(count(page)).toHaveText('0 / 10');
@@ -359,13 +360,13 @@ test.describe('taking a test', () => {
     await expect(submit(page)).toBeFocused();
     await expect(submit(page)).toHaveText(t.practice.test.next);
     for (const radio of await radios(page).all()) await expect(radio).toBeDisabled();
-    await expect(page.getByTestId('practice-announcement')).toContainText(/Doğru|Yanlış/u);
+    await expect(page.getByTestId('practice-announcement')).toContainText(new RegExp(`${t.practice.test.correct}|${t.practice.test.wrong}`, 'u'));
     await page.waitForTimeout(300);
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('practice-feedback')).toHaveCount(0);
     await expect(radios(page).first()).toBeFocused();
     await expect(radios(page).nth(1)).not.toBeChecked();
-    await expect(page.getByTestId('practice-announcement')).toContainText(t.practice.test.questionSpoken('2', '10'));
+    await expect(page.getByTestId('practice-announcement')).toContainText(t.practice.test.questionSpoken(2, 10));
   });
 
   test('a reload brings back the same question, options and progress', async ({ page }) => {
@@ -381,7 +382,7 @@ test.describe('taking a test', () => {
     // Finished results survive a reload too.
     for (let left = 0; left < 8; left++) await answer(page, 'right');
     await page.reload();
-    await expect(page.getByTestId('test-score')).toHaveText(t.practice.test.score('9', '10'));
+    await expect(page.getByTestId('test-score')).toHaveText(t.practice.test.score(9, 10));
   });
 });
 
@@ -443,7 +444,7 @@ test.describe('feedback after each answer', () => {
     await expect(submit(page)).toHaveText(t.practice.test.results);
     await expect(page.getByTestId('test-summary')).toHaveCount(0);
     await submit(page).click();
-    await expect(page.getByTestId('test-score')).toHaveText(t.practice.test.score('5', '6'));
+    await expect(page.getByTestId('test-score')).toHaveText(t.practice.test.score(5, 6));
   });
 
   test('a reload keeps an answer on screen as it was shown, and it cannot be answered again', async ({ page }) => {
@@ -559,7 +560,7 @@ test.describe('after the test', () => {
         await answer(page, 'right');
       }
       draws.push(seen.join('|'));
-      await expect(page.getByTestId('test-accuracy')).toHaveText('%100');
+      await expect(page.getByTestId('test-accuracy')).toHaveText(formatPercent(1));
       await expect(page.getByRole('button', { name: t.practice.test.missedRound })).toHaveCount(0);
       if (round < 2) {
         await page.getByRole('button', { name: t.practice.test.again }).click();
@@ -578,7 +579,7 @@ test.describe('after the test', () => {
   test('the results close without asking', async ({ page }) => {
     await begin(page, t.practice.modes.article);
     for (let index = 0; index < 6; index++) await answer(page, 'blank');
-    await expect(page.getByTestId('test-accuracy')).toHaveText('%0');
+    await expect(page.getByTestId('test-accuracy')).toHaveText(formatPercent(0));
     await expect(page.getByTestId('test-missed')).toHaveCount(6);
     await page.getByRole('button', { name: t.common.close }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -633,7 +634,7 @@ test.describe('layout and accessibility', () => {
     await begin(page, t.practice.modes.article);
     for (let index = 0; index < 20; index++) await answer(page, 'blank');
     await expect(page.getByTestId('test-missed')).toHaveCount(10);
-    await page.getByRole('button', { name: t.practice.test.showAll('20') }).click();
+    await page.getByRole('button', { name: t.practice.test.showAll(20) }).click();
     await expect(page.getByTestId('test-missed')).toHaveCount(20);
   });
 });

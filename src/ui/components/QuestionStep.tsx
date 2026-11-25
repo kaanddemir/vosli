@@ -20,6 +20,8 @@ const isCoarse = () => matchMedia('(pointer: coarse)').matches;
 
 const bareOrFull = (word: Word, doubtful: boolean) => (doubtful ? word.lemma : wordLabel(word));
 const meaningList = (word: Word) => word.meanings.map((meaning) => meaning.text).join(', ');
+/** The saved word the answer turned out to be, in German, then what it means. */
+const otherWord = (label: string, meanings: readonly string[]): FeedbackLine => ({ label: { text: label, lang: 'de' }, text: meanings.join(', '), lang: 'tr' });
 
 function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues: readonly Issue[]): FeedbackView {
   const doubt = doubtFrom(issues);
@@ -27,7 +29,8 @@ function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues
   const lines: FeedbackLine[] = [];
   const stored = wordLabel(word);
   const shown = bareOrFull(word, doubt.article);
-  const german = (text: string): FeedbackLine => ({ text, lang: 'de' });
+  const german = (label: string, text: string): FeedbackLine => ({ label: { text: label }, text, lang: 'de' });
+  const meanings = (label: string, text: string): FeedbackLine => ({ label: { text: label }, text, lang: 'tr' });
   /** The answer as a word, so its article can take its color. A doubtful article is left out, as in the text. */
   const answerWord = (full: boolean): FeedbackLine => ({ text: full ? stored : shown, lang: 'de', word: full || !doubt.article ? word : { article: null, lemma: word.lemma } });
   // Heard only from feedback, after the answer. A doubted article is left out of its label, as it is from the text.
@@ -40,26 +43,26 @@ function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues
   // Heard, then checked: the spelling with its article and what it means are the answer, right or wrong.
   // The question's own button replays it, so no second speaker is added.
   if (track === 'listen') {
-    const meaning: FeedbackLine = { text: t.practice.meaning(meaningList(word)), lang: 'tr' };
+    const meaning = meanings(t.practice.meaning, meaningList(word));
     if (evaluation.correct) {
-      if (evaluation.note === 'case') lines.push(german(t.practice.caseNote(shown)));
-      if (evaluation.note === 'dictionary') lines.push(german(t.practice.dictionaryNote(stored)));
+      if (evaluation.note === 'case') lines.push(german(t.practice.caseNote, shown));
+      if (evaluation.note === 'dictionary') lines.push(german(t.practice.dictionaryNote, stored));
       return { kind: 'correct', title: hinted ? t.practice.correctHinted : t.practice.correct, answer: answerWord(false), lines: [meaning, ...lines], ...caution };
     }
     if (typed === '') return { kind: 'revealed', title: t.practice.revealed, answer: answerWord(false), lines: [meaning], ...caution };
     const reason = evaluation.result in t.practice.reasons ? t.practice.reasons[evaluation.result as keyof typeof t.practice.reasons] : t.practice.wrong;
-    if (evaluation.other) lines.push({ text: t.practice.otherMeaning(otherLabel, evaluation.other.meanings.join(', ')), lang: 'tr' });
+    if (evaluation.other) lines.push(otherWord(otherLabel, evaluation.other.meanings));
     if (hinted) lines.push({ text: t.practice.hintUsed });
     return { kind: 'wrong', title: reason, answer: answerWord(false), lines: [meaning, ...lines], ...caution };
   }
 
   if (evaluation.correct) {
-    if (evaluation.result === 'also_valid') lines.push(german(t.practice.alsoAsked(stored)));
-    if (evaluation.note === 'case') lines.push(german(t.practice.caseNote(shown)));
-    if (evaluation.note === 'dictionary') lines.push(german(t.practice.dictionaryNote(stored)));
+    if (evaluation.result === 'also_valid') lines.push(german(t.practice.alsoAsked, stored));
+    if (evaluation.note === 'case') lines.push(german(t.practice.caseNote, shown));
+    if (evaluation.note === 'dictionary') lines.push(german(t.practice.dictionaryNote, stored));
     if (track === 'de_tr') {
       const rest = word.meanings.map((meaning) => meaning.text).filter((text) => meaningKey(text) !== meaningKey(typed));
-      if (rest.length > 0 && rest.length < word.meanings.length) lines.push({ text: t.practice.alsoMeans(rest.join(', ')), lang: 'tr' });
+      if (rest.length > 0 && rest.length < word.meanings.length) lines.push(meanings(t.practice.alsoMeans, rest.join(', ')));
     }
     return { kind: 'correct', title: hinted ? t.practice.correctHinted : t.practice.correct, ...(track === 'article' ? { answer: answerWord(true) } : {}), lines, ...caution, speak };
   }
@@ -68,7 +71,7 @@ function feedbackFor(answered: Answered, track: QuestionKind, word: Word, issues
   if (typed === '') return { kind: 'revealed', title: t.practice.revealed, answer: track === 'de_tr' ? { text: meaningList(word), lang: 'tr' } : answerWord(track === 'article'), lines, ...caution, speak };
 
   const reason = evaluation.result in t.practice.reasons ? t.practice.reasons[evaluation.result as keyof typeof t.practice.reasons] : t.practice.wrong;
-  if (evaluation.other) lines.push({ text: t.practice.otherMeaning(otherLabel, evaluation.other.meanings.join(', ')), lang: 'tr' });
+  if (evaluation.other) lines.push(otherWord(otherLabel, evaluation.other.meanings));
   if (hinted) lines.push({ text: t.practice.hintUsed });
   return { kind: 'wrong', title: reason, answer: track === 'de_tr' ? { text: meaningList(word), lang: 'tr' } : answerWord(track === 'article'), lines, ...caution, speak };
 }
@@ -247,7 +250,7 @@ export function QuestionStep({ word, track, listen, issues, stepKey, answered, h
   const level = hints > 0 ? Math.min(hints, stages.length) : 0;
   const hint = level > 0 ? stages[level - 1]! : null;
   const hintMore = level < stages.length;
-  const hintSpoken = hint ? t.practice.hintSpoken(spokenStage(hint), String(letters)) : null;
+  const hintSpoken = hint ? t.practice.hintSpoken(spokenStage(hint), letters) : null;
 
   const askHint = () => {
     if (answered || !hintMore) return;
@@ -260,7 +263,7 @@ export function QuestionStep({ word, track, listen, issues, stepKey, answered, h
   const question = listening ? '' : track === 'tr_de' ? meaningList(word) : track === 'article' ? word.lemma : bareOrFull(word, doubt.article);
   const cue = listening ? (word.article || word.pos === 'noun' ? t.practice.listenCue.noun : t.practice.listenCue.word) : track === 'tr_de' ? (word.article && !doubt.article ? t.practice.cue.tr_de_noun : t.practice.cue.tr_de) : t.practice.cue[track];
   const empty = typed.trim() === '';
-  const say = feedback ? [feedback.title, feedback.answer ? `${t.practice.answerWas}: ${feedback.answer.text}` : '', ...(feedback.lines ?? []).map((line) => line.text), feedback.caution ?? '', saveMessage ?? ''].filter(Boolean).join('. ') : hintSpoken ?? (listening ? cue : `${cue}: ${question}`);
+  const say = feedback ? [feedback.title, feedback.answer ? `${t.practice.answerWas}: ${feedback.answer.text}` : '', ...(feedback.lines ?? []).map((line) => (line.label ? `${line.label.text}: ${line.text}` : line.text)), feedback.caution ?? '', saveMessage ?? ''].filter(Boolean).join('. ') : hintSpoken ?? (listening ? cue : `${cue}: ${question}`);
 
   return (
     <PracticeView

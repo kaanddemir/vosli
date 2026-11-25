@@ -78,7 +78,7 @@ test('Seç sits just before add, and becomes Vazgeç with focus kept', async ({ 
   const cancel = main(page).getByRole('button', { name: t.common.cancel, exact: true });
   await expect(cancel).toBeFocused();
   await expect(remove(page)).toBeDisabled();
-  await expect(count(page)).toHaveText(t.common.selected('0'));
+  await expect(count(page)).toHaveText(t.common.selected(0));
   await cancel.click();
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Apfel/ })).toBeVisible();
@@ -87,12 +87,12 @@ test('Seç sits just before add, and becomes Vazgeç with focus kept', async ({ 
 test('one, then several, by mouse and keyboard', async ({ page }) => {
   await enter(page);
   await box(page, 'Apfel').click();
-  await expect(count(page)).toHaveText(t.common.selected('1'));
+  await expect(count(page)).toHaveText(t.common.selected(1));
   await box(page, 'Baum').focus();
   await page.keyboard.press('Space');
-  await expect(count(page)).toHaveText(t.common.selected('2'));
+  await expect(count(page)).toHaveText(t.common.selected(2));
   await box(page, 'Apfel').click();
-  await expect(count(page)).toHaveText(t.common.selected('1'));
+  await expect(count(page)).toHaveText(t.common.selected(1));
 });
 
 test('select all takes every result, including rows not yet on the page', async ({ page }) => {
@@ -101,9 +101,9 @@ test('select all takes every result, including rows not yet on the page', async 
   await enter(page);
   await expect(page.getByRole('checkbox')).toHaveCount(100);
   await toggleAll(page, t.common.selectAll);
-  await expect(count(page)).toHaveText(t.common.selected('134'));
+  await expect(count(page)).toHaveText(t.common.selected(134));
   await toggleAll(page, t.common.clearSelection);
-  await expect(count(page)).toHaveText(t.common.selected('0'));
+  await expect(count(page)).toHaveText(t.common.selected(0));
 });
 
 test('select all follows the search, and clearing removes only what is shown', async ({ page }) => {
@@ -127,9 +127,9 @@ test('select all follows the Favoriler filter', async ({ page }) => {
   await favorites(page);
   await expect(page.getByRole('checkbox')).toHaveCount(2);
   await toggleAll(page, t.common.selectAll);
-  await expect(count(page)).toHaveText(t.common.selected('2'));
+  await expect(count(page)).toHaveText(t.common.selected(2));
   await remove(page).click();
-  await expect(dialog(page)).toContainText(t.dictionary.bulkDeleteTitle('2'));
+  await expect(dialog(page)).toContainText(t.dictionary.bulkDeleteTitle(2));
   await expect(dialog(page).getByTestId('delete-hidden')).toHaveCount(0);
   await confirm(page);
   await expect(page.getByText(t.dictionary.noFavorites)).toBeVisible();
@@ -142,8 +142,8 @@ test('the dialog says when chosen words are out of sight', async ({ page }) => {
   await box(page, 'Apfel').click();
   await search(page, 'Apfel');
   await remove(page).click();
-  await expect(dialog(page)).toContainText(t.dictionary.bulkDeleteTitle('2'));
-  await expect(dialog(page).getByTestId('delete-hidden')).toHaveText(t.dictionary.bulkDeleteHidden('1'));
+  await expect(dialog(page)).toContainText(t.dictionary.bulkDeleteTitle(2));
+  await expect(dialog(page).getByTestId('delete-hidden')).toHaveText(t.dictionary.bulkDeleteHidden(1));
 });
 
 test('cancelling deletes nothing and keeps the selection', async ({ page }) => {
@@ -163,7 +163,7 @@ test('confirming removes the words with everything of theirs, from every collect
   await enter(page);
   await box(page, 'Apfel').click();
   await remove(page).click();
-  await expect(dialog(page)).toContainText(t.dictionary.bulkDeleteTitle('1'));
+  await expect(dialog(page)).toContainText(t.dictionary.bulkDeleteTitle(1));
   await confirm(page);
   await expect(dialog(page)).toHaveCount(0);
   await expect(page.getByRole('checkbox')).toHaveCount(0);

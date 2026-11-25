@@ -3,6 +3,12 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { t } from '../src/i18n/strings';
 import { buildPdf, tablePage, type VocabRow } from '../tests/support/pdfBuilder';
+import { anyCount, anyText, escapeRe, label } from './labels';
+
+const EDIT_ROW = label(anyText(t.import.editRow));
+const WARNING = label(anyCount((n) => t.import.warningLabel('', n)), anyText(t.validation.label));
+const FILTER_WARNINGS = label(escapeRe(t.import.filterWarnings));
+const FILTER_PROBLEMS = label(escapeRe(t.import.filterProblems));
 
 async function open(page: Page, hash = '#/import') {
   await page.goto(`./${hash}`);
@@ -14,8 +20,8 @@ const heading = (page: Page) => page.getByRole('heading', { level: 1 });
 const rows = (page: Page) => page.getByTestId('review-row');
 const commitButton = (page: Page) => page.locator('.review-commit .btn-primary');
 const openSettings = (page: Page) => page.getByRole('button', { name: t.import.pdfSettings }).click();
-const openEditor = (row: Locator) => row.getByRole('button', { name: /düzenle/ }).click();
-const warning = (row: Locator) => row.getByRole('button', { name: /uyarı/ });
+const openEditor = (row: Locator) => row.getByRole('button', { name: EDIT_ROW }).click();
+const warning = (row: Locator) => row.getByRole('button', { name: WARNING });
 const pdf = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 const choose = (page: Page, file: ReturnType<typeof pdf>) => page.locator('input[type=file]').setInputFiles(file);
 const reviewed = (page: Page) => expect(heading(page)).toHaveText(t.import.reviewTitle, { timeout: 30_000 });
@@ -61,16 +67,16 @@ test('a PDF goes from selection to the dictionary, with its source and collectio
   await choose(page, pdf('Ders+1.pdf', LESSON));
   await reviewed(page);
   await expect(page.locator('.eyebrow')).toHaveText('Ders+1.pdf');
-  await expect(page.getByTestId('review-tally')).toHaveText(`5 yeni · ${t.import.pdfFacts('2', '5')}`);
+  await expect(page.getByTestId('review-tally')).toHaveText(`${t.import.tallies.new(5)} · ${t.import.pdfFacts(2, 5)}`);
   await expect(rows(page)).toHaveCount(5);
   await expect(rows(page).first()).toContainText('der Apfel');
   await expect(rows(page).first()).toContainText('elma');
   // Where a row came from waits in its details.
-  await expect(rows(page).first()).not.toContainText(t.import.page('1'));
+  await expect(rows(page).first()).not.toContainText(t.import.page([1]));
   await expect(rows(page).nth(3)).toContainText('Straße');
   await expect(rows(page).nth(4)).toContainText('Bär');
   await openEditor(rows(page).nth(4));
-  await expect(rows(page).nth(4).getByTestId('row-origin')).toHaveText(t.import.rowOrigin('2', '2'));
+  await expect(rows(page).nth(4).getByTestId('row-origin')).toHaveText(t.import.rowOrigin(2, 2));
   await openSettings(page);
   await expect(page.getByTestId('pdf-details')).toContainText('Ders+1.pdf');
   await expect(page.getByLabel(t.import.pdfCollection)).toHaveValue('Ders 1');
@@ -91,7 +97,7 @@ test('a PDF goes from selection to the dictionary, with its source and collectio
   await expect(heading(page)).toHaveText('Ders 1');
   await page.getByRole('link', { name: /Bär/ }).click();
   await expect(page.getByRole('main')).toContainText('Ders+1.pdf');
-  await expect(page.getByRole('main')).toContainText(t.import.page('2'));
+  await expect(page.getByRole('main')).toContainText(t.import.page([2]));
   await expect(page.getByRole('main')).not.toContainText('Lektion 1');
   await page.getByRole('link', { name: t.nav.collections }).first().click();
   await expect(page.getByRole('heading', { name: t.collections.kinds.pdf })).toBeVisible();
@@ -108,8 +114,8 @@ test('counts and notices wait behind the info icon, which says when one needs re
   await expect(info).toHaveClass(/icon-btn-on/);
   await info.click();
   await expect(tally).toBeVisible();
-  await expect(tally).toContainText('2 sayfa');
-  await expect(page.getByTestId('pdf-notes')).toContainText(t.import.notices.no_table('2'));
+  await expect(tally).toContainText(t.import.pdfFacts(2, 6));
+  await expect(page.getByTestId('pdf-notes')).toContainText(t.import.notices.no_table([2]));
   await expect(page.getByTestId('pdf-notes')).toBeVisible();
   await expect(page.getByTestId('pdf-notes')).toBeInViewport({ ratio: 1 });
   await page.keyboard.press('Escape');
@@ -127,9 +133,9 @@ test('the warning icon sits left of edit, and the filter fills its row', async (
   await open(page);
   await choose(page, pdf('karisik.pdf', MESSY));
   await reviewed(page);
-  await page.getByRole('radio', { name: /Uyarılar/ }).check();
+  await page.getByRole('radio', { name: FILTER_WARNINGS }).check();
   const row = rows(page).filter({ hasText: 'Haus' });
-  const [icon, edit] = [await warning(row).boundingBox(), await row.getByRole('button', { name: /düzenle/ }).boundingBox()];
+  const [icon, edit] = [await warning(row).boundingBox(), await row.getByRole('button', { name: EDIT_ROW }).boundingBox()];
   expect(icon!.x + icon!.width).toBeLessThanOrEqual(edit!.x + 1);
   expect(Math.abs(icon!.y - edit!.y)).toBeLessThan(2);
   const [filter, list] = [await page.locator('.review-toolbar .segmented').boundingBox(), await page.locator('main ul.list').first().boundingBox()];
@@ -140,20 +146,20 @@ test('blocking rows come first and must be fixed, warnings are optional, repairs
   await open(page);
   await choose(page, pdf('karisik.pdf', MESSY));
   await reviewed(page);
-  await expect(page.getByTestId('pdf-notes')).toContainText(t.import.notices.no_table('2'));
+  await expect(page.getByTestId('pdf-notes')).toContainText(t.import.notices.no_table([2]));
 
   // Birne has no meaning, which blocks saving and says so in the row.
-  await expect(page.getByRole('radio', { name: /Kontrol/ })).toBeChecked();
-  await expect(page.getByRole('radio', { name: /Kontrol/ })).toHaveAccessibleName('Kontrol (1)');
+  await expect(page.getByRole('radio', { name: FILTER_PROBLEMS })).toBeChecked();
+  await expect(page.getByRole('radio', { name: FILTER_PROBLEMS })).toHaveAccessibleName(`${t.import.filterProblems} (1)`);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText(t.import.errors.turkish_missing);
-  await expect(page.getByText(t.import.waiting('1'))).toBeVisible();
+  await expect(page.getByText(t.import.waiting(1))).toBeVisible();
   await expect(commitButton(page)).toBeDisabled();
   await rows(page).getByLabel(t.import.turkishField).fill('armut');
   await expect(commitButton(page)).toBeEnabled();
 
   // Haus has an empty article cell, which does not block saving.
-  await page.getByRole('radio', { name: /Uyarılar/ }).check();
+  await page.getByRole('radio', { name: FILTER_WARNINGS }).check();
   await expect(rows(page)).toHaveCount(1);
   const haus = rows(page).filter({ hasText: 'Haus' });
   await expect(haus.getByText(t.import.warnings.article_missing)).toBeHidden();
@@ -187,7 +193,7 @@ test.describe('warnings', () => {
     await open(page);
     await choose(page, pdf('uyari.pdf', WARNED));
     await reviewed(page);
-    await expect(page.getByRole('radio', { name: /Uyarılar/ })).toBeChecked();
+    await expect(page.getByRole('radio', { name: FILTER_WARNINGS })).toBeChecked();
   };
   const filterName = (n: number) => `${t.import.filterWarnings} (${n})`;
 
@@ -209,7 +215,7 @@ test.describe('warnings', () => {
     const row = rows(page).filter({ hasText: 'Kranken' });
     const button = warning(row);
     await expect(button).toHaveAttribute('aria-expanded', 'false');
-    await expect(button).toHaveAccessibleName(t.import.warningLabel('Kranken haus', '2'));
+    await expect(button).toHaveAccessibleName(t.import.warningLabel('Kranken haus', 2));
     await expect(row.getByText(t.import.warnings.article_missing)).toBeHidden();
 
     await button.focus();
@@ -249,12 +255,12 @@ test.describe('warnings', () => {
     // Editing the meaning changes nothing about the warnings.
     await kranken.getByLabel(t.import.turkishField).fill('hasta evi');
     await expect(page.getByRole('radio', { name: filterName(3) })).toBeVisible();
-    await expect(warning(kranken)).toHaveAccessibleName(/2 uyarı/);
+    await expect(warning(kranken)).toHaveAccessibleName(new RegExp(escapeRe(t.import.warningLabel('', 2))));
 
     // Fixing one cause leaves the other.
     await kranken.getByLabel(t.import.germanField).fill('Krankenhaus');
     const whole = rows(page).filter({ hasText: 'Krankenhaus' });
-    await expect(warning(whole)).toHaveAccessibleName(/1 uyarı/);
+    await expect(warning(whole)).toHaveAccessibleName(new RegExp(escapeRe(t.import.warningLabel('', 1))));
     await whole.getByLabel(t.import.articleField).selectOption('das');
     await expect(warning(whole)).toHaveCount(0);
     await expect(page.getByRole('radio', { name: filterName(2) })).toBeVisible();
@@ -270,7 +276,7 @@ test.describe('warnings', () => {
 
     // The row kept in view by the edit leaves with the filter, and the empty state speaks.
     await page.getByRole('radio', { name: t.import.filterAll }).check();
-    await page.getByRole('radio', { name: /Uyarılar/ }).check();
+    await page.getByRole('radio', { name: FILTER_WARNINGS }).check();
     await expect(page.getByText(t.import.noWarnings)).toBeVisible();
     await expect(rows(page)).toHaveCount(0);
   });
@@ -279,7 +285,7 @@ test.describe('warnings', () => {
     await open(page);
     await choose(page, pdf('ders.pdf', LESSON));
     await reviewed(page);
-    await expect(page.getByRole('radio', { name: /Uyarılar/ })).toHaveCount(0);
+    await expect(page.getByRole('radio', { name: FILTER_WARNINGS })).toHaveCount(0);
     await expect(page.getByRole('radio', { name: t.import.filterAll })).toBeChecked();
   });
 });
@@ -296,7 +302,7 @@ test('long compound words stay whole, with no drawn hyphens', async ({ page, isM
   await expect(title).toContainText(LONG_WORD);
   expect(await title.evaluate((el) => getComputedStyle(el).hyphens)).not.toBe('auto');
   // The controls keep their place when the word wraps.
-  const edit = await rows(page).filter({ hasText: LONG_WORD }).getByRole('button', { name: /düzenle/ }).boundingBox();
+  const edit = await rows(page).filter({ hasText: LONG_WORD }).getByRole('button', { name: EDIT_ROW }).boundingBox();
   const box = await rows(page).filter({ hasText: LONG_WORD }).getByRole('checkbox').boundingBox();
   expect(Math.abs(edit!.y + edit!.height / 2 - (box!.y + box!.height / 2))).toBeLessThan(6);
   await commit(page);
@@ -310,13 +316,13 @@ test('the list starts high on a phone, with settings one tap away', async ({ pag
   await open(page);
   await choose(page, pdf('bolum-2-kopya.pdf', readFileSync(`${samples}/bolum-2.pdf`)));
   await reviewed(page);
-  await expect(page.getByTestId('review-tally')).toHaveText('149 yeni · 5 sayfa · 149 satır');
+  await expect(page.getByTestId('review-tally')).toHaveText(`${t.import.tallies.new(149)} · ${t.import.pdfFacts(5, 149)}`);
   // It started at 680px before.
   const first = await rows(page).first().boundingBox();
   expect(first!.y).toBeLessThan(320);
   await expect(page.getByTestId('pdf-details')).toBeHidden();
   await openSettings(page);
-  await expect(page.getByTestId('pdf-details')).toContainText(t.import.notices.repaired('159'));
+  await expect(page.getByTestId('pdf-details')).toContainText(t.import.notices.repaired(159));
   await expect(page.getByLabel(t.import.pdfCollection)).toBeVisible();
   await expect(page.locator('[id^="lesson-"]')).toHaveCount(0);
 });
@@ -429,7 +435,7 @@ test.describe('while a PDF is being read', () => {
     await reviewed(page);
     const seen = await page.evaluate(() => (window as unknown as { seen: string[] }).seen);
     expect(seen[0]).toBe(t.import.preparing);
-    expect(seen.at(-1)).toBe(t.import.pageOf('5', '5'));
+    expect(seen.at(-1)).toBe(t.import.pageOf(5, 5));
   });
 
   test('cancelling leaves nothing behind, and the next file reads normally', async ({ page }) => {
@@ -595,7 +601,7 @@ test('importing again says only what is true of the words left', async ({ page }
   await deleteFromDictionary(false);
   await again();
   await info.click();
-  await expect(page.getByTestId('pdf-notes')).toContainText(t.import.notices.reusedPartly('1'));
+  await expect(page.getByTestId('pdf-notes')).toContainText(t.import.notices.reusedPartly(1));
   await expect(page.getByTestId('pdf-notes')).not.toContainText(t.import.notices.reused);
   await page.keyboard.press('Escape');
   await commit(page);
@@ -609,7 +615,7 @@ test('importing again says only what is true of the words left', async ({ page }
   await deleteFromDictionary(true);
   await again();
   await expect(page.getByTestId('pdf-notes')).toHaveCount(0);
-  await expect(page.getByTestId('review-tally')).toHaveText(`5 yeni · ${t.import.pdfFacts('2', '5')}`);
+  await expect(page.getByTestId('review-tally')).toHaveText(`${t.import.tallies.new(5)} · ${t.import.pdfFacts(2, 5)}`);
   await commit(page);
   await expect(page.getByTestId('summary-created')).toHaveText('5');
   expect(await dump(page, 'cards')).toEqual([]);
@@ -643,7 +649,7 @@ test.describe('the real course PDFs', () => {
     for (const [name, count, created] of [['konu.pdf', 45, 45], ['bolum-1.pdf', 81, 80], ['bolum-2.pdf', 149, 115]] as const) {
       await choose(page, pdf(name, readFileSync(`${samples}/${name}`)));
       await reviewed(page);
-      await expect(page.getByTestId('review-tally')).toContainText(`${count} satır`);
+      await expect(page.getByTestId('review-tally')).toContainText(t.import.pdfFacts(1, count).split(' · ').at(-1)!);
       await expect(page.getByRole('radio', { name: t.import.filterAll })).toBeChecked();
       await commit(page);
       await expect(page.getByTestId('summary-rows')).toHaveText(String(count));
@@ -672,7 +678,7 @@ test.describe('layout and accessibility', () => {
     await choose(page, pdf(LONG_NAME, MESSY));
     await reviewed(page);
     await check('review problems');
-    await page.getByRole('radio', { name: /Uyarılar/ }).check();
+    await page.getByRole('radio', { name: FILTER_WARNINGS }).check();
     await warning(rows(page).filter({ hasText: 'Haus' })).click();
     await check('warning popover');
     await page.keyboard.press('Escape');
@@ -680,7 +686,7 @@ test.describe('layout and accessibility', () => {
     await check('info popover');
     await page.keyboard.press('Escape');
     await page.getByRole('radio', { name: t.import.filterAll }).check();
-    await rows(page).filter({ hasText: LONG_WORD }).getByRole('button', { name: /düzenle/ }).click();
+    await rows(page).filter({ hasText: LONG_WORD }).getByRole('button', { name: EDIT_ROW }).click();
     await openSettings(page);
     await check('review all, settings open');
     await openSettings(page);

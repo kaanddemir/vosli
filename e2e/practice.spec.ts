@@ -373,7 +373,7 @@ test.describe('hints', () => {
     await expect(page.getByTestId('practice-hint')).toHaveText(t.practice.hintShown(apfelFirst ? 'A••••' : 'T••'));
     await expect(field(page)).toHaveValue('');
     await expect(field(page)).toBeFocused();
-    await expect(page.getByTestId('practice-announcement')).toHaveText(t.practice.hintSpoken(apfelFirst ? 'A…' : 'T…', apfelFirst ? '5' : '3'));
+    await expect(page.getByTestId('practice-announcement')).toHaveText(t.practice.hintSpoken(apfelFirst ? 'A…' : 'T…', apfelFirst ? 5 : 3));
 
     await field(page).fill(apfelFirst ? 'der Apfel' : 'die Tür');
     await page.keyboard.press('Enter');
@@ -415,7 +415,7 @@ test.describe('hints', () => {
       await hint.click();
     }
     await expect(shown).toHaveText(t.practice.hintShown('Schmetter••••'));
-    await expect(page.getByTestId('practice-announcement')).toHaveText(t.practice.hintSpoken('Schmetter…', '13'));
+    await expect(page.getByTestId('practice-announcement')).toHaveText(t.practice.hintSpoken('Schmetter…', 13));
     // Nothing more to give: the hint stays as text, and focus is back in the answer.
     await expect(hint).toHaveCount(0);
     await expect(field(page)).toBeFocused();
@@ -712,7 +712,7 @@ test.describe('dictionary warnings', () => {
 
   test('a flagged word waits, and a word the dictionary does not know is still asked', async ({ page }) => {
     await seed(page, [AUTOMAT, HUND, UNKNOWN]);
-    await expect(page.getByTestId('practice-flagged')).toContainText(t.practice.flaggedCount('1'));
+    await expect(page.getByTestId('practice-flagged')).toContainText(t.practice.flaggedCount(1));
     await expect(startButton(page)).toHaveAttribute('data-questions', '2');
     await page.getByRole('checkbox', { name: t.practice.includeFlagged }).check();
     await expect(startButton(page)).toHaveAttribute('data-questions', '3');
@@ -764,7 +764,7 @@ test.describe('dictionary warnings', () => {
     await field(page).fill('der Geldautomat');
     await page.keyboard.press('Enter');
     await expect(feedback(page)).toContainText(t.practice.correct);
-    await expect(feedback(page)).toContainText(t.practice.dictionaryNote('das Geldautomat'));
+    await expect(feedback(page)).toContainText(`${t.practice.dictionaryNote}: das Geldautomat`);
   });
 
   test('an accepted warning is simply gone', async ({ page }) => {
@@ -892,6 +892,8 @@ test.describe('layouts', () => {
     await page.setViewportSize({ width: 390, height: 780 });
     await seed(page, WORDS.slice(0, 2));
     await start(page, t.practice.modes.tr_de);
+    // The app sets its own height just after the question appears. Replace that value instead of racing it.
+    await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--session-height'))).not.toBe('');
     await page.evaluate(() => document.documentElement.style.setProperty('--session-height', '380px'));
     const box = await page.locator('main').boundingBox();
     expect(box!.height).toBeLessThanOrEqual(380);

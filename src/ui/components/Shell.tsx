@@ -7,10 +7,11 @@ import { applySidebarCollapsed, loadSidebarCollapsed, saveSidebarCollapsed } fro
 import { Icon, type IconName } from './Icon';
 import { PronunciationStatus } from './SpeakerButton';
 
-const SECTIONS: readonly { section: 'home' | 'dictionary' | 'collections'; icon: IconName; label: string }[] = [
-  { section: 'home', icon: 'today', label: t.nav.home },
-  { section: 'dictionary', icon: 'dictionary', label: t.nav.dictionary },
-  { section: 'collections', icon: 'collections', label: t.nav.collections },
+/** Labels are read while rendering, from t.nav, so they follow the interface language. */
+const SECTIONS: readonly { section: 'home' | 'dictionary' | 'collections'; icon: IconName }[] = [
+  { section: 'home', icon: 'today' },
+  { section: 'dictionary', icon: 'dictionary' },
+  { section: 'collections', icon: 'collections' },
 ];
 
 /** Which main section a screen belongs to. Settings is reached from Home on phones. */
@@ -80,9 +81,9 @@ export function Shell({ place, children }: { place: Place; children: ComponentCh
           <ul class="nav-list">
             {SECTIONS.map((item) => (
               <li key={item.section}>
-                <a class="nav-link" href={hrefFor(item.section)} aria-current={currentFor(item.section, item.section)} title={collapsed ? item.label : undefined}>
+                <a class="nav-link" href={hrefFor(item.section)} aria-current={currentFor(item.section, item.section)} title={collapsed ? t.nav[item.section] : undefined}>
                   <Icon name={item.icon} />
-                  <span class="nav-label">{item.label}</span>
+                  <span class="nav-label">{t.nav[item.section]}</span>
                 </a>
               </li>
             ))}

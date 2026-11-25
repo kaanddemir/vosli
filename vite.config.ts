@@ -17,8 +17,8 @@ export default defineConfig({
       manifest: {
         name: 'Vosli',
         short_name: 'Vosli',
-        description: 'Vosli ile Almanca kelime öğren, pratik yap ve akıllı tekrarla öğrendiklerini pekiştir.',
-        lang: 'tr',
+        description: 'Learn German vocabulary with Vosli: add your own words, practice them and review them at the right time.',
+        lang: 'en',
         id: './',
         start_url: '.',
         scope: '.',

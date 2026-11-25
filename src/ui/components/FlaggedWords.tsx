@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import type { Issue } from '../../core/issues';
 import type { Word } from '../../data/types';
-import { formatCount } from '../../i18n/format';
+import { interfaceLang } from '../../i18n/locale';
 import { t } from '../../i18n/strings';
 import { hrefForWordEdit } from '../router';
 import { Icon } from './Icon';
@@ -24,7 +24,7 @@ export function FlaggedWords({ words, issuesOf, include, onInclude }: FlaggedWor
       <section class="setup-flagged" data-testid="practice-flagged">
         <p class="setup-flagged-line">
           <Icon name="warning" />
-          <span>{t.practice.flaggedCount(formatCount(words.length))}</span>
+          <span>{t.practice.flaggedCount(words.length)}</span>
           <button type="button" class="link-btn" onClick={() => setReviewing(true)}>{t.practice.reviewFlagged}</button>
         </p>
         <label class="check-row setup-flagged-check">
@@ -39,7 +39,7 @@ export function FlaggedWords({ words, issuesOf, include, onInclude }: FlaggedWor
           <div class="dialog-list">
             <List>
               {words.map((word) => (
-                <Row key={word.id} lang="de" title={wordLabel(word)} detail={<span lang="tr">{issuesOf(word.id).map((item) => t.validation.issues[item.code]).join(' ')}</span>} href={hrefForWordEdit(word.id)} />
+                <Row key={word.id} lang="de" title={wordLabel(word)} detail={<span lang={interfaceLang()}>{issuesOf(word.id).map((item) => t.validation.issues[item.code]).join(' ')}</span>} href={hrefForWordEdit(word.id)} />
               ))}
             </List>
           </div>

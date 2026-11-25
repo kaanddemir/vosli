@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { t } from '../src/i18n/strings';
+import { anyCount, anyText, escapeRe, label } from './labels';
 
 async function open(page: Page, hash = '#/') {
   await page.goto(`./${hash}`);
@@ -87,7 +88,21 @@ async function seeded(page: Page, hash: string) {
   await open(page, hash);
 }
 
-const settled = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+/**
+ * Waits until nothing on screen is still moving. What a click starts can begin a frame later: a dialog opens after
+ * the next paint and only then fades in, so this looks again after every wait, until a frame passes with nothing
+ * running. A scan in the middle of a fade would measure colours that are only half there.
+ */
+const settled = (page: Page) =>
+  page.evaluate(async () => {
+    const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const moving = () => document.getAnimations().filter((animation) => animation.playState !== 'finished');
+    await frames();
+    for (let running = moving(); running.length > 0; running = moving()) {
+      await Promise.all(running.map((animation) => animation.finished.catch(() => undefined)));
+      await frames();
+    }
+  });
 
 async function axe(page: Page, label: string) {
   await settled(page);
@@ -312,14 +327,14 @@ test.describe('collections', () => {
 
     await page.getByRole('button', { name: t.collections.addWords }).click();
     const picker = page.getByRole('dialog');
-    await expect(picker.getByRole('button', { name: t.collections.addSelected('0') })).toBeDisabled();
+    await expect(picker.getByRole('button', { name: t.collections.addSelected(0) })).toBeDisabled();
     await picker.getByRole('searchbox').fill('ayak');
     await picker.getByRole('checkbox').check();
     await picker.getByRole('searchbox').fill('');
     await picker.getByRole('checkbox', { name: /Essen/ }).check();
-    await picker.getByRole('button', { name: t.collections.addSelected('2') }).click();
+    await picker.getByRole('button', { name: t.collections.addSelected(2) }).click();
     await expect(page.locator('.list .row-press')).toHaveCount(4); // Two words, rename, delete.
-    await expect(main(page)).toContainText(t.common.words('2'));
+    await expect(main(page)).toContainText(t.common.words(2));
     await page.getByRole('main').getByRole('link', { name: t.nav.collections }).click();
     await expect(page.getByRole('link', { name: /Şarkılar/ })).toContainText('2');
   });
@@ -330,15 +345,15 @@ test.describe('collections', () => {
     const others = ['words', 'cards', 'reviewLogs'];
     const kept = await Promise.all(others.map((table) => dump(page, table)));
     // Rows open their word as before; nothing on them removes it.
-    await expect(main(page).getByRole('button', { name: /listeden/i })).toHaveCount(0);
+    await expect(main(page).getByRole('button', { name: new RegExp(escapeRe(t.collections.removeSelected), 'i') })).toHaveCount(0);
     await page.getByRole('button', { name: t.common.select }).click();
     await expect(page.getByRole('button', { name: t.collections.removeSelected })).toBeDisabled();
     await expect(page.getByRole('button', { name: t.common.delete, exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: /Apfel/ }).check();
-    await expect(page.getByRole('status').filter({ hasText: t.common.selected('1') })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: t.common.selected(1) })).toBeVisible();
     await page.getByRole('button', { name: t.collections.removeSelected }).click();
     await expect(page.getByRole('status').filter({ hasText: t.collections.removed('der Apfel') })).toBeVisible();
-    await expect(main(page)).toContainText(t.common.words('1'));
+    await expect(main(page)).toContainText(t.common.words(1));
     // Selection ends, and focus goes back to the button that began it.
     await expect(page.getByRole('checkbox')).toHaveCount(0);
     await expect(page.getByRole('button', { name: t.common.select })).toBeFocused();
@@ -346,7 +361,7 @@ test.describe('collections', () => {
     expect(members.filter((m) => m.wordId === 'apfel').map((m) => m.groupId).sort()).toEqual(['g-b', 'g-pdf']);
     expect(await Promise.all(others.map((table) => dump(page, table)))).toEqual(kept);
     await page.getByRole('button', { name: t.common.undo }).click();
-    await expect(main(page)).toContainText(t.common.words('2'));
+    await expect(main(page)).toContainText(t.common.words(2));
     expect((await dump(page, 'groupMembers')).find((m) => m.groupId === 'g-a' && m.wordId === 'apfel')).toEqual(before);
   });
 
@@ -358,16 +373,16 @@ test.describe('collections', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByRole('button', { name: t.common.cancel })).toBeFocused();
     await page.getByRole('button', { name: t.common.selectAll }).click();
-    await expect(page.getByRole('status').filter({ hasText: t.common.selected('2') })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: t.common.selected(2) })).toBeVisible();
     // The list's own actions step aside while choosing, so deleting the list is never beside taking words out.
     await expect(page.getByRole('button', { name: t.collections.deleteList })).toHaveCount(0);
     await page.getByRole('button', { name: t.collections.removeSelected }).focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('status').filter({ hasText: t.collections.removedMany('2') })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: t.collections.removedMany(2) })).toBeVisible();
     await expect(page.getByText(t.collections.emptyGroup)).toBeVisible();
     await expect(page.getByRole('link', { name: t.collections.createWord })).toBeVisible();
     await page.getByRole('button', { name: t.common.undo }).click();
-    await expect(main(page)).toContainText(t.common.words('2'));
+    await expect(main(page)).toContainText(t.common.words(2));
     expect(await dump(page, 'groupMembers')).toEqual(before);
     await page.getByRole('button', { name: t.common.select }).click();
     await page.getByRole('button', { name: t.common.cancel }).click();
@@ -497,7 +512,7 @@ test.describe('collections', () => {
     await fillWord(page, 'die Birne', 'armut');
     await save(page);
     await expect(heading(page)).toHaveText('Zor');
-    await expect(main(page)).toContainText(t.common.words('3'));
+    await expect(main(page)).toContainText(t.common.words(3));
     const birne = (await dump(page, 'words')).find((word) => word.lemma === 'Birne')!;
     expect((await dump(page, 'groupMembers')).filter((m) => m.wordId === birne.id).map((m) => m.groupId)).toEqual(['g-a']);
   });
@@ -546,7 +561,7 @@ const toReview = async (page: Page, text: string) => {
 
 const asCsv = (name: string, text: string | Buffer) => ({ name, mimeType: 'text/csv', buffer: Buffer.isBuffer(text) ? text : Buffer.from(text) });
 const rows = (page: Page) => page.getByTestId('review-row');
-const commitButton = (page: Page) => page.getByRole('button', { name: /satırı kaydet/ });
+const commitButton = (page: Page) => page.getByRole('button', { name: label(anyCount(t.import.commit)) });
 
 async function commit(page: Page) {
   await commitButton(page).click();
@@ -564,7 +579,7 @@ test.describe('paste import', () => {
     expect(await dump(page, 'words')).toEqual([]);
 
     await commitButton(page).click();
-    const dialog = page.getByRole('dialog', { name: t.import.confirmTitle('4') });
+    const dialog = page.getByRole('dialog', { name: t.import.confirmTitle(4) });
     await dialog.getByRole('button', { name: t.common.cancel }).click();
     await expect(dialog).toBeHidden();
     expect(await dump(page, 'words')).toEqual([]);
@@ -584,10 +599,10 @@ test.describe('paste import', () => {
   test('blocks saving until an incomplete row is corrected, inline', async ({ page }) => {
     await open(page, '#/import');
     await toReview(page, 'der Apfel - elma\nessen');
-    await expect(page.getByRole('radio', { name: /Kontrol/ })).toBeChecked();
+    await expect(page.getByRole('radio', { name: label(escapeRe(t.import.filterProblems)) })).toBeChecked();
     await expect(rows(page)).toHaveCount(1);
     await expect(commitButton(page)).toBeDisabled();
-    await expect(page.getByText(t.import.waiting('1'))).toBeVisible();
+    await expect(page.getByText(t.import.waiting(1))).toBeVisible();
 
     const turkish = rows(page).getByLabel(t.import.turkishField);
     await turkish.pressSequentially('yemek yemek');
@@ -688,7 +703,7 @@ test.describe('paste import', () => {
     await commit(page);
     await page.getByRole('link', { name: t.import.toGroup }).click();
     await expect(heading(page)).toHaveText('Meyveler');
-    await expect(main(page)).toContainText(t.common.words('2'));
+    await expect(main(page)).toContainText(t.common.words(2));
     expect((await dump(page, 'groupMembers')).find((m) => m.groupId === 'g-pdf')).toMatchObject({ importRowId: 'r1' });
   });
 
@@ -718,18 +733,18 @@ test.describe('CSV import', () => {
     await open(page, '#/import');
     await page.locator('input[type=file]').setInputFiles(asCsv('tablo.csv', 'x,Apfel,elma,y\nx,Birne,armut,y\n'));
     await expect(heading(page)).toHaveText(t.import.mapTitle);
-    await page.getByLabel(t.import.column('1')).selectOption('ignore');
-    await page.getByLabel(t.import.column('2')).selectOption('ignore');
+    await page.getByLabel(t.import.column(1)).selectOption('ignore');
+    await page.getByLabel(t.import.column(2)).selectOption('ignore');
     await expect(page.getByRole('button', { name: t.import.next })).toBeDisabled();
     await expect(page.getByText(t.import.mapHint)).toBeVisible();
-    await page.getByLabel(t.import.column('2')).selectOption('german');
-    await page.getByLabel(t.import.column('3')).selectOption('turkish');
+    await page.getByLabel(t.import.column(2)).selectOption('german');
+    await page.getByLabel(t.import.column(3)).selectOption('turkish');
     await page.getByRole('button', { name: t.import.next }).click();
     await expect(rows(page).first()).toContainText('Apfel');
     await expect(rows(page).first()).toContainText('elma');
     await page.getByRole('button', { name: t.import.changeColumns }).click();
     await expect(heading(page)).toHaveText(t.import.mapTitle);
-    await expect(page.getByLabel(t.import.column('2'))).toHaveValue('german');
+    await expect(page.getByLabel(t.import.column(2))).toHaveValue('german');
   });
 
   test('reads a Windows-1254 file without damaging Turkish letters', async ({ page }) => {
@@ -757,12 +772,12 @@ test.describe('CSV import', () => {
     await expect(heading(page)).toHaveText(t.import.title);
 
     await toReview(page, 'der Apfel - elma\ndie Birne - armut');
-    await rows(page).first().getByRole('button', { name: /düzenle/ }).click();
+    await rows(page).first().getByRole('button', { name: label(anyText(t.import.editRow)) }).click();
     const german = rows(page).first().getByLabel(t.import.germanField);
     await german.fill('Äpfel');
     await cancel.click();
     const dialog = page.getByRole('dialog', { name: t.import.discardTitle });
-    await expect(dialog).toContainText(t.import.discardBody('1'));
+    await expect(dialog).toContainText(t.import.discardBody(1));
 
     // Keyboard: focus starts on the safe choice and Escape stays in the review.
     await expect(dialog.getByRole('button', { name: t.import.keepEditing })).toBeFocused();
@@ -990,7 +1005,7 @@ test.describe('layout and accessibility', () => {
     // The picker's action stays on one line.
     await open(page, '#/collections/g-b');
     await page.getByRole('button', { name: t.collections.addWords }).click();
-    const action = page.getByRole('button', { name: t.collections.addSelected('0') });
+    const action = page.getByRole('button', { name: t.collections.addSelected(0) });
     expect((await action.boundingBox())!.height).toBeLessThanOrEqual(48);
   });
 

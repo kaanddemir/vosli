@@ -61,7 +61,7 @@ function MapStep({ input, onChange, onNext, onBack }: { input: TableInput; onCha
       </List>
       <ul class="list">
         {mapping.roles.map((role, column) => {
-          const heading = mapping.hasHeader && table[0]?.[column] ? table[0][column] : t.import.column(formatCount(column + 1));
+          const heading = mapping.hasHeader && table[0]?.[column] ? table[0][column] : t.import.column(column + 1);
           const sample = samples.map((row) => row[column]).filter(Boolean).join(', ');
           return (
             <li key={column} class="list-item">
@@ -92,7 +92,7 @@ const isPdf = (file: File) => file.type === 'application/pdf' || /\.pdf$/iu.test
 function ReadingStep({ done, total, onCancel }: { done: number; total: number; onCancel: () => void }) {
   return (
     <div class="form">
-      <p class="count" role="status" data-testid="pdf-progress">{total ? t.import.pageOf(formatCount(done), formatCount(total)) : t.import.preparing}</p>
+      <p class="count" role="status" data-testid="pdf-progress">{total ? t.import.pageOf(done, total) : t.import.preparing}</p>
       <div class="progress progress-reading" role="progressbar" aria-label={t.import.reading} aria-valuemin={0} aria-valuemax={total || 1} aria-valuenow={done}>
         <div class="progress-fill" style={{ transform: `scaleX(${total ? done / total : 0})` }} />
       </div>
@@ -236,7 +236,7 @@ export function ImportScreen() {
     const source: ImportSource = { fileName, fileHash: await hashText(text), pipelineVersion: TEXT_PIPELINE_VERSION };
     const size = parsed.kind === 'lines' ? parsed.rows.length : parsed.table.length;
     if (size === 0) return t.import.nothingFound;
-    if (size > MAX_IMPORT_ROWS) return t.import.tooManyRows(formatCount(MAX_IMPORT_ROWS));
+    if (size > MAX_IMPORT_ROWS) return t.import.tooManyRows(MAX_IMPORT_ROWS);
     if (parsed.kind === 'lines') setCurrent(reviewStep(source, toDrafts(parsed.rows)));
     else if (parsed.confident) setCurrent(reviewStep(source, toDrafts(rowsFromTable(parsed.table, parsed.mapping)), { table: parsed.table, mapping: parsed.mapping }));
     else setCurrent({ step: 'map', source, table: parsed.table, mapping: parsed.mapping });
@@ -313,7 +313,7 @@ export function ImportScreen() {
           {leaving && (
             <ConfirmDialog
               title={t.import.discardTitle}
-              body={<p>{t.import.discardBody(formatCount(editedRows))}</p>}
+              body={<p>{t.import.discardBody(editedRows)}</p>}
               cancelLabel={t.import.keepEditing}
               confirmLabel={t.import.discard}
               onCancel={() => setLeaving(null)}

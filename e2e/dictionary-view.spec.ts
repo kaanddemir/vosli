@@ -182,7 +182,7 @@ test('Favorites follow the view, selection shows both sides, and nothing is writ
   await expect(page.getByRole('checkbox')).toHaveCount(4);
   await expect(row(page, 'kapı').locator('.row-detail')).toHaveText('die Tür');
   await row(page, 'kapı').getByRole('checkbox').check();
-  await expect(page.getByText(t.common.selected('1'))).toBeVisible();
+  await expect(page.getByText(t.common.selected(1))).toBeVisible();
   await page.getByRole('button', { name: t.common.cancel, exact: true }).click();
   await expect(hide(page)).toHaveAttribute('aria-pressed', 'true');
   // The row revealed under Favorites is still the only one uncovered.

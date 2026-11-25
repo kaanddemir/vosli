@@ -3,7 +3,7 @@ import { loadValidator, peekValidator } from '../../dictionary/loadDictionary';
 import { getLastBackupAt, isBackupDue } from '../../data/repository';
 import { takeResetNotice } from '../../data/reset';
 import { loadReviewData, overviewOf, type ReviewOverview } from '../../data/smartReview';
-import { formatCount, formatDay } from '../../i18n/format';
+import { formatDay } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 import { HomeScene } from '../components/HomeScene';
 import { Icon } from '../components/Icon';
@@ -25,15 +25,15 @@ const DICTIONARY_PEEK_MS = 120;
 const DICTIONARY_PRELOAD_MS = 2000;
 
 /** The size of the Dictionary. It counts words themselves, so schedules and collections have no say in it. */
-const supportFor = (words: number): string => (words === 0 ? t.home.emptySupport : t.home.wordCount(formatCount(words)));
+const supportFor = (words: number): string => (words === 0 ? t.home.emptySupport : t.home.wordCount(words));
 
 /** A quiet note on what Smart Review holds. Empty while the counts are unknown or there is nothing true to say. */
 function statusFor({ due, fresh, flagged, studied, checking }: Summary): string | null {
   if (checking) return null;
-  const waiting = [...(due > 0 ? [t.home.dueStatus(formatCount(due))] : []), ...(fresh > 0 ? [t.home.freshStatus(formatCount(fresh))] : [])];
+  const waiting = [...(due > 0 ? [t.home.dueStatus(due)] : []), ...(fresh > 0 ? [t.home.freshStatus(fresh)] : [])];
   if (waiting.length > 0) return waiting.join(' · ');
   // Words a warning holds back are named rather than called done. Smart Review is where they are dealt with.
-  if (flagged > 0) return t.home.flaggedStatus(formatCount(flagged));
+  if (flagged > 0) return t.home.flaggedStatus(flagged);
   return studied ? t.home.doneStatus : null;
 }
 

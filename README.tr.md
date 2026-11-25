@@ -3,14 +3,16 @@
 <div align="center">
   <img src="public/icons/icon-512.png" alt="Vosli tilki simgesi" width="160" />
 
-**Türkçe konuşanlar için Almanca kelime çalışma uygulaması.**
+**Kelime öğrenme uygulaması.**
 
 [English](README.md) · Türkçe
 </div>
 
 ## Vosli Nedir?
 
-Vosli, Almanca kelimeleri eklemeyi, içe aktarmayı ve aralıklı tekrarla çalışmayı kolaylaştırır. Tamamen tarayıcıda çalışır; sunucu, hesap veya ücretli servis gerektirmez.
+Vosli bir kelime öğrenme uygulamasıdır. Kelimeler kullanıcının kendi anlamlarıyla eklenir ya da bir dosyadan içe aktarılır, sonra pratik ve aralıklı tekrarla çalışılır. Tarayıcıda çalışır; sunucu, hesap veya ücretli servis gerektirmez.
+
+Şu anda Almanca öğrenilebilir; İngilizce kelime öğrenme planlanıyor. Arayüz İngilizce, Türkçe veya Almanca olabilir. Varsayılan dil İngilizcedir ve Ayarlar’dan istendiği zaman değiştirilebilir.
 
 ## Neler Yapabilir?
 
@@ -27,7 +29,7 @@ Vosli, Almanca kelimeleri eklemeyi, içe aktarmayı ve aralıklı tekrarla çal�
 1. Kullanıcı kelimeleri elle girer veya bir dosyadan içe aktarır.
 2. İçe aktarılan satırlar kaydedilmeden önce gözden geçirilir; sözlük yalnızca uyarır ve öneri sunar.
 3. Kelimeler Serbest Pratik veya Akıllı Tekrar ile çalışılır.
-4. Akıllı Tekrar her kelimenin Almanca-Türkçe, Türkçe-Almanca ve artikel becerilerini ayrı planlar.
+4. Akıllı Tekrar her kelimenin Almanca-anlam, anlam-Almanca ve artikel becerilerini ayrı planlar.
 5. Veriler cihazda, IndexedDB'de kalır.
 
 ## Kullanılan Teknolojiler

@@ -78,6 +78,33 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(t.practice.title);
 });
 
+test('an arrow key pressed straight after starting over moves on, before the screen has painted', async ({ page }) => {
+  await pick(page, t.practice.studies.cards);
+  await startCards(page).click();
+  for (let i = 0; i < 4; i++) await next(page).click();
+  const restart = page.getByRole('button', { name: t.practice.cards.restart });
+  await expect(restart).toBeVisible();
+
+  // A key that comes before the next frame, as a quick hand or a busy device can send it. Holding the frame
+  // keeps the screen exactly where a learner would see it: started over, and nothing else has run yet.
+  const seen = await page.evaluate(async () => {
+    const frame = window.requestAnimationFrame;
+    window.requestAnimationFrame = () => 0;
+    try {
+      document.querySelector<HTMLButtonElement>('.study-actions .btn-primary')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const before = document.querySelector('[data-testid="card-position"]')?.textContent;
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return { before, after: document.querySelector('[data-testid="card-position"]')?.textContent };
+    } finally {
+      window.requestAnimationFrame = frame;
+    }
+  });
+  expect(seen).toEqual({ before: '1 / 4', after: '2 / 4' });
+  await expect(position(page)).toHaveText('2 / 4');
+});
+
 test('Yazarak stays the default, and Kartlarla swaps only what differs', async ({ page }) => {
   const study = page.getByRole('group', { name: t.practice.studyLabel });
   await expect(study.getByRole('radio', { name: t.practice.studies.typed })).toBeChecked();
@@ -168,7 +195,7 @@ test('a covered side is out of the page until revealed, and covers again on ever
   await expect(card).not.toContainText(word.lemma);
   await expect(card.locator('.article-der, .article-die, .article-das')).toHaveCount(0);
   await expect(page.getByTestId('card-announcement')).not.toContainText(word.lemma);
-  const reveal = page.getByRole('button', { name: t.practice.cards.revealGerman });
+  const reveal = page.getByRole('button', { name: t.practice.cards.revealGerman, exact: true });
   await expect(reveal).not.toHaveAttribute('aria-label', new RegExp(word.lemma));
   const slot = await page.locator('.study-back-slot').boundingBox();
 
@@ -196,7 +223,7 @@ test('a covered side is out of the page until revealed, and covers again on ever
   await page.getByTestId('card-reveal').click();
   await page.getByTestId('card-direction').click();
   await expect(back(page)).toHaveCount(0);
-  await expect(page.getByRole('button', { name: t.practice.cards.revealMeaning })).toBeVisible();
+  await expect(page.getByRole('button', { name: t.practice.cards.revealMeaning, exact: true })).toBeVisible();
 
   await page.getByTestId('card-hide').click();
   await expect(back(page)).toBeVisible();

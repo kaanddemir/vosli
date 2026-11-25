@@ -13,7 +13,6 @@ import { loadValidator } from '../../dictionary/loadDictionary';
 import { getActiveWord, listCustomGroups } from '../../data/repository';
 import type { Group, Word } from '../../data/types';
 import { addWord, DuplicateWordError, updateWord, type AddOutcome } from '../../data/words';
-import { formatCount } from '../../i18n/format';
 import { t } from '../../i18n/strings';
 import { GroupChecks } from '../components/GroupChecks';
 import { PopoverButton } from '../components/PopoverButton';
@@ -172,7 +171,7 @@ function WordForm({ initial, groups = [], initialGroups = [], cancelHref, noteFo
           {ARTICLE_CHOICES.map((choice) => (
             <label key={choice}>
               <input type="radio" name="article" value={choice} checked={values.article === choice} onChange={() => change({ article: choice })} />
-              <span lang={choice === 'none' ? 'tr' : 'de'}>{choice === 'none' ? t.wordForm.noArticle : choice}</span>
+              <span lang={choice === 'none' ? undefined : 'de'}>{choice === 'none' ? t.wordForm.noArticle : choice}</span>
             </label>
           ))}
         </div>
@@ -378,7 +377,7 @@ export function WordEditScreen({ wordId, groupId }: { wordId: string; groupId?: 
           // Half-typed fields are not an edit yet.
           if (!draft.lemma.trim() || draft.meanings.length === 0) return null;
           const lost = affectedTracks(word, { ...draft, meanings: draft.meanings.map((text) => ({ text })) }).filter((track) => tracks.has(track)).length;
-          return lost > 0 ? t.wordForm.resetNote(formatCount(lost)) : null;
+          return lost > 0 ? t.wordForm.resetNote(lost) : null;
         }}
         onSave={async (draft) => {
           try {

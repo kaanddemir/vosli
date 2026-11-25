@@ -5,6 +5,7 @@ import { getLastBackupAt } from '../../data/repository';
 import { resetAllData, saveResetNotice } from '../../data/reset';
 import type { TableName } from '../../data/schema';
 import { formatCount, formatDateTime } from '../../i18n/format';
+import { currentLocale, LOCALE_NAMES, LOCALE_STORAGE_KEY, LOCALES, DOCUMENT_LANG, saveLocale, savedLocale } from '../../i18n/locale';
 import { t } from '../../i18n/strings';
 import { loadThemePreference, saveThemePreference, type ThemePreference } from '../../theme';
 import { List, Row } from '../components/List';
@@ -20,7 +21,8 @@ function downloadText(text: string, now: number): void {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = `vosli-yedek-${stamp}.json`;
+  // Only the name follows the interface language. The file inside is the same either way, and restores under both.
+  link.download = t.settings.backupFileName(stamp);
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
@@ -39,6 +41,7 @@ export function SettingsScreen() {
   const db = useDb();
   const [theme, setTheme] = useState(loadThemePreference);
   const [articleColors, setArticleColors] = useState(loadArticleColors);
+  const locale = currentLocale();
   const [lastBackup, setLastBackup] = useState<number | null>(null);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -122,7 +125,8 @@ export function SettingsScreen() {
     setResetting(true);
     setResetFailed(false);
     try {
-      saveResetNotice(await resetAllData(db));
+      // The chosen interface language stays, so the empty app and its notice are in a language the learner reads.
+      saveResetNotice(await resetAllData(db, savedLocale() ? [LOCALE_STORAGE_KEY] : []));
       // A fresh start leaves no screen, cache or theme from before. The dialog stays busy until then.
       // Not location.hash: Home would open first, for a moment, and use up the notice.
       history.replaceState(null, '', hrefFor('home'));
@@ -137,6 +141,33 @@ export function SettingsScreen() {
 
   return (
     <Screen title={t.settings.title} back={{ href: hrefFor('home'), label: t.nav.home, compactOnly: true }}>
+      <List label={t.settings.language}>
+        <li class="list-item">
+          <div class="row row-wrap">
+            <span class="row-title" id="language-label">{t.settings.appLanguage}</span>
+            <fieldset class="segmented" aria-labelledby="language-label">
+              {LOCALES.map((option) => (
+                <label key={option}>
+                  <input
+                    type="radio"
+                    name="language"
+                    value={option}
+                    checked={locale === option}
+                    onChange={() => {
+                      // A message written in the old language would stay behind otherwise.
+                      setStatus(null);
+                      saveLocale(option);
+                    }}
+                  />
+                  {/* Each name in its own language, and read in that language. */}
+                  <span lang={DOCUMENT_LANG[option]}>{LOCALE_NAMES[option]}</span>
+                </label>
+              ))}
+            </fieldset>
+          </div>
+        </li>
+      </List>
+
       <List label={t.settings.appearance}>
         <li class="list-item">
           <div class="row row-wrap">
