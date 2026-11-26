@@ -21,7 +21,7 @@ import { useLearningLanguage } from '../workspace';
 const MODES: readonly Exclude<PracticeMode, 'listen'>[] = ['tr_de', 'de_tr', 'article', 'mixed'];
 const DIRECTIONS: readonly CardDirection[] = ['de_tr', 'tr_de'];
 const COUNTS: readonly (number | null)[] = [10, 20, 50, null];
-const KINDS: readonly GroupKind[] = ['pdf', 'lesson', 'custom'];
+const KINDS: readonly GroupKind[] = ['pdf', 'custom'];
 
 export const DEFAULT_SETTINGS: PracticeSettings = { mode: 'tr_de', scope: ALL_WORDS, count: 20, includeFlagged: false };
 

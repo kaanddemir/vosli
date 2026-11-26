@@ -257,41 +257,25 @@ describe('repairing the Turkish i', () => {
   });
 });
 
-describe('sections', () => {
-  it('takes the heading right above the table, collapsing letter spacing', () => {
+describe('headings', () => {
+  it('never reads the heading above a table as a row, letter-spaced or not', () => {
     const heading = [item('T E L A F F U Z', 42, 730), item('- D I E', 127, 730), item('A U S S P R A C H E', 170, 730)];
     const result = parseVocabularyPages([page([item('www.example.com', 42, 790), ...heading, ...header(), ...table(SAMPLE)])]);
-    expect(result.sections).toEqual(['TELAFFUZ - DIE AUSSPRACHE']);
-    expect(result.rows[0]!.section).toBe('TELAFFUZ - DIE AUSSPRACHE');
+    expect(triple(result.rows)).toEqual(SAMPLE);
+    expect(result.rows.every((row) => row.flags.length === 0)).toBe(true);
   });
 
-  it('attaches a stray letter to the word before it', () => {
-    const heading = [item('V E D A L A Ş M A', 42, 730), item('K .', 150, 730), item('- D I E', 180, 730), item('G R U ß', 220, 730)];
-    expect(parseVocabularyPages([page([...heading, ...header(), ...table(SAMPLE)])]).sections).toEqual(['VEDALAŞMAK. - DIE GRUß']);
+  it('reads the same rows with a heading repeated on every page as without one', () => {
+    const plain = parseVocabularyPages([page([...header(), ...table(SAMPLE)], 1), page([...header(), ...table(SAMPLE)], 2)]);
+    const headed = parseVocabularyPages([1, 2].map((n) => page([item('Lektion 1', 42, 730), ...header(), ...table(SAMPLE)], n)));
+    expect(headed.rows).toEqual(plain.rows);
   });
 
-  it('invents nothing when no heading stands near the table', () => {
-    const result = parseVocabularyPages([page([item('Bir başlık', 42, 800), ...header(500), ...table(SAMPLE, 500)])]);
-    expect(result.sections).toEqual([]);
-    expect(result.rows[0]!.section).toBe('');
-  });
-
-  it('counts one heading repeated on every page once', () => {
-    const one = (n: number) => page([item('Lektion 1', 42, 730), ...header(), ...table(SAMPLE)], n);
-    expect(parseVocabularyPages([one(1), one(2)]).sections).toEqual(['Lektion 1']);
-  });
-
-  it('gives each table under its own heading its own section, also on one page', () => {
+  it('ends a table at the heading of the next one, also on one page', () => {
     const first = table(SAMPLE.slice(0, 2));
     const secondTop = 620;
     const result = parseVocabularyPages([page([item('Lektion 1', 42, 730), ...header(), ...first, item('Lektion 2', 42, secondTop + 30), ...header(secondTop), ...table(SAMPLE.slice(2, 4), secondTop)])]);
-    expect(result.sections).toEqual(['Lektion 1', 'Lektion 2']);
-    expect(result.rows.map((r) => r.section)).toEqual(['Lektion 1', 'Lektion 1', 'Lektion 2', 'Lektion 2']);
     expect(result.rows.map((r) => r.german)).toEqual(['Apfel', 'essen', 'Bär', 'Straße']);
-  });
-
-  it('keeps a section for the following page when only the first has the heading', () => {
-    const result = parseVocabularyPages([page([item('Lektion 1', 42, 730), ...header(), ...table(SAMPLE)]), page(table(SAMPLE, 800), 2)]);
-    expect(result.rows.at(-1)).toMatchObject({ page: 2, section: 'Lektion 1' });
+    expect(result.rows.every((row) => row.flags.length === 0)).toBe(true);
   });
 });

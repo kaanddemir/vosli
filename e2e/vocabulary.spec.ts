@@ -445,15 +445,6 @@ test.describe('collections', () => {
     expect(await Promise.all(['groupMembers', 'sources', 'importRows'].map((table) => dump(page, table)))).toEqual(before);
   });
 
-  test('a lesson collection is read-only, and can still be deleted', async ({ page }) => {
-    await open(page);
-    await seed(page, { ...LIBRARY, groups: [...LIBRARY.groups, { id: 'g-lesson', kind: 'lesson', name: 'Lektion 1', order: 3, sourceId: 's1', createdAt: 1 }], groupMembers: [...LIBRARY.groupMembers, { groupId: 'g-lesson', wordId: 'apfel', addedAt: 1, importRowId: 'r1' }] });
-    await open(page, '#/collections/g-lesson');
-    await expect(main(page)).toContainText(t.collections.kind.lesson);
-    for (const name of [t.collections.addWords, t.common.select, t.collections.renameList, t.collections.renameCollection]) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: t.collections.deleteCollection })).toBeVisible();
-  });
-
   test('a word manages its lists without touching its source collection', async ({ page }) => {
     await seeded(page, '#/dictionary/apfel');
     await page.getByRole('button', { name: t.dictionary.manageLists }).click();

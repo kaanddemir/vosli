@@ -223,17 +223,17 @@ test.describe('setup', () => {
     await expect(count(page)).toHaveText('0 / 2');
   });
 
-  test('a chosen legacy lesson deleted since then falls back to all words, in Test and in practice', async ({ page }) => {
+  test('a chosen collection deleted since then falls back to all words, in Test and in practice', async ({ page }) => {
     await write(page, {
-      groups: [{ id: 'g-lesson', kind: 'lesson', name: 'Ders Bir', order: 1, sourceId: null, createdAt: 1 }],
+      groups: [{ id: 'g-gone', kind: 'pdf', name: 'Ders Bir', order: 1, sourceId: null, createdAt: 1 }],
       groupMembers: [
-        { groupId: 'g-lesson', wordId: 'tisch', addedAt: 1, importRowId: null },
-        { groupId: 'g-lesson', wordId: 'buch', addedAt: 1, importRowId: null },
+        { groupId: 'g-gone', wordId: 'tisch', addedAt: 1, importRowId: null },
+        { groupId: 'g-gone', wordId: 'buch', addedAt: 1, importRowId: null },
       ],
     });
     await openSetup(page);
-    const lessons = page.locator('.setup-collections .list-label').filter({ hasText: t.collections.kinds.lesson });
-    await expect(lessons).toHaveCount(1);
+    const sources = page.locator('.setup-collections .list-label').filter({ hasText: t.collections.kinds.pdf });
+    await expect(sources).toHaveCount(1);
     await pick(page, t.practice.studies.test);
     await pick(page, t.practice.modes.de_tr);
     await pick(page, t.practice.countAll);
@@ -247,8 +247,8 @@ test.describe('setup', () => {
           const request = indexedDB.open('vosli');
           request.onsuccess = () => {
             const tx = request.result.transaction(['groups', 'groupMembers'], 'readwrite');
-            tx.objectStore('groups').delete('g-lesson');
-            for (const wordId of ['tisch', 'buch']) tx.objectStore('groupMembers').delete(['g-lesson', wordId]);
+            tx.objectStore('groups').delete('g-gone');
+            for (const wordId of ['tisch', 'buch']) tx.objectStore('groupMembers').delete(['g-gone', wordId]);
             tx.oncomplete = () => {
               request.result.close();
               resolve();
@@ -258,7 +258,7 @@ test.describe('setup', () => {
         }),
     );
     await openSetup(page);
-    await expect(lessons).toHaveCount(0);
+    await expect(sources).toHaveCount(0);
     await expect(page.getByRole('checkbox', { name: /Ders Bir/ })).toHaveCount(0);
     await expect(startTest(page)).toHaveAttribute('data-questions', '10');
     await startTest(page).click();

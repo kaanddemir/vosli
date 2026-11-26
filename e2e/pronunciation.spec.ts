@@ -25,12 +25,12 @@ const record = (word: Seed) => ({ id: word.id, identityKey: `${word.lemma}|${wor
 const GROUPS = {
   groups: [
     { id: 'custom', kind: 'custom', name: 'Listem', order: 0, sourceId: null, createdAt: 1 },
-    { id: 'lesson', kind: 'lesson', name: 'Ders Bir', order: 1, sourceId: null, createdAt: 1 },
+    { id: 'pdf', kind: 'pdf', name: 'Ders Bir', order: 1, sourceId: null, createdAt: 1 },
   ],
   groupMembers: [
     { groupId: 'custom', wordId: 'haus', addedAt: 1, importRowId: null },
-    { groupId: 'lesson', wordId: 'apfel', addedAt: 1, importRowId: null },
-    { groupId: 'lesson', wordId: 'hochzeit', addedAt: 1, importRowId: null },
+    { groupId: 'pdf', wordId: 'apfel', addedAt: 1, importRowId: null },
+    { groupId: 'pdf', wordId: 'hochzeit', addedAt: 1, importRowId: null },
   ],
 };
 const MP3 = { apfel: commonsUrls('De-Apfel.ogg').mp3, haus: commonsUrls('De-Haus.ogg').mp3 };
@@ -222,13 +222,13 @@ test.describe('with stand-in audio', () => {
   });
 
   test('Collections use the same place: before the chevron, in source collections and custom lists alike', async ({ page }) => {
-    await page.goto('./#/collections/lesson');
+    await page.goto('./#/collections/pdf');
     const apfel = row(page, 'Apfel');
     const [box, chevron] = await Promise.all([speaker(apfel).boundingBox(), apfel.locator('.row-chevron').boundingBox()]);
     expect(box!.x + box!.width).toBeLessThanOrEqual(chevron!.x + 1);
     await expect(speaker(row(page, 'Hochzeit'))).toHaveCount(0);
     await speaker(apfel).click();
-    expect(page.url()).toContain('#/collections/lesson');
+    expect(page.url()).toContain('#/collections/pdf');
     expect((await audio(page)).plays).toEqual([MP3.apfel]);
 
     await page.goto('./#/collections/custom');

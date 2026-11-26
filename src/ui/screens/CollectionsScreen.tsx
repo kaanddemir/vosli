@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { AUTOCORRECT_OFF } from '../inputProps';
 import { searchWords } from '../../core/search';
-import { addWordsToGroup, canRename, createCustomGroup, GROUP_NAME_MAX, GroupNameError, removeWordsFromGroup, renameGroup, restoreGroupMembers, type GroupNameProblem } from '../../data/groups';
+import { addWordsToGroup, createCustomGroup, GROUP_NAME_MAX, GroupNameError, removeWordsFromGroup, renameGroup, restoreGroupMembers, type GroupNameProblem } from '../../data/groups';
 import { getGroupWithWords, listActiveWords, listGroupSummaries, listGroupWordIds } from '../../data/repository';
 import type { Group, GroupKind, GroupMember, Word } from '../../data/types';
 import { formatCount } from '../../i18n/format';
@@ -20,7 +20,7 @@ import { hrefFor, hrefForGroup, hrefForNewWord } from '../router';
 import { useLoad } from '../useLoad';
 import { meaningLang, useLearningLanguage } from '../workspace';
 
-const KINDS: readonly GroupKind[] = ['pdf', 'lesson', 'custom'];
+const KINDS: readonly GroupKind[] = ['pdf', 'custom'];
 
 /** Names a new list, or renames a list or a PDF collection. */
 function NameDialog({ title, label, initial, takenMessage = t.collections.nameErrors.taken, onSubmit, onClose }: { title: string; label: string; initial: string; takenMessage?: string; onSubmit: (name: string) => Promise<void>; onClose: () => void }) {
@@ -301,7 +301,7 @@ type GroupDialog = 'add' | 'rename' | 'delete' | null;
 
 /**
  * One collection. A list can be renamed, given words and have words taken out; a PDF collection can only be
- * renamed; a lesson is read-only. Any of them can be deleted. Taking words out is a selection, as elsewhere,
+ * renamed. Either can be deleted. Taking words out is a selection, as elsewhere,
  * and only ever removes them from this list: the words, their other collections and their progress stay.
  */
 export function GroupScreen({ groupId }: { groupId: string }) {
@@ -440,7 +440,7 @@ export function GroupScreen({ groupId }: { groupId: string }) {
       )}
       {!selected && (
         <List>
-          {canRename(group) && <Row action icon="edit" title={custom ? t.collections.renameList : t.collections.renameCollection} onClick={() => setDialog('rename')} />}
+          <Row action icon="edit" title={custom ? t.collections.renameList : t.collections.renameCollection} onClick={() => setDialog('rename')} />
           <Row action icon="trash" title={custom ? t.collections.deleteList : t.collections.deleteCollection} onClick={() => setDialog('delete')} />
         </List>
       )}

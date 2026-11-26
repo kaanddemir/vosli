@@ -17,9 +17,8 @@ export class GroupNameError extends Error {
 }
 
 /**
- * PDF and lesson collections record where words came from, so their words cannot be changed, only the whole
- * collection deleted. A PDF collection may be renamed, because a new import finds it by its source. Lessons are
- * no longer created by imports; ones made by earlier versions stay read-only under their original name.
+ * A PDF collection records where words came from, so its words cannot be changed, only the whole collection
+ * deleted. It may be renamed, because a new import finds it by its source.
  */
 export class ProtectedGroupError extends Error {
   override readonly name = 'ProtectedGroupError';
@@ -66,20 +65,17 @@ export async function createCustomGroup(db: AppDatabase, name: string, now: numb
   });
 }
 
-export const canRename = (group: Pick<Group, 'kind'>): boolean => group.kind === 'custom' || group.kind === 'pdf';
-
 /** Changes only the name. The id, the source and every membership stay, so nothing that points at the collection changes. */
 export async function renameGroup(db: AppDatabase, id: string, name: string): Promise<void> {
   await db.transaction('rw', db.groups, async () => {
     const group = await db.groups.get(id);
     if (!group) throw new GroupNotFoundError(id);
-    if (group.kind === 'lesson') throw new ProtectedGroupError(id);
     await db.groups.update(id, { name: await checkName(db, name, id, group.language, group.kind) });
   });
 }
 
 /**
- * Removes any collections, PDF and lesson ones included, with their memberships, all or none. Words, cards,
+ * Removes any collections, PDF ones included, with their memberships, all or none. Words, cards,
  * review logs, sources and import rows are outside the transaction, so they stay: a word shared with another
  * collection stays in it, and a PDF imported again is still recognized and gets its collection back.
  */
@@ -172,7 +168,7 @@ export async function restoreGroupMembers(db: AppDatabase, members: readonly Gro
 
 export const restoreGroupMember = (db: AppDatabase, member: GroupMember): Promise<void> => restoreGroupMembers(db, [member]);
 
-/** Makes a word's custom-list memberships match the choice. Memberships of PDF and lesson collections are left alone. */
+/** Makes a word's custom-list memberships match the choice. Memberships of PDF collections are left alone. */
 export async function setWordCustomGroups(db: AppDatabase, wordId: string, groupIds: readonly string[], now: number): Promise<void> {
   await db.transaction('rw', db.groups, db.groupMembers, db.words, async () => {
     const wanted = new Set(groupIds);

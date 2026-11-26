@@ -12,8 +12,8 @@ const log = { id: 1, wordId: 'shared', track: 'de_tr', at: DAY };
 
 const SEED = {
   words: [word('shared', 'Apfel'), word('only', 'Baum')],
-  groups: [group('pdf', 'pdf', 'Dosya', 0), group('lesson', 'lesson', 'Ders Bir', 1), group('list', 'custom', 'Listem', 2)],
-  groupMembers: [member('pdf', 'shared'), member('pdf', 'only'), member('lesson', 'shared')],
+  groups: [group('pdf', 'pdf', 'Dosya', 0), group('second', 'pdf', 'Ders Bir', 1), group('list', 'custom', 'Listem', 2)],
+  groupMembers: [member('pdf', 'shared'), member('pdf', 'only'), member('second', 'shared')],
   cards: [card, { ...card, wordId: 'only' }],
   reviewLogs: [log, { ...log, id: 2, wordId: 'only' }],
 };
@@ -237,7 +237,7 @@ test('deleting a collection keeps its words, cards, history and the other collec
   expect(await db(page, 'words')).toHaveLength(2);
   expect(await db(page, 'cards')).toHaveLength(2);
   expect(await db(page, 'reviewLogs')).toHaveLength(2);
-  expect(await db(page, 'groupMembers')).toEqual([member('lesson', 'shared')]);
+  expect(await db(page, 'groupMembers')).toEqual([member('second', 'shared')]);
 });
 
 test('deleting every collection leads to the empty state', async ({ page }) => {
@@ -330,7 +330,7 @@ test.describe('deleting words too', () => {
     expect(await ids(page, 'words')).toEqual(['shared']);
     expect(await ids(page, 'cards', 'wordId')).toEqual(['shared']);
     expect(await ids(page, 'reviewLogs', 'wordId')).toEqual(['shared']);
-    expect(await db(page, 'groupMembers')).toEqual([member('lesson', 'shared')]);
+    expect(await db(page, 'groupMembers')).toEqual([member('second', 'shared')]);
   });
 
   test('a word held only by the selected collections goes, across several of them', async ({ page }) => {

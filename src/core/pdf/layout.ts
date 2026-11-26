@@ -25,8 +25,6 @@ export interface PdfRow {
   turkish: string;
   plural: string;
   flags: string[];
-  /** Heading printed above the table, or empty. */
-  section: string;
 }
 
 /** How a page was read. "inferred" and "lines" were not confirmed by a printed table header. */
@@ -50,8 +48,6 @@ export interface PdfParseResult {
   rows: PdfRow[];
   pages: PdfPageReport[];
   repairs: GlyphRepair[];
-  /** Headings in the order they appear. */
-  sections: string[];
 }
 
 const CONTROL = /[\u0000-\u0008\u000e-\u001f\u007f-\u009f]/u;
@@ -410,9 +406,7 @@ export function parseVocabularyPages(input: readonly PdfPageText[]): PdfParseRes
   const { pages, repairs } = repairGlyphs(input);
   const rows: PdfRow[] = [];
   const reports: PdfPageReport[] = [];
-  const sections: string[] = [];
   let lastColumns: Column[][] | null = null;
-  let section = '';
 
   const output = (pageNumber: number, cells: readonly Cells[], hasArticleColumn: boolean, startIndex: number) => {
     // A table that writes a dash for "none", or fills most of the column, means an empty cell lost something.
@@ -420,13 +414,8 @@ export function parseVocabularyPages(input: readonly PdfPageText[]): PdfParseRes
     const emptyIsSuspicious = cells.some((cell) => DASH.test(cell.article)) || filled / cells.length >= 0.5;
     cells.forEach((cell, index) => {
       const { german, article, turkish, plural, flags } = finishRow(cell, hasArticleColumn, emptyIsSuspicious);
-      rows.push({ page: pageNumber, rowIndex: startIndex + index + 1, german, article, turkish, plural, flags, section });
+      rows.push({ page: pageNumber, rowIndex: startIndex + index + 1, german, article, turkish, plural, flags });
     });
-  };
-  const setSection = (heading: string) => {
-    if (!heading) return;
-    section = heading;
-    if (!sections.includes(heading)) sections.push(heading);
   };
 
   for (const { page, items: all } of pages) {
@@ -467,9 +456,6 @@ export function parseVocabularyPages(input: readonly PdfPageText[]): PdfParseRes
     if (headerAt.length > 0) {
       headerAt.forEach(({ index, tables }, position) => {
         const nextHeader = headerAt[position + 1]?.index ?? lines.length;
-        const before = lines[index - 1];
-        const usable = before && before.y - lines[index]!.y <= height * 6;
-        setSection(headingOf(usable ? before : undefined));
         // A heading of the next table is not part of this one.
         const nextHeading = position + 1 < headerAt.length && nextHeader - 1 > index && headingOf(lines[nextHeader - 1]) ? nextHeader - 1 : nextHeader;
         const body = lines.slice(index + 1, nextHeading);
@@ -526,5 +512,5 @@ export function parseVocabularyPages(input: readonly PdfPageText[]): PdfParseRes
     reports.push({ page, mode: 'no_table', rows: 0, ignoredLines: lines.length });
   }
 
-  return { rows, pages: reports, repairs, sections };
+  return { rows, pages: reports, repairs };
 }

@@ -31,14 +31,6 @@ const prepare = (db: AppDatabase, bytes: Uint8Array<ArrayBuffer>, name = 'ders.p
 const save = (db: AppDatabase, prepared: PdfImport, collections: Partial<SourceCollections> = {}, drafts: ImportDraft[] = prepared.drafts) =>
   commitImport(db, { source: prepared.source, drafts, target: { kind: 'none' }, collections: { ...prepared.collections, ...collections } }, T0);
 const problem = (promise: Promise<unknown>) => promise.then(() => 'no error', (error: PdfReadError) => error.problem);
-/** A lesson collection as earlier versions made them: imports no longer create these, but learners may still have them. */
-async function seedLegacyLesson(db: AppDatabase, sourceId: string | null, name = 'Lektion 1'): Promise<string> {
-  const id = 'legacy-lesson';
-  const words = await listActiveWords(db, 'de');
-  await db.groups.add({ id, language: 'de', kind: 'lesson', name, order: 99, sourceId, createdAt: T0 });
-  await db.groupMembers.bulkAdd(words.map((word) => ({ groupId: id, wordId: word.id, addedAt: T0, importRowId: null })));
-  return id;
-}
 
 describe('reading real PDF files', () => {
   it('reads several pages through PDF.js, keeping German and Turkish letters', async () => {
@@ -141,7 +133,7 @@ describe('importing a PDF', () => {
     expect([await db.words.count(), await db.sources.count(), await db.groups.count(), await db.importRows.count()]).toEqual([0, 0, 0, 0]);
   });
 
-  it('keeps page and row, registers the source by content, and creates its PDF collection and no lesson', async () => {
+  it('keeps page and row, registers the source by content, and creates its PDF collection and no other', async () => {
     const db = await fresh();
     const prepared = await prepare(db, buildPdf([tablePage(FRUITS.slice(0, 3), { heading: 'Lektion 1' }), tablePage(FRUITS.slice(3), { heading: 'Lektion 1' })]), 'Ders+1.pdf');
     expect(prepared.drafts.map((draft) => [draft.page, draft.rowIndex])).toEqual([[1, 1], [1, 2], [1, 3], [2, 1], [2, 2], [2, 3]]);
@@ -166,7 +158,6 @@ describe('importing a PDF', () => {
     const summary = await save(db, prepared);
     expect(summary).toMatchObject({ rows: FRUITS.length, created: FRUITS.length });
     expect(await db.groups.count()).toBe(1);
-    expect(await db.groups.where('kind').equals('lesson').count()).toBe(0);
     expect((await getGroupWithWords(db, summary.pdfGroup!.id, 'de'))?.words).toHaveLength(FRUITS.length);
   });
 
@@ -272,7 +263,7 @@ describe('importing a PDF', () => {
       expect(again.info).toMatchObject({ remaining: 'none', namesCollection: true });
       const saved = await save(db, again, { pdfName: 'Yeni ad' });
       expect(saved.pdfGroup?.name).toBe('Yeni ad');
-      expect(await db.groups.where('kind').equals('lesson').count()).toBe(0);
+      expect(await db.groups.count()).toBe(1);
     });
 
     it('a word added by hand since then does not make a deleted file look imported', async () => {
@@ -290,21 +281,17 @@ describe('importing a PDF', () => {
     });
   });
 
-  it('source collections keep their words, a legacy lesson keeps its name, and custom lists stay independent', async () => {
+  it('a source collection keeps its words, and a custom list stays independent', async () => {
     const db = await fresh();
     const prepared = await prepare(db, LESSON_ONE);
     const summary = await commitImport(db, { source: prepared.source, drafts: prepared.drafts, target: { kind: 'new_group', name: 'Benim listem' }, collections: prepared.collections }, T0);
     expect(summary.group).toMatchObject({ kind: 'custom', sourceId: null });
-    const lesson = await seedLegacyLesson(db, summary.pdfGroup!.sourceId);
     const before = await createBackup(db, T0);
     const pdf = summary.pdfGroup!.id;
     const word = (await listActiveWords(db, 'de'))[0]!.id;
     const outsider = (await addWord(db, { lemma: 'Haus', article: 'das', meanings: ['ev'], plural: null }, null, [], T0, 'de')) as { word: { id: string } };
-    for (const id of [pdf, lesson]) {
-      await expect(addWordsToGroup(db, id, [outsider.word.id], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
-      await expect(removeWordsFromGroup(db, id, [word])).rejects.toBeInstanceOf(ProtectedGroupError);
-    }
-    await expect(renameGroup(db, lesson, 'x')).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(addWordsToGroup(db, pdf, [outsider.word.id], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(removeWordsFromGroup(db, pdf, [word])).rejects.toBeInstanceOf(ProtectedGroupError);
     await deleteWord(db, outsider.word.id);
     expect(await createBackup(db, T0)).toEqual(before);
   });
@@ -375,41 +362,6 @@ describe('renaming a PDF collection', () => {
   });
 });
 
-describe('legacy lesson collections', () => {
-  it('restore from a backup unchanged, memberships included', async () => {
-    const db = await fresh();
-    const summary = await save(db, await prepare(db, LESSON_ONE));
-    const lesson = await seedLegacyLesson(db, summary.pdfGroup!.sourceId);
-    const parsed = parseBackup(await exportBackupText(db, T0));
-    if (!parsed.ok) throw new Error('backup did not parse');
-    const target = await fresh();
-    await restoreBackup(target, parsed.backup);
-    expect(await target.groups.get(lesson)).toEqual(await db.groups.get(lesson));
-    expect(await target.groupMembers.where('[groupId+wordId]').between([lesson, ''], [lesson, '\uffff']).count()).toBe(FRUITS.length);
-    expect(await target.groups.toArray()).toEqual(await db.groups.toArray());
-    expect(await target.groupMembers.toArray()).toEqual(await db.groupMembers.toArray());
-  });
-
-  it('can be deleted by hand without touching words, cards, history, sources or the PDF collection', async () => {
-    const db = await fresh();
-    const summary = await save(db, await prepare(db, LESSON_ONE));
-    const lesson = await seedLegacyLesson(db, summary.pdfGroup!.sourceId);
-    const [word] = await listActiveWords(db, 'de');
-    await db.cards.add(makeCard(word!.id));
-    await db.reviewLogs.add({ wordId: word!.id, track: 'de_tr', at: T0, typed: 'elma', result: 'correct', hintsUsed: 0, mode: 'practice' });
-    await setFavorite(db, word!.id, true, T0);
-    const snapshot = async () => ({ words: await db.words.toArray(), cards: await db.cards.toArray(), logs: await db.reviewLogs.toArray(), sources: await db.sources.toArray(), rows: await db.importRows.toArray() });
-    const before = await snapshot();
-
-    expect((await previewGroupDeletion(db, [lesson])).ownWordIds).toEqual([]);
-    await deleteGroups(db, [lesson]);
-    expect(await db.groups.get(lesson)).toBeUndefined();
-    expect(await db.groupMembers.where('groupId').equals(lesson).count()).toBe(0);
-    expect(await snapshot()).toEqual(before);
-    expect((await getGroupWithWords(db, summary.pdfGroup!.id, 'de'))?.words).toHaveLength(FRUITS.length);
-  });
-});
-
 describe('importing a PDF again', () => {
   it('changes nothing the second time', async () => {
     const db = await fresh();
@@ -443,17 +395,15 @@ describe('importing a PDF again', () => {
     expect(summary.pdfGroup!.name).toBe('ders (2)');
     expect(await db.sources.count()).toBe(2);
     expect(await db.groups.where('kind').equals('pdf').count()).toBe(2);
-    expect(await db.groups.where('kind').equals('lesson').count()).toBe(0);
+    expect(await db.groups.count()).toBe(2);
     expect(await db.words.count()).toBe(7);
   });
 
-  it('creates no lesson, and leaves an existing legacy lesson and its memberships exactly as they were', async () => {
+  it('keeps the renamed PDF collection and its memberships, and makes no other collection', async () => {
     const db = await fresh();
     const first = await save(db, await prepare(db, LESSON_ONE));
     await renameGroup(db, first.pdfGroup!.id, 'Bölüm 1');
-    const lesson = await seedLegacyLesson(db, first.pdfGroup!.sourceId);
-    const lessonMembers = async () => db.groupMembers.where('[groupId+wordId]').between([lesson, ''], [lesson, '\uffff']).toArray();
-    const [groupsBefore, membersBefore] = [await db.groups.toArray(), await lessonMembers()];
+    const [groupsBefore, membersBefore] = [await db.groups.toArray(), await db.groupMembers.toArray()];
 
     const again = await prepare(db, LESSON_ONE);
     expect(again.collections).toEqual({ pdfName: 'ders' });
@@ -461,7 +411,7 @@ describe('importing a PDF again', () => {
     expect(summary).toMatchObject({ created: 0, sourceReused: true });
     expect(summary.pdfGroup).toMatchObject({ id: first.pdfGroup!.id, name: 'Bölüm 1' });
     expect(await db.groups.toArray()).toEqual(groupsBefore);
-    expect(await lessonMembers()).toEqual(membersBefore);
+    expect(await db.groupMembers.toArray()).toEqual(membersBefore);
   });
 
   it('completes rows excluded the first time, without doubling the others', async () => {

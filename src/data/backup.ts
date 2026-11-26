@@ -2,6 +2,7 @@ import { isLearningLanguage, LEARNING_LANGUAGES, type LearningLanguage } from '.
 import { V1_VALIDATORS, validateV1 } from './backupV1';
 import type { AppDatabase } from './db';
 import { isOnboarding, LEARNING_LANGUAGE_KEY, learningMetaEntries, ONBOARDING_KEY, readLearningLanguage } from './learningMeta';
+import { LEGACY_LESSON_KIND, withoutLessons } from './legacyLessons';
 import { OWNED_TABLES, SCHEMA_VERSION, TABLE_NAMES, type TableName } from './schema';
 import type { Onboarding } from './types';
 import { purgeMarkedWords } from './words';
@@ -10,6 +11,8 @@ const BACKUP_APP_ID = 'vosli';
 const BACKUP_FORMAT_VERSION = 1;
 /** The schema backups were made under before learning languages. It is converted, never restored as it is. */
 const LEGACY_SCHEMA_VERSION = 1;
+/** The last schema with lesson collections. Its backups are restored without them. */
+const LESSONS_SCHEMA_VERSION = 2;
 
 export interface BackupFile {
   app: typeof BACKUP_APP_ID;
@@ -98,9 +101,10 @@ function keyOf(table: TableName, row: Row): string[] {
 /**
  * The current checks. Each record has the shape its table needs, as in version 1, and a learning language where it
  * owns one. Then every link is checked: it must point at a record that exists, of the same language. Nothing here
- * repairs anything: a backup that fails is refused whole.
+ * repairs anything: a backup that fails is refused whole. A lesson collection is allowed only while an older backup
+ * is checked, before its lessons are left out: the current app never writes one.
  */
-function validateCurrent(tables: Row): BackupError[] {
+function validateCurrent(tables: Row, lessons: 'allowed' | 'refused' = 'refused'): BackupError[] {
   const errors: BackupError[] = [];
   for (const name of TABLE_NAMES) {
     const rows = tables[name];
@@ -110,7 +114,7 @@ function validateCurrent(tables: Row): BackupError[] {
     }
     const seen = new Set<string>();
     rows.forEach((row, index) => {
-      if (!isObject(row) || !V1_VALIDATORS[name](row)) {
+      if (!isObject(row) || !V1_VALIDATORS[name](row) || (name === 'groups' && lessons === 'refused' && row.kind === LEGACY_LESSON_KIND)) {
         errors.push({ code: 'invalid_record', detail: `${name}[${index}]` });
         return;
       }
@@ -194,8 +198,9 @@ function convertV1(tables: Row, exportedAt: number): { tables: Row } | { errors:
 /**
  * Validates a whole file before anything is written, and reports what is wrong instead of skipping rows. Only
  * the backup format and schema versions this app knows are read: a v1 backup is checked by the rules it was made
- * under, converted, then checked again by the current ones. A file never says which learning language it is from
- * by its name or the interface language it was saved in, only by what it holds.
+ * under, converted, then checked again by the current ones. A v1 or v2 backup is checked whole, lessons included,
+ * then restored without its lesson collections and their memberships; its words all stay. A file never says which
+ * learning language it is from by its name or the interface language it was saved in, only by what it holds.
  */
 export function parseBackup(text: string): ParsedBackup {
   let data: unknown;
@@ -212,7 +217,7 @@ export function parseBackup(text: string): ParsedBackup {
   if (Number.isInteger(backupVersion) && (backupVersion as number) > BACKUP_FORMAT_VERSION) return { ok: false, errors: [{ code: 'newer_format', detail: String(backupVersion) }] };
   if (backupVersion !== BACKUP_FORMAT_VERSION || !Number.isInteger(schemaVersion) || !isNumber(exportedAt)) return { ok: false, errors: [{ code: 'not_a_backup', detail: '' }] };
   if ((schemaVersion as number) > SCHEMA_VERSION) return { ok: false, errors: [{ code: 'newer_schema', detail: String(schemaVersion) }] };
-  if (schemaVersion !== SCHEMA_VERSION && schemaVersion !== LEGACY_SCHEMA_VERSION) return { ok: false, errors: [{ code: 'older_schema', detail: String(schemaVersion) }] };
+  if (schemaVersion !== SCHEMA_VERSION && schemaVersion !== LESSONS_SCHEMA_VERSION && schemaVersion !== LEGACY_SCHEMA_VERSION) return { ok: false, errors: [{ code: 'older_schema', detail: String(schemaVersion) }] };
 
   const legacy = schemaVersion === LEGACY_SCHEMA_VERSION;
   let tables: Row = data.tables;
@@ -222,6 +227,11 @@ export function parseBackup(text: string): ParsedBackup {
     const converted = convertV1(tables, exportedAt);
     if ('errors' in converted) return { ok: false, errors: converted.errors };
     tables = converted.tables;
+  }
+  if ((schemaVersion as number) <= LESSONS_SCHEMA_VERSION) {
+    const older = validateCurrent(tables, 'allowed');
+    if (older.length) return { ok: false, errors: older };
+    tables = withoutLessons(tables);
   }
 
   const errors = validateCurrent(tables);

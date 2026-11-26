@@ -424,22 +424,16 @@ describe('custom collections', () => {
     expect(await db.groups.get('g-custom')).toBeUndefined();
   });
 
-  it('protects the words of source collections from every edit, and a lesson from renaming', async () => {
+  it('protects the words of a source collection from every edit', async () => {
     const db = await fresh();
     await seedLibrary(db);
-    await db.groups.add({ id: 'g-lesson', language: 'de', kind: 'lesson', name: 'Lektion 1', order: 2, sourceId: 's1', createdAt: T0 });
-    await db.groupMembers.add({ groupId: 'g-lesson', wordId: 'w-apfel', addedAt: T0, importRowId: 'r1' });
     const before = await db.groupMembers.toArray();
-    for (const id of ['g-pdf', 'g-lesson']) {
-      await expect(addWordsToGroup(db, id, ['w-fuss'], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
-      await expect(removeWordFromGroup(db, id, 'w-apfel')).rejects.toBeInstanceOf(ProtectedGroupError);
-      await expect(removeWordsFromGroup(db, id, ['w-apfel'])).rejects.toBeInstanceOf(ProtectedGroupError);
-      await expect(restoreGroupMembers(db, [{ groupId: id, wordId: 'w-fuss', addedAt: T0, importRowId: null }])).rejects.toBeInstanceOf(ProtectedGroupError);
-      await expect(setWordCustomGroups(db, 'w-apfel', [id], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
-    }
-    await expect(renameGroup(db, 'g-lesson', 'x')).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(addWordsToGroup(db, 'g-pdf', ['w-fuss'], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(removeWordFromGroup(db, 'g-pdf', 'w-apfel')).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(removeWordsFromGroup(db, 'g-pdf', ['w-apfel'])).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(restoreGroupMembers(db, [{ groupId: 'g-pdf', wordId: 'w-fuss', addedAt: T0, importRowId: null }])).rejects.toBeInstanceOf(ProtectedGroupError);
+    await expect(setWordCustomGroups(db, 'w-apfel', ['g-pdf'], T0)).rejects.toBeInstanceOf(ProtectedGroupError);
     await expect(renameGroup(db, 'gone', 'x')).rejects.toThrow();
-    expect((await db.groups.get('g-lesson'))!.name).toBe('Lektion 1');
     expect(await db.groupMembers.toArray()).toEqual(before);
     // A PDF collection may be renamed; its memberships stay as they were.
     await renameGroup(db, 'g-pdf', 'Bölüm 1');

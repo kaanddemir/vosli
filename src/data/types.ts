@@ -6,7 +6,7 @@ import type { PartOfSpeech } from '../core/vocabulary';
 import type { LearningLanguage } from '../core/learningLanguage';
 
 export type { AnswerResult, LearningLanguage, PartOfSpeech, Track };
-export type GroupKind = 'pdf' | 'lesson' | 'custom';
+export type GroupKind = 'pdf' | 'custom';
 
 export interface Meaning {
   text: string;

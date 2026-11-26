@@ -82,9 +82,8 @@ test('a PDF goes from selection to the dictionary, with its source and collectio
   await openSettings(page);
   await expect(page.getByTestId('pdf-details')).toContainText('Ders+1.pdf');
   await expect(page.getByLabel(t.import.pdfCollection)).toHaveValue('Ders 1');
-  // Headings in the file make no lesson collections: the PDF collection is the only name asked for.
+  // Headings in the file make no collections of their own: the PDF collection is the only name asked for.
   await expect(page.locator('#pdf-collection')).toBeVisible();
-  await expect(page.locator('[id^="lesson-"]')).toHaveCount(0);
   expect(await dump(page, 'words')).toEqual([]);
 
   await commit(page);
@@ -102,8 +101,7 @@ test('a PDF goes from selection to the dictionary, with its source and collectio
   await expect(page.getByRole('main')).toContainText(t.import.page([2]));
   await expect(page.getByRole('main')).not.toContainText('Lektion 1');
   await page.getByRole('link', { name: t.nav.collections }).first().click();
-  await expect(page.getByRole('heading', { name: t.collections.kinds.pdf })).toBeVisible();
-  await expect(page.getByRole('heading', { name: t.collections.kinds.lesson })).toHaveCount(0);
+  await expect(page.getByRole('main').locator('.list-label')).toHaveText([t.collections.kinds.pdf]);
 });
 
 test('counts and notices wait behind the info icon, which says when one needs reading', async ({ page, browserName }) => {
@@ -326,7 +324,6 @@ test('the list starts high on a phone, with settings one tap away', async ({ pag
   await openSettings(page);
   await expect(page.getByTestId('pdf-details')).toContainText(t.import.notices.repaired(159));
   await expect(page.getByLabel(t.import.pdfCollection)).toBeVisible();
-  await expect(page.locator('[id^="lesson-"]')).toHaveCount(0);
 });
 
 test('an emptied collection name opens the settings to say so', async ({ page }) => {

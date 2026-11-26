@@ -339,7 +339,7 @@ const BLANK: FormValues = { german: '', article: 'none', turkish: '', plural: ''
 
 /**
  * A new word, from the Dictionary or from inside a list. From a list, that list is already ticked, and
- * saving or cancelling goes back to it. Only a list can be ticked: a PDF or legacy lesson address is a plain new word.
+ * saving or cancelling goes back to it. Only a list can be ticked: a PDF collection's address is a plain new word.
  */
 export function WordNewScreen({ groupId }: { groupId?: string | undefined } = {}) {
   const db = useDb();

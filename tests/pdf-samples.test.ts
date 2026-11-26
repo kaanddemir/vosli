@@ -12,9 +12,9 @@ import { readPdfText, type PdfLibrary } from '../src/pdf/readPdf';
  */
 const dir = process.env.PDF_SAMPLES ?? 'tests/fixtures/local';
 const samples = {
-  'konu.pdf': { sha: '640bd1f3d424ca21bfbd3e5b0eed422118490c6513341b9760cb2c2ed52417db', pages: [34, 11], truth: '8d071d87ef4f233c14da663d566b2d462ef40e8426bfbe11fc9381e067f98831', section: 'SELAMLAŞMA VE VEDALAŞMAK. - DIE GRUßFORMELN' },
-  'bolum-1.pdf': { sha: 'f714a4041cd00004c931bd697256dcfc48a86e94f9361e02073b7000e3927c18', pages: [34, 34, 13, 0], truth: '009bf16b8bb9a1ab6d652f7ce701302481441798c6d5eef9357d7e2aee02a387', section: 'ALFABE - DAS ALPHABET' },
-  'bolum-2.pdf': { sha: '57c4879bebf4a634fcd9b3475e8c06c282205ed98660660053e1ff8271166169', pages: [34, 34, 34, 34, 13], truth: '9105e611078cdbc76a4b938a77a4d1ba125b74fdeddb622b91d9eed31ac9846c', section: 'TELAFFUZ - DIE AUSSPRACHE' },
+  'konu.pdf': { sha: '640bd1f3d424ca21bfbd3e5b0eed422118490c6513341b9760cb2c2ed52417db', pages: [34, 11], truth: '8d071d87ef4f233c14da663d566b2d462ef40e8426bfbe11fc9381e067f98831' },
+  'bolum-1.pdf': { sha: 'f714a4041cd00004c931bd697256dcfc48a86e94f9361e02073b7000e3927c18', pages: [34, 34, 13, 0], truth: '009bf16b8bb9a1ab6d652f7ce701302481441798c6d5eef9357d7e2aee02a387' },
+  'bolum-2.pdf': { sha: '57c4879bebf4a634fcd9b3475e8c06c282205ed98660660053e1ff8271166169', pages: [34, 34, 34, 34, 13], truth: '9105e611078cdbc76a4b938a77a4d1ba125b74fdeddb622b91d9eed31ac9846c' },
 };
 const available = Object.keys(samples).every((name) => existsSync(`${dir}/${name}`));
 const fingerprint = (rows: readonly { german: string; article: string; turkish: string }[]) =>
@@ -30,7 +30,6 @@ describe.skipIf(!available)('the course PDFs', async () => {
       const result = await read(name);
       expect(result.pages.map((page) => page.rows)).toEqual(sample.pages);
       expect(fingerprint(result.rows)).toBe(sample.truth);
-      expect(result.sections).toEqual([sample.section]);
       expect(result.rows.filter((row) => row.flags.length)).toEqual([]);
     });
   }
